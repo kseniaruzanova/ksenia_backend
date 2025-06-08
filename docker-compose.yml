@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    ports:
+      - "7000:7000"
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
+      - PORT=7000
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Checking environment variables:' &&
+        echo 'MONGO_URI=' $$MONGO_URI &&
+        echo 'DB_NAME=' $$DB_NAME &&
+        echo 'TELEGRAM_BOT_TOKEN exists=' $${TELEGRAM_BOT_TOKEN:+yes} &&
+        npm start
+      "
