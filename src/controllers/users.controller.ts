@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import User from '../models/user.model';
 import { AuthRequest } from '../middleware/auth.middleware';
+import mongoose from 'mongoose';
 
 // Проверка, что запрос пришел от клиента
 const getCustomerId = (req: AuthRequest) => {
@@ -60,5 +61,75 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching user', error });
+    }
+};
+
+export const upsertUser = async (req: Request, res: Response) => {
+    const { chat_id, customerId, ...userData } = req.body;
+
+    if (!chat_id || !customerId) {
+        res.status(400).json({ message: 'chat_id and customerId are required' });
+        return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+        res.status(400).json({ message: 'Invalid customerId format' });
+        return;
+    }
+
+    try {
+        const user = await User.findOneAndUpdate(
+            { 
+                chat_id: chat_id,
+                customerId: customerId
+            },
+            { 
+                $set: {
+                    ...userData,
+                    chat_id: chat_id,
+                    customerId: customerId 
+                }
+            },
+            { 
+                new: true,
+                upsert: true,
+                runValidators: true
+            }
+        );
+
+        res.status(200).json({ message: 'User upserted successfully', user });
+    } catch (error) {
+        console.error('Error during user upsert:', error);
+        res.status(500).json({ message: 'Error upserting user', error });
+    }
+};
+
+export const checkUserExists = async (req: Request, res: Response) => {
+    const { chat_id, customerId } = req.body;
+
+    if (!chat_id || !customerId) {
+        res.status(400).json({ message: 'chat_id and customerId are required' });
+        return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+        res.status(400).json({ message: 'Invalid customerId format' });
+        return;
+    }
+
+    try {
+        const count = await User.countDocuments({ 
+            chat_id: chat_id,
+            customerId: customerId
+        });
+
+        if (count > 0) {
+            res.status(200).json({ exists: true });
+        } else {
+            res.status(200).json({ exists: false });
+        }
+    } catch (error) {
+        console.error('Error during user check:', error);
+        res.status(500).json({ message: 'Error checking user existence', error });
     }
 }; 
