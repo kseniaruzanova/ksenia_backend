@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 export interface AuthRequest extends Request {
-  user?: string | jwt.JwtPayload;
+  user?: {
+    username: string;
+    role: 'admin' | 'customer';
+    customerId?: string;
+    botToken?: string;
+  } & jwt.JwtPayload;
 }
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction): void => {
@@ -22,7 +27,19 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
 
   try {
     const decoded = jwt.verify(token, secret);
-    req.user = decoded;
+    req.user = decoded as AuthRequest['user'];
+    
+    const isCustomerRoute = req.originalUrl.includes('/api/messages') || req.originalUrl.includes('/api/users');
+    if (req.user?.role === 'admin' && isCustomerRoute) {
+        const allowedForAdmin = ['/api/customers', '/api/auth/login'];
+        const isAdminSpecificRoute = allowedForAdmin.some(route => req.originalUrl.startsWith(route));
+        
+        if (!isAdminSpecificRoute) {
+             res.status(403).json({ message: 'Forbidden: Admins cannot access customer-specific routes' });
+             return;
+        }
+    }
+
     next();
   } catch (error) {
     res.status(401).json({ message: 'Unauthorized: Invalid token' });

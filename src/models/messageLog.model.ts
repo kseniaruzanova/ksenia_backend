@@ -5,6 +5,7 @@ export interface IMessageLog extends Document {
     message: string;
     status: 'sent' | 'failed';
     error?: string;
+    customerId: Schema.Types.ObjectId;
     createdAt: Date;
 }
 
@@ -13,6 +14,7 @@ const messageLogSchema = new Schema<IMessageLog>({
     message: { type: String, required: true },
     status: { type: String, required: true, enum: ['sent', 'failed'] },
     error: { type: String },
+    customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
 }, {
     timestamps: true,
 });
