@@ -170,4 +170,40 @@ export const checkUserExists = async (req: Request, res: Response) => {
         console.error('Error during user check:', error);
         res.status(500).json({ message: 'Error checking user existence', error });
     }
+};
+
+// Временный эндпоинт для диагностики (только для админов)
+export const debugData = async (req: AuthRequest, res: Response) => {
+    const customerIdOrAdmin = getCustomerId(req);
+    
+    // Только админ может видеть отладочную информацию
+    if (customerIdOrAdmin !== 'admin') {
+        res.status(403).json({ message: 'Forbidden: Admin only' });
+        return;
+    }
+
+    try {
+        // Получаем всех пользователей с их customerId
+        const users = await User.find({}, 'chat_id customerId state').limit(20);
+        
+        // Получаем всех кастомеров
+        const Customer = require('../models/customer.model').default;
+        const customers = await Customer.find({}, 'username _id').limit(20);
+
+        res.json({
+            message: 'Debug data',
+            users: users.map(u => ({
+                chat_id: u.chat_id,
+                customerId: u.customerId.toString(),
+                state: u.state
+            })),
+            customers: customers.map((c: any) => ({
+                _id: c._id.toString(),
+                username: c.username
+            }))
+        });
+    } catch (error) {
+        console.error('Error in debug:', error);
+        res.status(500).json({ message: 'Error getting debug data', error });
+    }
 }; 
