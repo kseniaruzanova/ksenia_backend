@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Customer from '../models/customer.model';
 import { randomBytes } from 'crypto';
 import { AuthRequest } from '../middleware/auth.middleware';
+import mongoose from 'mongoose';
 
 // Функция для генерации случайного пароля
 const generatePassword = (length = 8) => {
@@ -166,5 +167,57 @@ export const updateMyProfile = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error('Error updating customer profile:', error);
         res.status(500).json({ message: 'Error updating profile', error });
+    }
+};
+
+// Эндпоинт для n8n - получение данных кастомера по customerId через API ключ
+export const getCustomerById = async (req: Request, res: Response) => {
+    try {
+        const { customerId } = req.body;
+
+        if (!customerId) {
+            res.status(400).json({ message: 'customerId is required' });
+            return;
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(customerId)) {
+            res.status(400).json({ message: 'Invalid customerId format' });
+            return;
+        }
+
+        // Получаем данные кастомера из базы (без пароля)
+        const customer = await Customer.findById(customerId).select('-password');
+        
+        if (!customer) {
+            res.status(404).json({ message: 'Customer not found' });
+            return;
+        }
+
+        console.log(`N8N requested customer data for: ${customer.username} (${customerId})`);
+
+        res.json({
+            success: true,
+            message: 'Customer data retrieved successfully',
+            customer: {
+                _id: customer._id,
+                username: customer.username,
+                botToken: customer.botToken,
+                currentPrice: customer.currentPrice,
+                basePrice: customer.basePrice,
+                cardNumber: customer.cardNumber,
+                cardHolderName: customer.cardHolderName,
+                otherCountries: customer.otherCountries,
+                sendTo: customer.sendTo,
+                createdAt: customer.createdAt,
+                updatedAt: customer.updatedAt
+            }
+        });
+    } catch (error) {
+        console.error('Error getting customer by ID for n8n:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error fetching customer data', 
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 }; 

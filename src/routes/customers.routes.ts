@@ -1,11 +1,15 @@
 import { Router } from 'express';
-import { createCustomer, getCustomers, deleteCustomer, getMyProfile, updateMyProfile } from '../controllers/customers.controller';
+import { createCustomer, getCustomers, deleteCustomer, getMyProfile, updateMyProfile, getCustomerById } from '../controllers/customers.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
 import customerSettingsRoutes from './customerSettings.routes';
 
 const router = Router();
 
-// Все роуты для управления клиентами защищены
+// Роуты для n8n, защищенные API-ключом
+router.post('/get-by-id', apiKeyMiddleware, getCustomerById);
+
+// Роуты защищенные JWT
 router.use(authMiddleware);
 
 // Роуты для кастомеров (собственные данные)
