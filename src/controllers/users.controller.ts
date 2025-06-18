@@ -88,6 +88,9 @@ export const upsertUser = async (req: Request, res: Response) => {
                     ...userData,
                     chat_id: chat_id,
                     customerId: customerId 
+                },
+                $setOnInsert: {
+                    state: 'step_1'
                 }
             },
             { 
