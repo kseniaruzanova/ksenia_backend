@@ -282,4 +282,92 @@ export const fixIndexes = async (req: AuthRequest, res: Response) => {
         console.error('Error fixing indexes:', error);
         res.status(500).json({ message: 'Error fixing indexes', error });
     }
+};
+
+// Эндпоинт для обновления конкретных полей пользователя (для n8n)
+export const updateUserFields = async (req: Request, res: Response) => {
+    try {
+        const { chat_id, customerId, answer_1, state, birthday, usermessage2 } = req.body;
+
+        if (!chat_id || !customerId) {
+            res.status(400).json({ 
+                success: false,
+                message: 'chat_id and customerId are required' 
+            });
+            return;
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(customerId)) {
+            res.status(400).json({ 
+                success: false,
+                message: 'Invalid customerId format' 
+            });
+            return;
+        }
+
+        // Строим объект с полями для обновления (только переданные поля)
+        const updateFields: any = {};
+        if (answer_1 !== undefined) updateFields.answer_1 = answer_1;
+        if (state !== undefined) updateFields.state = state;
+        if (birthday !== undefined) updateFields.birthday = birthday;
+        if (usermessage2 !== undefined) updateFields.usermessage2 = usermessage2;
+
+        // Проверяем что есть хотя бы одно поле для обновления
+        if (Object.keys(updateFields).length === 0) {
+            res.status(400).json({ 
+                success: false,
+                message: 'At least one field must be provided for update: answer_1, state, birthday, usermessage2' 
+            });
+            return;
+        }
+
+        console.log(`Updating user ${chat_id} for customer ${customerId} with fields:`, Object.keys(updateFields));
+
+        // Находим и обновляем пользователя
+        const user = await User.findOneAndUpdate(
+            { 
+                chat_id: chat_id,
+                customerId: customerId
+            },
+            { 
+                $set: updateFields
+            },
+            { 
+                new: true,
+                runValidators: true
+            }
+        );
+
+        if (!user) {
+            res.status(404).json({ 
+                success: false,
+                message: 'User not found with provided chat_id and customerId' 
+            });
+            return;
+        }
+
+        console.log(`Successfully updated user ${chat_id} for customer ${customerId}`);
+
+        res.status(200).json({ 
+            success: true,
+            message: 'User fields updated successfully', 
+            user: {
+                chat_id: user.chat_id,
+                customerId: user.customerId,
+                answer_1: user.answer_1,
+                state: user.state,
+                birthday: user.birthday,
+                usermessage2: user.usermessage2,
+                updatedAt: user.updatedAt
+            },
+            updatedFields: Object.keys(updateFields)
+        });
+    } catch (error) {
+        console.error('Error updating user fields:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error updating user fields', 
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 }; 
