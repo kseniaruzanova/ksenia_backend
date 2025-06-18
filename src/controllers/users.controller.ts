@@ -12,6 +12,7 @@ const getCustomerId = (req: AuthRequest) => {
     if (user?.role !== 'customer' || !user.customerId) {
         return null;
     }
+    console.log(req)
     return user.customerId;
 };
 
