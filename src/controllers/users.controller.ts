@@ -12,7 +12,7 @@ const getCustomerId = (req: AuthRequest) => {
     if (user?.role !== 'customer' || !user.customerId) {
         return null;
     }
-    console.log(req)
+    // console.log(req)
     return user.customerId;
 };
 
@@ -27,12 +27,18 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
         const { page = 1, limit = 10, chat_id, state } = req.query;
 
         const query: any = {};
+        
+        // Основная фильтрация по customerId - ВСЕГДА для кастомеров
         if (customerIdOrAdmin !== 'admin') {
-            query.customerId = customerIdOrAdmin;
+            query.customerId = customerIdOrAdmin; // Кастомер видит только своих пользователей
         }
+        // Админ может видеть всех пользователей всех кастомеров
 
+        // Дополнительные фильтры (опциональные) - работают в рамках уже отфильтрованных данных
         if (chat_id) query.chat_id = chat_id;
         if (state) query.state = state;
+
+        console.log(`Query for ${customerIdOrAdmin === 'admin' ? 'admin' : 'customer ' + customerIdOrAdmin}:`, query);
 
         const users = await User.find(query)
             .limit(Number(limit))
@@ -45,6 +51,8 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
             users,
             totalPages: Math.ceil(count / Number(limit)),
             currentPage: Number(page),
+            totalUsers: count,
+            isAdmin: customerIdOrAdmin === 'admin'
         });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users', error });
