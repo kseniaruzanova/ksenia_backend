@@ -6,13 +6,17 @@ import mongoose from 'mongoose';
 // Проверка, что запрос пришел от клиента
 const getCustomerId = (req: AuthRequest) => {
     const { user } = req;
+    console.log('User from JWT:', user);
+    
     if (user?.role === 'admin') {
         return 'admin'; // Специальное значение для администратора
     }
     if (user?.role !== 'customer' || !user.customerId) {
+        console.log('User validation failed:', { role: user?.role, customerId: user?.customerId });
         return null;
     }
     // console.log(req)
+    console.log('Customer ID from JWT:', user.customerId, 'Type:', typeof user.customerId);
     return user.customerId;
 };
 
@@ -30,7 +34,10 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
         
         // Основная фильтрация по customerId - ВСЕГДА для кастомеров
         if (customerIdOrAdmin !== 'admin') {
-            query.customerId = customerIdOrAdmin; // Кастомер видит только своих пользователей
+            // Преобразуем customerId в ObjectId для правильного сравнения
+            const customerObjectId = new mongoose.Types.ObjectId(customerIdOrAdmin);
+            query.customerId = customerObjectId;
+            console.log('Customer ObjectId for query:', customerObjectId);
         }
         // Админ может видеть всех пользователей всех кастомеров
 
@@ -47,6 +54,8 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
 
         const count = await User.countDocuments(query);
 
+        console.log(`Found ${count} users for query:`, query);
+
         res.json({
             users,
             totalPages: Math.ceil(count / Number(limit)),
@@ -55,20 +64,29 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
             isAdmin: customerIdOrAdmin === 'admin'
         });
     } catch (error) {
+        console.error('Error in getUsers:', error);
         res.status(500).json({ message: 'Error fetching users', error });
     }
 };
 
 export const getUserById = async (req: AuthRequest, res: Response) => {
-    const customerId = getCustomerId(req);
-    if (!customerId) {
+    const customerIdOrAdmin = getCustomerId(req);
+    if (!customerIdOrAdmin) {
         res.status(403).json({ message: 'Forbidden: This action is only for customers.' });
         return;
     }
     
     try {
         const chat_id = req.params.id;
-        const user = await User.findOne({ chat_id, customerId });
+        const query: any = { chat_id };
+        
+        // Кастомеры видят только своих пользователей
+        if (customerIdOrAdmin !== 'admin') {
+            const customerObjectId = new mongoose.Types.ObjectId(customerIdOrAdmin);
+            query.customerId = customerObjectId;
+        }
+        
+        const user = await User.findOne(query);
         
         if (!user) {
             res.status(404).json({ message: 'User not found' });
@@ -76,6 +94,7 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
         }
         res.json(user);
     } catch (error) {
+        console.error('Error in getUserById:', error);
         res.status(500).json({ message: 'Error fetching user', error });
     }
 };
