@@ -206,4 +206,80 @@ export const debugData = async (req: AuthRequest, res: Response) => {
         console.error('Error in debug:', error);
         res.status(500).json({ message: 'Error getting debug data', error });
     }
+};
+
+// Эндпоинт для исправления индексов (только для админа)
+export const fixIndexes = async (req: AuthRequest, res: Response) => {
+    const customerIdOrAdmin = getCustomerId(req);
+    
+    // Только админ может исправлять индексы
+    if (customerIdOrAdmin !== 'admin') {
+        res.status(403).json({ message: 'Forbidden: Admin only' });
+        return;
+    }
+
+    try {
+        console.log('Starting index fix process...');
+        
+        // Получаем текущие индексы
+        const indexes = await User.collection.listIndexes().toArray();
+        console.log('Current indexes:', JSON.stringify(indexes, null, 2));
+
+        // Ищем проблемный индекс только по chat_id
+        const chatIdIndex = indexes.find((idx: any) => 
+            idx.name === 'chat_id_1' || 
+            (idx.key && Object.keys(idx.key).length === 1 && idx.key.chat_id === 1)
+        );
+
+        let droppedIndex = null;
+        if (chatIdIndex) {
+            console.log('Found problematic index:', chatIdIndex.name);
+            try {
+                await User.collection.dropIndex(chatIdIndex.name);
+                droppedIndex = chatIdIndex.name;
+                console.log(`Dropped index: ${chatIdIndex.name}`);
+            } catch (error) {
+                console.log('Error dropping index (may not exist):', error);
+            }
+        }
+
+        // Проверяем есть ли правильный составной индекс
+        const compositeIndex = indexes.find((idx: any) => 
+            idx.key && 
+            idx.key.chat_id === 1 && 
+            idx.key.customerId === 1 &&
+            Object.keys(idx.key).length === 2
+        );
+
+        let createdIndex = null;
+        if (!compositeIndex) {
+            console.log('Creating proper composite index...');
+            await User.collection.createIndex(
+                { chat_id: 1, customerId: 1 }, 
+                { unique: true, name: 'chat_id_1_customerId_1' }
+            );
+            createdIndex = 'chat_id_1_customerId_1';
+            console.log('Created composite index: chat_id_1_customerId_1');
+        }
+
+        // Получаем финальные индексы
+        const finalIndexes = await User.collection.listIndexes().toArray();
+        
+        res.json({
+            message: 'Index fix completed',
+            actions: {
+                droppedIndex,
+                createdIndex,
+                hasProperIndex: !!compositeIndex || !!createdIndex
+            },
+            finalIndexes: finalIndexes.map((idx: any) => ({
+                name: idx.name,
+                key: idx.key,
+                unique: idx.unique || false
+            }))
+        });
+    } catch (error) {
+        console.error('Error fixing indexes:', error);
+        res.status(500).json({ message: 'Error fixing indexes', error });
+    }
 }; 

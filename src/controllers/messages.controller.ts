@@ -268,4 +268,84 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         res.status(500).json({ message: 'Error checking bot status', error });
     }
+};
+
+// Эндпоинт для n8n - отправка сообщения по customerId через API ключ
+export const sendMessageFromN8N = async (req: Request, res: Response) => {
+    try {
+        const { customerId, chat_id, message } = req.body;
+
+        // Валидация входных данных
+        if (!customerId || !chat_id || !message) {
+            res.status(400).json({ 
+                success: false,
+                message: 'customerId, chat_id and message are required' 
+            });
+            return;
+        }
+
+        // Импорт Customer модели
+        const Customer = require('../models/customer.model').default;
+        
+        // Получаем данные кастомера из базы
+        const customer = await Customer.findById(customerId);
+        
+        if (!customer) {
+            res.status(404).json({ 
+                success: false,
+                message: 'Customer not found' 
+            });
+            return;
+        }
+
+        if (!customer.botToken) {
+            res.status(400).json({ 
+                success: false,
+                message: 'Bot token not configured for this customer' 
+            });
+            return;
+        }
+
+        console.log(`N8N sending message via customer ${customer.username} (${customerId}) to chat ${chat_id}`);
+
+        // Отправляем сообщение используя токен бота кастомера
+        const result = await sendExternalMessage(customer.botToken, chat_id, message);
+        
+        // Сохраняем лог сообщения
+        const log = new MessageLog({
+            chat_id,
+            message,
+            status: result.success ? 'sent' : 'failed',
+            error: result.error,
+            customerId: customerId,
+        });
+        await log.save();
+
+        console.log(`Message ${result.success ? 'sent successfully' : 'failed'} from N8N via ${customer.username}`);
+
+        if (!result.success) {
+            res.status(500).json({ 
+                success: false,
+                message: 'Failed to send message', 
+                error: result.error,
+                customer: customer.username
+            });
+            return;
+        }
+
+        res.status(200).json({ 
+            success: true,
+            message: 'Message sent successfully via N8N',
+            customer: customer.username,
+            chat_id,
+            messageLength: message.length
+        });
+    } catch (error) {
+        console.error('Error in sendMessageFromN8N:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error sending message from N8N', 
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 }; 
