@@ -121,13 +121,13 @@ export const checkUserExists = async (req: Request, res: Response) => {
     }
 
     try {
-        const count = await User.countDocuments({ 
+        const user = await User.findOne({ 
             chat_id: chat_id,
             customerId: customerId
         });
 
-        if (count > 0) {
-            res.status(200).json({ exists: true });
+        if (user) {
+            res.status(200).json({ exists: true, state: user.state });
         } else {
             res.status(200).json({ exists: false });
         }
