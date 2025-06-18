@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Customer from '../models/customer.model';
 import { randomBytes } from 'crypto';
+import { AuthRequest } from '../middleware/auth.middleware';
 
 // Функция для генерации случайного пароля
 const generatePassword = (length = 8) => {
@@ -66,5 +67,104 @@ export const deleteCustomer = async (req: Request, res: Response) => {
         res.json({ message: 'Customer deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting customer', error });
+    }
+};
+
+// Эндпоинт для получения собственных данных кастомером
+export const getMyProfile = async (req: AuthRequest, res: Response) => {
+    try {
+        const { user } = req;
+        
+        // Проверяем что это кастомер
+        if (!user || user.role !== 'customer' || !user.customerId) {
+            res.status(403).json({ message: 'Forbidden: Only customers can access their profile' });
+            return;
+        }
+
+        // Получаем актуальные данные из базы
+        const customer = await Customer.findById(user.customerId).select('-password');
+        
+        if (!customer) {
+            res.status(404).json({ message: 'Customer profile not found' });
+            return;
+        }
+
+        console.log(`Customer ${customer.username} requested profile data`);
+
+        res.json({
+            message: 'Customer profile data',
+            profile: {
+                _id: customer._id,
+                username: customer.username,
+                botToken: customer.botToken,
+                currentPrice: customer.currentPrice,
+                basePrice: customer.basePrice,
+                cardNumber: customer.cardNumber,
+                cardHolderName: customer.cardHolderName,
+                otherCountries: customer.otherCountries,
+                sendTo: customer.sendTo,
+                createdAt: customer.createdAt,
+                updatedAt: customer.updatedAt
+            },
+            tokenData: {
+                customerId: user.customerId,
+                username: user.username,
+                botToken: user.botToken
+            }
+        });
+    } catch (error) {
+        console.error('Error getting customer profile:', error);
+        res.status(500).json({ message: 'Error fetching profile', error });
+    }
+};
+
+// Эндпоинт для обновления собственных данных кастомером
+export const updateMyProfile = async (req: AuthRequest, res: Response) => {
+    try {
+        const { user } = req;
+        
+        // Проверяем что это кастомер
+        if (!user || user.role !== 'customer' || !user.customerId) {
+            res.status(403).json({ message: 'Forbidden: Only customers can update their profile' });
+            return;
+        }
+
+        // Поля, которые кастомер может обновлять (исключаем пароль и username)
+        const allowedFields = ['botToken', 'currentPrice', 'basePrice', 'cardNumber', 'cardHolderName', 'otherCountries', 'sendTo'];
+        const updateData: any = {};
+
+        // Фильтруем только разрешенные поля
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                updateData[field] = req.body[field];
+            }
+        });
+
+        if (Object.keys(updateData).length === 0) {
+            res.status(400).json({ message: 'No valid fields to update', allowedFields });
+            return;
+        }
+
+        const updatedCustomer = await Customer.findByIdAndUpdate(
+            user.customerId,
+            updateData,
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!updatedCustomer) {
+            res.status(404).json({ message: 'Customer not found' });
+            return;
+        }
+
+        console.log(`Customer ${updatedCustomer.username} updated profile:`, Object.keys(updateData));
+
+        res.json({
+            message: 'Profile updated successfully',
+            profile: updatedCustomer,
+            updatedFields: Object.keys(updateData)
+        });
+    } catch (error) {
+        console.error('Error updating customer profile:', error);
+        res.status(500).json({ message: 'Error updating profile', error });
     }
 }; 
