@@ -127,7 +127,7 @@ export const checkUserExists = async (req: Request, res: Response) => {
         });
 
         if (user) {
-            res.status(200).json({ exists: true, state: user.state });
+            res.status(200).json({ exists: true, user: user });
         } else {
             res.status(200).json({ exists: false });
         }
