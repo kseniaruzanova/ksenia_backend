@@ -6,6 +6,9 @@ import mongoose from 'mongoose';
 // Проверка, что запрос пришел от клиента
 const getCustomerId = (req: AuthRequest) => {
     const { user } = req;
+    if (user?.role === 'admin') {
+        return 'admin'; // Специальное значение для администратора
+    }
     if (user?.role !== 'customer' || !user.customerId) {
         return null;
     }
@@ -13,8 +16,8 @@ const getCustomerId = (req: AuthRequest) => {
 };
 
 export const getUsers = async (req: AuthRequest, res: Response) => {
-    const customerId = getCustomerId(req);
-    if (!customerId) {
+    const customerIdOrAdmin = getCustomerId(req);
+    if (!customerIdOrAdmin) {
         res.status(403).json({ message: 'Forbidden: This action is only for customers.' });
         return;
     }
@@ -22,7 +25,11 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
     try {
         const { page = 1, limit = 10, chat_id, state } = req.query;
 
-        const query: any = { customerId };
+        const query: any = {};
+        if (customerIdOrAdmin !== 'admin') {
+            query.customerId = customerIdOrAdmin;
+        }
+
         if (chat_id) query.chat_id = chat_id;
         if (state) query.state = state;
 
