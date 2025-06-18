@@ -29,7 +29,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     const decoded = jwt.verify(token, secret);
     req.user = decoded as AuthRequest['user'];
     
-    const isCustomerRoute = req.originalUrl.includes('/api/messages') || req.originalUrl.includes('/api/users');
+    const isCustomerRoute = req.originalUrl.includes('/api/messages');
     if (req.user?.role === 'admin' && isCustomerRoute) {
         const allowedForAdmin = ['/api/customers', '/api/auth/login'];
         const isAdminSpecificRoute = allowedForAdmin.some(route => req.originalUrl.startsWith(route));
