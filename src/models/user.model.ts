@@ -10,6 +10,12 @@ export interface IUser extends Document {
   usermessage3?: string;
   answer_3?: string;
   answer_4?: string | null;
+  usermessage4?: string;
+  answer_5?: string;
+  usermessage5?: string;
+  answer_6?: string;
+  usermessage6?: string;
+  messages?: string[];
   customerId: Schema.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -25,6 +31,12 @@ const userSchema = new Schema<IUser>({
   usermessage3: { type: String },
   answer_3: { type: String },
   answer_4: { type: String, default: null },
+  usermessage4: { type: String },
+  answer_5: { type: String },
+  usermessage5: { type: String },
+  answer_6: { type: String },
+  usermessage6: { type: String },
+  messages: { type: [String] },
   customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
 }, {
   timestamps: true,

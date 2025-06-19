@@ -297,7 +297,13 @@ export const updateUserFields = async (req: Request, res: Response) => {
             answer_2,
             usermessage3,
             answer_3,
-            answer_4
+            answer_4,
+            usermessage4,
+            answer_5,
+            usermessage5,
+            answer_6,
+            usermessage6,
+            messages
         } = req.body;
 
         if (!chat_id || !customerId) {
@@ -326,12 +332,18 @@ export const updateUserFields = async (req: Request, res: Response) => {
         if (usermessage3 !== undefined) updateFields.usermessage3 = usermessage3;
         if (answer_3 !== undefined) updateFields.answer_3 = answer_3;
         if (answer_4 !== undefined) updateFields.answer_4 = answer_4;
+        if (usermessage4 !== undefined) updateFields.usermessage4 = usermessage4;
+        if (answer_5 !== undefined) updateFields.answer_5 = answer_5;
+        if (usermessage5 !== undefined) updateFields.usermessage5 = usermessage5;
+        if (answer_6 !== undefined) updateFields.answer_6 = answer_6;
+        if (usermessage6 !== undefined) updateFields.usermessage6 = usermessage6;
+        if (messages !== undefined) updateFields.messages = messages;
 
         // Проверяем что есть хотя бы одно поле для обновления
         if (Object.keys(updateFields).length === 0) {
             res.status(400).json({ 
                 success: false,
-                message: 'At least one field must be provided for update: answer_1, state, birthday, usermessage2, answer_2, usermessage3, answer_3, answer_4' 
+                message: 'At least one field must be provided for update: answer_1, state, birthday, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages' 
             });
             return;
         }
@@ -377,6 +389,12 @@ export const updateUserFields = async (req: Request, res: Response) => {
                 usermessage3: user.usermessage3,
                 answer_3: user.answer_3,
                 answer_4: user.answer_4,
+                usermessage4: user.usermessage4,
+                answer_5: user.answer_5,
+                usermessage5: user.usermessage5,
+                answer_6: user.answer_6,
+                usermessage6: user.usermessage6,
+                messages: user.messages,
                 updatedAt: user.updatedAt
             },
             updatedFields: Object.keys(updateFields)
