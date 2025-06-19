@@ -407,4 +407,84 @@ export const updateUserFields = async (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
+};
+
+// Эндпоинт для загрузки ВСЕХ пользователей одним запросом
+export const getAllUsers = async (req: AuthRequest, res: Response) => {
+    const customerIdOrAdmin = getCustomerId(req);
+    if (!customerIdOrAdmin) {
+        res.status(403).json({ message: 'Forbidden: This action is only for customers and admins.' });
+        return;
+    }
+
+    try {
+        const query: any = {};
+        
+        // Основная фильтрация по customerId - ВСЕГДА для кастомеров
+        if (customerIdOrAdmin !== 'admin') {
+            // Преобразуем customerId в ObjectId для правильного сравнения
+            const customerObjectId = new mongoose.Types.ObjectId(customerIdOrAdmin);
+            query.customerId = customerObjectId;
+            console.log(`Customer ${customerIdOrAdmin} requesting all their users`);
+        } else {
+            console.log('Admin requesting all users from all customers');
+        }
+
+        // Получаем всех пользователей без пагинации
+        const users = await User.find(query)
+            .sort({ createdAt: -1 }) // Сортировка по дате создания (новые первыми)
+            .exec();
+
+        console.log(`Found ${users.length} users for ${customerIdOrAdmin === 'admin' ? 'admin' : 'customer ' + customerIdOrAdmin}`);
+
+        // Если админ, группируем пользователей по кастомерам для удобства
+        if (customerIdOrAdmin === 'admin') {
+            // Получаем информацию о кастомерах
+            const Customer = require('../models/customer.model').default;
+            const customers = await Customer.find({}, 'username _id');
+            
+            // Создаем мапу кастомеров
+            const customerMap = new Map();
+            customers.forEach((customer: any) => {
+                customerMap.set(customer._id.toString(), customer.username);
+            });
+
+            // Группируем пользователей по кастомерам
+            const usersByCustomer: any = {};
+            users.forEach(user => {
+                const customerId = user.customerId.toString();
+                const customerName = customerMap.get(customerId) || 'Unknown Customer';
+                
+                if (!usersByCustomer[customerId]) {
+                    usersByCustomer[customerId] = {
+                        customerId,
+                        customerName,
+                        users: []
+                    };
+                }
+                usersByCustomer[customerId].users.push(user);
+            });
+
+            res.json({
+                message: 'All users data for admin',
+                isAdmin: true,
+                totalUsers: users.length,
+                totalCustomers: Object.keys(usersByCustomer).length,
+                usersByCustomer,
+                allUsers: users // Также возвращаем плоский список
+            });
+        } else {
+            // Для кастомера просто возвращаем его пользователей
+            res.json({
+                message: 'All users data for customer',
+                isAdmin: false,
+                customerId: customerIdOrAdmin,
+                totalUsers: users.length,
+                users
+            });
+        }
+    } catch (error) {
+        console.error('Error in getAllUsers:', error);
+        res.status(500).json({ message: 'Error fetching all users', error });
+    }
 }; 
