@@ -443,6 +443,8 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
             const Customer = require('../models/customer.model').default;
             const customers = await Customer.find({}, 'username _id');
             
+            console.log(`Found ${customers.length} customers in database`);
+            
             // Создаем мапу кастомеров
             const customerMap = new Map();
             customers.forEach((customer: any) => {
@@ -451,7 +453,21 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 
             // Группируем пользователей по кастомерам
             const usersByCustomer: any = {};
-            users.forEach(user => {
+            const usersWithoutCustomer: any[] = [];
+            
+            users.forEach((user, index) => {
+                // Проверяем что customerId существует
+                if (!user.customerId) {
+                    console.warn(`User ${user.chat_id || `at index ${index}`} has no customerId. User data:`, {
+                        chat_id: user.chat_id,
+                        state: user.state,
+                        customerId: user.customerId,
+                        _id: user._id
+                    });
+                    usersWithoutCustomer.push(user);
+                    return;
+                }
+                
                 const customerId = user.customerId.toString();
                 const customerName = customerMap.get(customerId) || 'Unknown Customer';
                 
@@ -465,11 +481,14 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
                 usersByCustomer[customerId].users.push(user);
             });
 
+            console.log(`Grouped users: ${Object.keys(usersByCustomer).length} customers, ${usersWithoutCustomer.length} users without customerId`);
+
             res.json({
                 message: 'All users data for admin',
                 isAdmin: true,
                 totalUsers: users.length,
                 totalCustomers: Object.keys(usersByCustomer).length,
+                usersWithoutCustomer: usersWithoutCustomer.length > 0 ? usersWithoutCustomer : undefined,
                 usersByCustomer,
                 allUsers: users // Также возвращаем плоский список
             });
