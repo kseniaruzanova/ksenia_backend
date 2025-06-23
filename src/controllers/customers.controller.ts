@@ -104,6 +104,7 @@ export const getMyProfile = async (req: AuthRequest, res: Response) => {
                 cardHolderName: customer.cardHolderName,
                 otherCountries: customer.otherCountries,
                 sendTo: customer.sendTo,
+                paymentInstructions: customer.paymentInstructions,
                 createdAt: customer.createdAt,
                 updatedAt: customer.updatedAt
             },
@@ -131,7 +132,7 @@ export const updateMyProfile = async (req: AuthRequest, res: Response) => {
         }
 
         // Поля, которые кастомер может обновлять (исключаем пароль и username)
-        const allowedFields = ['botToken', 'currentPrice', 'basePrice', 'cardNumber', 'cardHolderName', 'otherCountries', 'sendTo'];
+        const allowedFields = ['botToken', 'currentPrice', 'basePrice', 'cardNumber', 'cardHolderName', 'otherCountries', 'sendTo', 'paymentInstructions'];
         const updateData: any = {};
 
         // Фильтруем только разрешенные поля
@@ -208,6 +209,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
                 cardHolderName: customer.cardHolderName,
                 otherCountries: customer.otherCountries,
                 sendTo: customer.sendTo,
+                paymentInstructions: customer.paymentInstructions,
                 createdAt: customer.createdAt,
                 updatedAt: customer.updatedAt
             }

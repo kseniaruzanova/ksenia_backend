@@ -3,6 +3,7 @@ import { Telegraf } from 'telegraf';
 import MessageLog from '../models/messageLog.model';
 import User from '../models/user.model';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { botManager } from '../services/botManager.service';
 
 // Эта функция теперь принимает токен бота как аргумент
 const sendExternalMessage = async (botToken: string, chat_id: string, message: string): Promise<{ success: boolean; error?: string }> => {
@@ -116,7 +117,9 @@ export const sendSingleMessage = async (req: AuthRequest, res: Response) => {
     console.log(`Sending message to chat_id: ${chat_id}, message length: ${message.length}`);
 
     try {
-        const result = await sendExternalMessage(credentials.botToken, chat_id, message);
+        // Используем BotManager вместо создания нового экземпляра каждый раз
+        const result = await botManager.sendMessage(credentials.customerId, chat_id, message);
+        
         const log = new MessageLog({
             chat_id,
             message,
@@ -155,7 +158,9 @@ export const sendMassMessage = async (req: AuthRequest, res: Response) => {
 
     const results = [];
     for (const chat_id of chat_ids) {
-        const result = await sendExternalMessage(credentials.botToken, chat_id, message);
+        // Используем BotManager
+        const result = await botManager.sendMessage(credentials.customerId, chat_id, message);
+        
         const log = new MessageLog({
             chat_id,
             message,
@@ -188,7 +193,9 @@ export const broadcastMessage = async (req: AuthRequest, res: Response) => {
         
         const results = [];
         for (const user of users) {
-            const result = await sendExternalMessage(credentials.botToken, user.chat_id, message);
+            // Используем BotManager
+            const result = await botManager.sendMessage(credentials.customerId, user.chat_id, message);
+            
             const log = new MessageLog({
                 chat_id: user.chat_id,
                 message,
@@ -250,19 +257,18 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-        const result = await checkBotAndChat(credentials.botToken, chat_id);
+        // Используем BotManager для проверки статуса
+        const result = await botManager.checkBotStatus(credentials.customerId);
         
         if (result.success) {
             res.status(200).json({ 
-                message: 'Bot and chat are accessible',
-                botInfo: result.botInfo,
-                chatInfo: result.chatInfo
+                message: 'Bot accessible',
+                botInfo: result.botInfo
             });
         } else {
             res.status(400).json({ 
-                message: 'Bot or chat access issue',
-                error: result.error,
-                botInfo: result.botInfo
+                message: 'Bot access issue',
+                error: result.error
             });
         }
     } catch (error) {
@@ -284,32 +290,10 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             return;
         }
 
-        // Импорт Customer модели
-        const Customer = require('../models/customer.model').default;
-        
-        // Получаем данные кастомера из базы
-        const customer = await Customer.findById(customerId);
-        
-        if (!customer) {
-            res.status(404).json({ 
-                success: false,
-                message: 'Customer not found' 
-            });
-            return;
-        }
+        console.log(`N8N sending message via customer ${customerId} to chat ${chat_id}`);
 
-        if (!customer.botToken) {
-            res.status(400).json({ 
-                success: false,
-                message: 'Bot token not configured for this customer' 
-            });
-            return;
-        }
-
-        console.log(`N8N sending message via customer ${customer.username} (${customerId}) to chat ${chat_id}`);
-
-        // Отправляем сообщение используя токен бота кастомера
-        const result = await sendExternalMessage(customer.botToken, chat_id, message);
+        // Используем BotManager для отправки через n8n
+        const result = await botManager.sendMessage(customerId, chat_id, message);
         
         // Сохраняем лог сообщения
         const log = new MessageLog({
@@ -321,14 +305,15 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
         });
         await log.save();
 
-        console.log(`Message ${result.success ? 'sent successfully' : 'failed'} from N8N via ${customer.username}`);
+        const botInfo = botManager.getBotInfo(customerId);
+        console.log(`Message ${result.success ? 'sent successfully' : 'failed'} from N8N via ${botInfo?.username || 'unknown'}`);
 
         if (!result.success) {
             res.status(500).json({ 
                 success: false,
                 message: 'Failed to send message', 
                 error: result.error,
-                customer: customer.username
+                customer: botInfo?.username || 'unknown'
             });
             return;
         }
@@ -336,7 +321,7 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
         res.status(200).json({ 
             success: true,
             message: 'Message sent successfully via N8N',
-            customer: customer.username,
+            customer: botInfo?.username || 'unknown',
             chat_id,
             messageLength: message.length
         });
@@ -347,5 +332,65 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             message: 'Error sending message from N8N', 
             error: error instanceof Error ? error.message : 'Unknown error'
         });
+    }
+};
+
+// Новый эндпоинт для получения статистики ботов (для админа)
+export const getBotManagerStats = async (req: AuthRequest, res: Response) => {
+    const { user } = req;
+    
+    // Только админ может видеть статистику всех ботов
+    if (user?.role !== 'admin') {
+        res.status(403).json({ message: 'Forbidden: Admin only' });
+        return;
+    }
+
+    try {
+        const stats = botManager.getStats();
+        const allBots = botManager.getAllBots();
+        
+        const botsInfo = Array.from(allBots.values()).map(bot => ({
+            customerId: bot.customerId,
+            username: bot.username,
+            status: bot.status,
+            lastUpdated: bot.lastUpdated
+        }));
+
+        res.json({
+            message: 'Bot manager statistics',
+            stats,
+            bots: botsInfo,
+            timestamp: new Date()
+        });
+    } catch (error) {
+        console.error('Error getting bot manager stats:', error);
+        res.status(500).json({ message: 'Error fetching bot manager stats', error });
+    }
+};
+
+// Эндпоинт для принудительной синхронизации с базой данных (для админа)
+export const syncBotManager = async (req: AuthRequest, res: Response) => {
+    const { user } = req;
+    
+    // Только админ может запускать синхронизацию
+    if (user?.role !== 'admin') {
+        res.status(403).json({ message: 'Forbidden: Admin only' });
+        return;
+    }
+
+    try {
+        console.log('🔄 Manual sync requested by admin');
+        await botManager.syncWithDatabase();
+        
+        const stats = botManager.getStats();
+        
+        res.json({
+            message: 'Bot manager synchronized with database',
+            stats,
+            syncedAt: new Date()
+        });
+    } catch (error) {
+        console.error('Error syncing bot manager:', error);
+        res.status(500).json({ message: 'Error syncing bot manager', error });
     }
 }; 
