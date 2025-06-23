@@ -4,8 +4,12 @@ import User from '../models/user.model';
 import { EventEmitter } from 'events';
 
 // Конфигурация webhook
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://kseniaksenia.app.n8n.cloud/webhook-test/553f7b06-cbaa-40f8-9430-226fd44cbb30';
-const WEBHOOK_ENABLED = process.env.WEBHOOK_ENABLED !== 'false'; // По умолчанию включен
+const isDevelopment = process.env.mode === 'development';
+const WEBHOOK_URL = isDevelopment 
+    ? (process.env.WEBHOOK_URL_TEST || 'https://kseniaksenia.app.n8n.cloud/webhook-test/553f7b06-cbaa-40f8-9430-226fd44cbb30')
+    : (process.env.WEBHOOK_URL_PROD || 'https://kseniaksenia.app.n8n.cloud/webhook/553f7b06-cbaa-40f8-9430-226fd44cbb30');
+
+console.log(`🌐 Webhook configured for ${isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION'} mode: ${WEBHOOK_URL}`);
 
 // Вспомогательные функции для обработки типов сообщений
 function getMessageType(message: any): string {
