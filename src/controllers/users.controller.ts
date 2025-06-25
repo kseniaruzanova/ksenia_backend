@@ -125,7 +125,7 @@ export const upsertUser = async (req: Request, res: Response) => {
                     customerId: customerId 
                 },
                 $setOnInsert: {
-                    state: 'step_1'
+                    state: 'new_chat'
                 }
             },
             { 
