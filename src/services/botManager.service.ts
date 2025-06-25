@@ -275,8 +275,7 @@ class BotManager extends EventEmitter {
                     { upsert: true, new: true }
                 );
 
-                // Отправляем простое приветствие
-                await ctx.reply(`Добро пожаловать! 👋\nБот готов к работе.`);
+                // Приветствие отправляется через n8n
                 
                 this.emit('message:received', {
                     customerId,
@@ -372,7 +371,7 @@ class BotManager extends EventEmitter {
                     caption: caption
                 });
 
-                await ctx.reply('Фото получено! 📸');
+                // Ответ обрабатывается через n8n
                 
                 this.emit('message:received', {
                     customerId,
@@ -411,7 +410,7 @@ class BotManager extends EventEmitter {
                     document: ctx.message.document
                 });
 
-                await ctx.reply('Документ получен! 📄');
+                // Ответ обрабатывается через n8n
                 
                 this.emit('message:received', {
                     customerId,
