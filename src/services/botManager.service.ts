@@ -268,6 +268,7 @@ class BotManager extends EventEmitter {
                             customerId: customerId
                         },
                         $setOnInsert: {
+                            state: 'step_1',
                             createdAt: new Date()
                         }
                     },
@@ -324,7 +325,8 @@ class BotManager extends EventEmitter {
                     // Если пользователя нет, создаем его
                     user = await User.create({
                         chat_id: chatId,
-                        customerId: customerId
+                        customerId: customerId,
+                        state: 'step_1'
                     });
                 }
 
