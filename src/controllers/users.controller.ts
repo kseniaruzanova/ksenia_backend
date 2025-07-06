@@ -28,7 +28,7 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-        const { page = 1, limit = 10, chat_id, state } = req.query;
+        const { page = 1, limit = 10, chat_id, state, sortBy } = req.query;
 
         const query: any = {};
         
@@ -47,10 +47,20 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
 
         console.log(`Query for ${customerIdOrAdmin === 'admin' ? 'admin' : 'customer ' + customerIdOrAdmin}:`, query);
 
-        const users = await User.find(query)
+        // Настройка сортировки
+        const sortOptions: any = {};
+        if (sortBy === 'recent') {
+            sortOptions.updatedAt = -1; // Сначала самые свежие
+        } else {
+            sortOptions.createdAt = -1; // По умолчанию - сначала новые
+        }
+
+        const usersQuery = User.find(query)
+            .sort(sortOptions)
             .limit(Number(limit))
-            .skip((Number(page) - 1) * Number(limit))
-            .exec();
+            .skip((Number(page) - 1) * Number(limit));
+            
+        const users = await usersQuery.exec();
 
         const count = await User.countDocuments(query);
 

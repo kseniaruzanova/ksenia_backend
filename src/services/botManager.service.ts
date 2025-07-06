@@ -286,7 +286,7 @@ class BotManager extends EventEmitter {
                 });
             } catch (error) {
                 console.error(`❌ Error handling /start for customer ${username}:`, error);
-                await ctx.reply('Произошла ошибка при регистрации. Попробуйте позже.');
+                // Ошибки обрабатываются через n8n
             }
         });
 
@@ -341,7 +341,7 @@ class BotManager extends EventEmitter {
                 });
             } catch (error) {
                 console.error(`❌ Error handling text message for customer ${username}:`, error);
-                await ctx.reply('Произошла ошибка при обработке сообщения.');
+                // Ошибки обрабатываются через n8n
             }
         });
 
@@ -381,7 +381,7 @@ class BotManager extends EventEmitter {
                 });
             } catch (error) {
                 console.error(`❌ Error handling photo for customer ${username}:`, error);
-                await ctx.reply('Ошибка при обработке фото.');
+                // Ошибки обрабатываются через n8n
             }
         });
 
@@ -420,7 +420,7 @@ class BotManager extends EventEmitter {
                 });
             } catch (error) {
                 console.error(`❌ Error handling document for customer ${username}:`, error);
-                await ctx.reply('Ошибка при обработке документа.');
+                // Ошибки обрабатываются через n8n
             }
         });
 
@@ -466,7 +466,7 @@ class BotManager extends EventEmitter {
                     from: ctx.from
                 });
 
-                await ctx.reply(`${getMessageTypeEmoji(messageType)} ${getMessageTypeText(messageType)} получено!`);
+                // Ответ обрабатывается через n8n
                 
                 this.emit('message:received', {
                     customerId,
@@ -476,7 +476,7 @@ class BotManager extends EventEmitter {
                 });
             } catch (error) {
                 console.error(`❌ Error handling ${messageType} for customer ${username}:`, error);
-                await ctx.reply('Ошибка при обработке сообщения.');
+                // Ошибки обрабатываются через n8n
             }
         });
 
@@ -486,8 +486,6 @@ class BotManager extends EventEmitter {
             this.emit('bot:message:error', { customerId, username, error: err, ctx });
         });
     }
-
-
 
     // Простая обработка сообщений пользователя - только сохранение
     private async handleUserMessage(ctx: any, user: any, text: string, customerId: string, username: string) {
