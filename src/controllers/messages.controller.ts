@@ -279,7 +279,7 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для n8n - отправка сообщения по customerId через API ключ
 export const sendMessageFromN8N = async (req: Request, res: Response) => {
     try {
-        const { customerId, chat_id, message, showWantButton } = req.body;
+        const { customerId, chat_id, message, showWantButton, removeKeyboard } = req.body;
 
         // Валидация входных данных
         if (!customerId || !chat_id || !message) {
@@ -290,10 +290,16 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             return;
         }
 
-        console.log(`N8N sending message via customer ${customerId} to chat ${chat_id}${showWantButton ? ' with want button' : ''}`);
+        let logMessage = `N8N sending message via customer ${customerId} to chat ${chat_id}`;
+        if (removeKeyboard) {
+            logMessage += ' with keyboard removal';
+        } else if (showWantButton) {
+            logMessage += ' with want button';
+        }
+        console.log(logMessage);
 
         // Используем BotManager для отправки через n8n
-        const result = await botManager.sendMessage(customerId, chat_id, message, showWantButton || false);
+        const result = await botManager.sendMessage(customerId, chat_id, message, showWantButton || false, removeKeyboard || false);
         
         // Сохраняем лог сообщения
         const log = new MessageLog({
@@ -324,7 +330,8 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             customer: botInfo?.username || 'unknown',
             chat_id,
             messageLength: message.length,
-            showWantButton: showWantButton || false
+            showWantButton: showWantButton || false,
+            removeKeyboard: removeKeyboard || false
         });
     } catch (error) {
         console.error('Error in sendMessageFromN8N:', error);

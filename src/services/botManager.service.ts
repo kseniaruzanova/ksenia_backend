@@ -825,7 +825,7 @@ class BotManager extends EventEmitter {
     }
 
     // Отправка сообщения через конкретного бота
-    async sendMessage(customerId: string, chatId: string, message: string, showWantButton: boolean = false): Promise<{ success: boolean; error?: string }> {
+    async sendMessage(customerId: string, chatId: string, message: string, showWantButton: boolean = false, removeKeyboard: boolean = false): Promise<{ success: boolean; error?: string }> {
         const bot = this.getBot(customerId);
         const botInfo = this.getBotInfo(customerId);
         
@@ -839,7 +839,14 @@ class BotManager extends EventEmitter {
         }
 
         try {
-            if (showWantButton) {
+            if (removeKeyboard) {
+                // Отправляем сообщение и удаляем клавиатуру
+                await bot.telegram.sendMessage(chatId, message, {
+                    reply_markup: {
+                        remove_keyboard: true
+                    }
+                });
+            } else if (showWantButton) {
                 // Отправляем сообщение с текстовой кнопкой "Хочу"
                 await bot.telegram.sendMessage(chatId, message, {
                     reply_markup: {
@@ -855,7 +862,7 @@ class BotManager extends EventEmitter {
                 await bot.telegram.sendMessage(chatId, message);
             }
             
-            this.emit('message:sent', { customerId, chatId, messageLength: message.length, hasButton: showWantButton });
+            this.emit('message:sent', { customerId, chatId, messageLength: message.length, hasButton: showWantButton, removedKeyboard: removeKeyboard });
             return { success: true };
         } catch (error: any) {
             console.error(`❌ Failed to send message via bot for customer ${botInfo.username}:`, error);

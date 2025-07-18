@@ -18,7 +18,8 @@
   "customerId": "string",      // ID клиента (обязательный)
   "chat_id": "string",         // ID чата в Telegram (обязательный)
   "message": "string",         // Текст сообщения (обязательный)
-  "showWantButton": boolean    // Показать кнопку "Хочу" (необязательный, по умолчанию false)
+  "showWantButton": boolean,   // Показать кнопку "Хочу" (необязательный, по умолчанию false)
+  "removeKeyboard": boolean    // Удалить клавиатуру (необязательный, по умолчанию false)
 }
 ```
 
@@ -49,6 +50,19 @@ curl -X POST http://your-server/api/messages/send-from-n8n \
   }'
 ```
 
+#### 3. Сообщение с удалением клавиатуры
+```bash
+curl -X POST http://your-server/api/messages/send-from-n8n \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "customerId": "507f1f77bcf86cd799439011",
+    "chat_id": "123456789",
+    "message": "Спасибо за ответ! Клавиатура скрыта.",
+    "removeKeyboard": true
+  }'
+```
+
 ### Ответы
 
 #### Успешный ответ (200)
@@ -59,7 +73,8 @@ curl -X POST http://your-server/api/messages/send-from-n8n \
   "customer": "bot_username",
   "chat_id": "123456789",
   "messageLength": 25,
-  "showWantButton": false
+  "showWantButton": false,
+  "removeKeyboard": false
 }
 ```
 
@@ -90,12 +105,22 @@ curl -X POST http://your-server/api/messages/send-from-n8n \
   - `resize_keyboard: true` - подгоняется под размер экрана
   - `one_time_keyboard: true` - скрывается после нажатия
 
-### Обработка нажатий кнопки
+### Управление клавиатурой
 
+#### Показ кнопки "Хочу" (`showWantButton: true`)
 Когда пользователь нажимает кнопку "Хочу":
 - Отправляется обычное текстовое сообщение "Хочу"
 - Это сообщение обрабатывается как обычный текст через webhook
 - Кнопка автоматически скрывается (из-за `one_time_keyboard: true`)
+
+#### Удаление клавиатуры (`removeKeyboard: true`)
+Когда нужно принудительно убрать клавиатуру с экрана пользователя:
+- Отправляется сообщение с `remove_keyboard: true`
+- Все текстовые кнопки исчезают с экрана пользователя
+- Полезно для завершения диалогов или смены контекста
+
+#### Приоритет параметров
+Если одновременно переданы `showWantButton: true` и `removeKeyboard: true`, то приоритет имеет `removeKeyboard` - клавиатура будет удалена.
 
 ### Интеграция с N8N
 
@@ -103,6 +128,7 @@ curl -X POST http://your-server/api/messages/send-from-n8n \
 1. Отправки обычных информационных сообщений
 2. Отправки предложений с кнопкой для быстрого ответа
 3. Создания интерактивных диалогов
+4. Управления отображением клавиатуры (показ/скрытие)
 
 Пример узла HTTP Request в N8N:
 ```json
@@ -117,7 +143,8 @@ curl -X POST http://your-server/api/messages/send-from-n8n \
     "customerId": "{{ $json.customerId }}",
     "chat_id": "{{ $json.chat_id }}",
     "message": "{{ $json.message }}",
-    "showWantButton": "{{ $json.showWantButton || false }}"
+    "showWantButton": "{{ $json.showWantButton || false }}",
+    "removeKeyboard": "{{ $json.removeKeyboard || false }}"
   }
 }
 ``` 
