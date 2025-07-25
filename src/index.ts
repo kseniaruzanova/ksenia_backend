@@ -9,6 +9,7 @@ import userRoutes from './routes/users.routes';
 import messageRoutes from './routes/messages.routes';
 import customerRoutes from './routes/customers.routes';
 import incomingMessagesRoutes from './routes/incomingMessages.routes';
+import forecastRoutes from './routes/forecastRoutes';
 
 dotenv.config();
 
@@ -22,7 +23,7 @@ const initializeApp = async () => {
         console.log('✅ Database connected');
         
         // Инициализируем BotManager после подключения к БД
-        await botManager.initialize();
+        // await botManager.initialize();
         console.log('✅ BotManager initialized');
         
         // Слушаем события от BotManager
@@ -104,6 +105,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/incoming', incomingMessagesRoutes);
+app.use('/api/forecast', forecastRoutes);
 
 const PORT = process.env.PORT || 3000;
 
