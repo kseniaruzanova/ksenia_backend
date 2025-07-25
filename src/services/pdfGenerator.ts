@@ -38,10 +38,29 @@ export function generateForecastPdf(
   doc.registerFont("DejaVu-Bold", fontBoldPath);
 
   // --- Заголовок документа ---
+  
+  // Добавляем изображение
+  try {
+    // Центрируем изображение по горизонтали
+    const imageWidth = 200;
+    const imageHeight = 150;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/photo_2025-07-25_20-34-07.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    // Перемещаем курсор ниже изображения
+    doc.y = doc.y + imageHeight + 20; // 20 пикселей дополнительного отступа
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
   doc
     .font("DejaVu-Bold")
     .fontSize(24)
-    .text("Ваш нумерологический прогноз", { align: "center" });
+    .text("Ваш Тароскоп", { align: "center" });
   doc
     .font("DejaVu-Regular")
     .fontSize(14)
@@ -54,6 +73,18 @@ export function generateForecastPdf(
 
   // Дверь года
   doc.font("DejaVu-Bold").fontSize(14).text("ДВЕРЬ ГОДА: Ваш главный шанс");
+  
+  // Добавляем изображение карты Таро (если есть)
+  // const cardImagePath = `./src/assets/images/cards/${data.yearDoor.arcanum}.jpg`;
+  // try {
+  //   doc.image(cardImagePath, {
+  //     fit: [80, 120],
+  //     align: 'left'
+  //   });
+  // } catch (error) {
+  //   // Если изображение не найдено, продолжаем без него
+  // }
+  
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
