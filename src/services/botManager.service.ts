@@ -5,9 +5,9 @@ import { EventEmitter } from 'events';
 
 // Конфигурация webhook
 const isDevelopment = process.env.mode === 'development';
-const WEBHOOK_URL = isDevelopment 
-    ? (process.env.WEBHOOK_URL_TEST || 'https://kseniaksenia.app.n8n.cloud/webhook-test/553f7b06-cbaa-40f8-9430-226fd44cbb30')
-    : (process.env.WEBHOOK_URL_PROD || 'https://kseniaksenia.app.n8n.cloud/webhook/553f7b06-cbaa-40f8-9430-226fd44cbb30');
+const WEBHOOK_URL = isDevelopment
+  ? (process.env.WEBHOOK_URL_TEST || 'https://kseniaksenia.app.n8n.cloud/webhook-test/553f7b06-cbaa-40f8-9430-226fd44cbb30')
+  : (process.env.WEBHOOK_URL_PROD || 'https://kseniaksenia.app.n8n.cloud/webhook/553f7b06-cbaa-40f8-9430-226fd44cbb30');
 
 console.log(`🌐 Webhook configured for ${isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION'} mode: ${WEBHOOK_URL}`);
 
@@ -107,12 +107,12 @@ class BotManager extends EventEmitter {
 
         // Пропускаем внутренние объекты Node.js/Telegraf, которые могут содержать циклы
         if (obj.constructor && (
-            obj.constructor.name === 'TLSSocket' ||
-            obj.constructor.name === 'HTTPParser' ||
-            obj.constructor.name === 'ClientRequest' ||
-            obj.constructor.name === 'IncomingMessage' ||
-            obj.constructor.name === 'Socket' ||
-            obj.constructor.name === 'Server'
+          obj.constructor.name === 'TLSSocket' ||
+          obj.constructor.name === 'HTTPParser' ||
+          obj.constructor.name === 'ClientRequest' ||
+          obj.constructor.name === 'IncomingMessage' ||
+          obj.constructor.name === 'Socket' ||
+          obj.constructor.name === 'Server'
         )) {
             return '[Internal Node.js Object]';
         }
@@ -123,7 +123,7 @@ class BotManager extends EventEmitter {
         for (const key in obj) {
             try {
                 const value = obj[key];
-                
+
                 if (value && typeof value === 'object') {
                     if (seen.has(value)) {
                         cleaned[key] = '[Circular Reference]';
@@ -190,11 +190,11 @@ class BotManager extends EventEmitter {
     // Инициализация - загружаем всех ботов
     async initialize() {
         console.log('🔄 Initializing BotManager...');
-        
+
         try {
             // Загружаем всех существующих кастомеров
             await this.loadAllBots();
-            
+
             console.log(`✅ BotManager initialized with ${this.bots.size} bots`);
             console.log('📡 Using Mongoose middleware for change detection (no replica set required)');
             this.emit('manager:initialized', { botsCount: this.bots.size });
@@ -207,19 +207,19 @@ class BotManager extends EventEmitter {
     // Загружаем всех ботов из базы
     private async loadAllBots() {
         console.log('🔍 Loading all customers from database...');
-        
+
         const customers = await Customer.find({}, 'username botToken _id');
         console.log(`📊 Found ${customers.length} customers in database`);
-        
+
         if (customers.length === 0) {
             console.log('⚠️ No customers found in database');
             return;
         }
-        
+
         // Обрабатываем всех кастомеров параллельно
         const botPromises = customers.map(async (customer) => {
             console.log(`👤 Processing customer: ${customer.username}, has token: ${!!customer.botToken}`);
-            
+
             if (customer.botToken) {
                 try {
                     await this.addBot((customer._id as any).toString(), customer.username, customer.botToken);
@@ -230,10 +230,10 @@ class BotManager extends EventEmitter {
                 console.log(`⚠️ Customer ${customer.username} has no bot token`);
             }
         });
-        
+
         // Ждем завершения обработки всех кастомеров
         await Promise.allSettled(botPromises);
-        
+
         console.log(`🎯 Loaded ${this.bots.size} bots out of ${customers.length} customers`);
     }
 
@@ -261,22 +261,21 @@ class BotManager extends EventEmitter {
 
                 // Создаем или обновляем пользователя
                 await User.findOneAndUpdate(
-                    { chat_id: chatId, customerId: customerId },
-                    {
-                        $set: {
-                            chat_id: chatId,
-                            customerId: customerId
-                        },
-                        $setOnInsert: {
-                            state: 'new_chat',
-                            createdAt: new Date()
-                        }
-                    },
-                    { upsert: true, new: true }
+                  { chat_id: chatId, customerId: customerId },
+                  {
+                      $set: {
+                          chat_id: chatId,
+                          customerId: customerId
+                      },
+                      $setOnInsert: {
+                          state: 'new_chat',
+                          createdAt: new Date()
+                      }
+                  },
+                  { upsert: true, new: true }
                 );
 
                 // Приветствие отправляется через n8n
-                
                 this.emit('message:received', {
                     customerId,
                     chatId,
@@ -319,7 +318,7 @@ class BotManager extends EventEmitter {
 
                 // Находим пользователя
                 let user = await User.findOne({ chat_id: chatId, customerId: customerId });
-                
+
                 if (!user) {
                     // Если пользователя нет, создаем его
                     user = await User.create({
@@ -331,7 +330,7 @@ class BotManager extends EventEmitter {
 
                 // Обрабатываем сообщение в зависимости от состояния пользователя
                 await this.handleUserMessage(ctx, user, text, customerId, username);
-                
+
                 this.emit('message:received', {
                     customerId,
                     chatId,
@@ -349,9 +348,9 @@ class BotManager extends EventEmitter {
         bot.on('photo', async (ctx) => {
             const chatId = ctx.chat.id.toString();
             const caption = ctx.message.caption || '';
-            
+
             console.log(`📸 Photo received in chat ${chatId} with caption: "${caption}" for customer ${username}`);
-            
+
             try {
                 // Отправляем Update на webhook
                 await this.sendToWebhook(customerId, {
@@ -372,7 +371,7 @@ class BotManager extends EventEmitter {
                 });
 
                 // Ответ обрабатывается через n8n
-                
+
                 this.emit('message:received', {
                     customerId,
                     chatId,
@@ -389,9 +388,9 @@ class BotManager extends EventEmitter {
         bot.on('document', async (ctx) => {
             const chatId = ctx.chat.id.toString();
             const fileName = ctx.message.document.file_name || 'unknown';
-            
+
             console.log(`📄 Document received in chat ${chatId}: ${fileName} for customer ${username}`);
-            
+
             try {
                 // Отправляем Update на webhook
                 await this.sendToWebhook(customerId, {
@@ -411,7 +410,7 @@ class BotManager extends EventEmitter {
                 });
 
                 // Ответ обрабатывается через n8n
-                
+
                 this.emit('message:received', {
                     customerId,
                     chatId,
@@ -428,18 +427,18 @@ class BotManager extends EventEmitter {
         bot.on('message', async (ctx) => {
             const chatId = ctx.chat.id.toString();
             const messageType = getMessageType(ctx.message);
-            
+
             // Пропускаем уже обработанные типы
             if (['text', 'photo', 'document'].includes(messageType)) {
                 return;
             }
 
             console.log(`📨 ${messageType} message received in chat ${chatId} for customer ${username}`);
-            
+
             try {
                 // Приводим ctx.message к any для доступа к специфичным полям
                 const message: any = ctx.message;
-                
+
                 // Отправляем Update на webhook для всех остальных типов
                 await this.sendToWebhook(customerId, {
                     update_id: ctx.update.update_id,
@@ -467,7 +466,7 @@ class BotManager extends EventEmitter {
                 });
 
                 // Ответ обрабатывается через n8n
-                
+
                 this.emit('message:received', {
                     customerId,
                     chatId,
@@ -490,22 +489,22 @@ class BotManager extends EventEmitter {
     // Простая обработка сообщений пользователя - только сохранение
     private async handleUserMessage(ctx: any, user: any, text: string, customerId: string, username: string) {
         const chatId = ctx.chat.id.toString();
-        
+
         try {
             // Просто сохраняем сообщение в базу, state управляется через API
             await User.findByIdAndUpdate(
-                user._id,
-                { 
-                    $push: { 
-                        messages: `${new Date().toISOString()}: ${text}` 
-                    }
-                },
-                { new: true }
+              user._id,
+              {
+                  $push: {
+                      messages: `${new Date().toISOString()}: ${text}`
+                  }
+              },
+              { new: true }
             );
-            
+
             // Основная работа - это отправка на webhook, которая происходит выше
             console.log(`💾 Message saved for user ${chatId} from customer ${username}`);
-            
+
         } catch (error) {
             console.error(`❌ Error saving message for user ${chatId}:`, error);
         }
@@ -521,38 +520,38 @@ class BotManager extends EventEmitter {
         try {
             // Запускаем бота в режиме polling БЕЗ await чтобы не блокировать выполнение
             console.log(`📡 Launching bot polling for ${botInstance.username}...`);
-            
+
             // Запускаем polling асинхронно, не ждем завершения
             botInstance.bot.launch().then(() => {
                 console.log(`✅ Bot polling started successfully for ${botInstance.username}`);
                 botInstance.isListening = true;
-                
+
                 console.log(`👂 Bot started listening for customer: ${botInstance.username}`);
-                this.emit('bot:listening:started', { 
-                    customerId: botInstance.customerId, 
-                    username: botInstance.username 
+                this.emit('bot:listening:started', {
+                    customerId: botInstance.customerId,
+                    username: botInstance.username
                 });
             }).catch((error) => {
                 console.error(`❌ Failed to start listening for customer ${botInstance.username}:`, error);
                 botInstance.status = 'error';
-                this.emit('bot:listening:error', { 
-                    customerId: botInstance.customerId, 
-                    username: botInstance.username, 
-                    error 
+                this.emit('bot:listening:error', {
+                    customerId: botInstance.customerId,
+                    username: botInstance.username,
+                    error
                 });
             });
-            
+
             // Сразу помечаем как запускающийся
             botInstance.isListening = true;
             console.log(`🚀 Bot launch initiated for ${botInstance.username} (non-blocking)`);
-            
+
         } catch (error) {
             console.error(`❌ Failed to initiate bot launch for customer ${botInstance.username}:`, error);
             botInstance.status = 'error';
-            this.emit('bot:listening:error', { 
-                customerId: botInstance.customerId, 
-                username: botInstance.username, 
-                error 
+            this.emit('bot:listening:error', {
+                customerId: botInstance.customerId,
+                username: botInstance.username,
+                error
             });
         }
     }
@@ -566,11 +565,11 @@ class BotManager extends EventEmitter {
         try {
             await botInstance.bot.stop();
             botInstance.isListening = false;
-            
+
             console.log(`🔇 Bot stopped listening for customer: ${botInstance.username}`);
-            this.emit('bot:listening:stopped', { 
-                customerId: botInstance.customerId, 
-                username: botInstance.username 
+            this.emit('bot:listening:stopped', {
+                customerId: botInstance.customerId,
+                username: botInstance.username
             });
         } catch (error) {
             console.error(`❌ Error stopping bot for customer ${botInstance.username}:`, error);
@@ -587,12 +586,12 @@ class BotManager extends EventEmitter {
         try {
             console.log(`🔧 Creating Telegraf instance for ${username} with token: ${token.substring(0, 10)}...`);
             const bot = new Telegraf(token);
-            
+
             // Проверяем валидность бота
             console.log(`🔍 Checking bot validity for ${username}...`);
             const botInfo = await bot.telegram.getMe();
             console.log(`✅ Bot info received: @${botInfo.username} for customer ${username}`);
-            
+
             const botInstance: BotInstance = {
                 bot,
                 customerId,
@@ -609,18 +608,18 @@ class BotManager extends EventEmitter {
 
             this.bots.set(customerId, botInstance);
             console.log(`💾 Bot instance saved to cache for ${username}`);
-            
+
             // Запускаем прослушивание входящих сообщений
             console.log(`🚀 Starting bot listening for ${username}...`);
             this.startBotListening(botInstance); // Убираем await, чтобы не блокировать
-            
+
             console.log(`✅ Bot added for customer: ${username} (@${botInfo.username})`);
             this.emit('bot:added', { customerId, username, botUsername: botInfo.username });
-            
+
             return true;
         } catch (error) {
             console.error(`❌ Failed to add bot for customer ${username}:`, error);
-            
+
             // Добавляем неактивного бота для отслеживания
             const botInstance: BotInstance = {
                 bot: new Telegraf(token), // Создаем, но помечаем как ошибочный
@@ -631,10 +630,10 @@ class BotManager extends EventEmitter {
                 lastUpdated: new Date(),
                 isListening: false
             };
-            
+
             this.bots.set(customerId, botInstance);
             this.emit('bot:error', { customerId, username, error });
-            
+
             return false;
         }
     }
@@ -642,7 +641,7 @@ class BotManager extends EventEmitter {
     // Обновляем существующего бота
     private async updateBot(customerId: string, username: string, newToken: string): Promise<boolean> {
         const existingBot = this.bots.get(customerId);
-        
+
         if (!existingBot) {
             return await this.addBot(customerId, username, newToken);
         }
@@ -656,14 +655,14 @@ class BotManager extends EventEmitter {
         try {
             // Останавливаем старого бота
             await this.stopBotListening(existingBot);
-            
+
             // Создаем новый экземпляр бота с новым токеном
             const newBot = new Telegraf(newToken);
             const botInfo = await newBot.telegram.getMe();
-            
+
             // Настраиваем обработчики для нового бота
             this.setupBotHandlers(newBot, customerId, username);
-            
+
             // Обновляем данные
             existingBot.bot = newBot;
             existingBot.token = newToken;
@@ -671,21 +670,21 @@ class BotManager extends EventEmitter {
             existingBot.status = 'active';
             existingBot.lastUpdated = new Date();
             existingBot.isListening = false;
-            
+
             // Запускаем прослушивание для нового бота
             this.startBotListening(existingBot); // Убираем await
-            
+
             console.log(`🔄 Bot updated for customer: ${username} (@${botInfo.username})`);
             this.emit('bot:updated', { customerId, username, botUsername: botInfo.username });
-            
+
             return true;
         } catch (error) {
             console.error(`❌ Failed to update bot for customer ${username}:`, error);
-            
+
             // Обновляем статус на ошибку
             existingBot.status = 'error';
             existingBot.lastUpdated = new Date();
-            
+
             this.emit('bot:error', { customerId, username, error });
             return false;
         }
@@ -697,7 +696,7 @@ class BotManager extends EventEmitter {
         if (botInstance) {
             // Останавливаем прослушивание перед удалением
             await this.stopBotListening(botInstance);
-            
+
             this.bots.delete(customerId);
             console.log(`🗑️ Bot removed for customer: ${botInstance.username}`);
             this.emit('bot:removed', { customerId, username: botInstance.username });
@@ -720,7 +719,7 @@ class BotManager extends EventEmitter {
                         await this.addBot(customerId, username, botToken);
                     }
                     break;
-                    
+
                 case 'update':
                     if (botToken) {
                         await this.updateBot(customerId, username, botToken);
@@ -729,7 +728,7 @@ class BotManager extends EventEmitter {
                         await this.removeBot(customerId);
                     }
                     break;
-                    
+
                 case 'delete':
                     await this.removeBot(customerId);
                     break;
@@ -779,7 +778,7 @@ class BotManager extends EventEmitter {
     // Дополнительный метод для периодической синхронизации (fallback)
     async syncWithDatabase() {
         console.log('🔄 Syncing BotManager with database...');
-        
+
         try {
             const customers = await Customer.find({}, 'username botToken _id updatedAt');
             const currentBots = new Set(this.bots.keys());
@@ -788,9 +787,9 @@ class BotManager extends EventEmitter {
             for (const customer of customers) {
                 const customerId = (customer._id as any).toString();
                 dbCustomers.add(customerId);
-                
+
                 const existingBot = this.bots.get(customerId);
-                
+
                 if (!existingBot) {
                     // Новый кастомер
                     if (customer.botToken) {
@@ -817,7 +816,7 @@ class BotManager extends EventEmitter {
 
             console.log(`✅ Database sync completed. Total bots: ${this.bots.size}`);
             this.emit('manager:synced', { botsCount: this.bots.size });
-            
+
         } catch (error) {
             console.error('❌ Error syncing with database:', error);
             this.emit('sync:error', { error });
@@ -825,65 +824,85 @@ class BotManager extends EventEmitter {
     }
 
     // Отправка сообщения через конкретного бота
-    async sendMessage(customerId: string, chatId: string, message: string, showWantButton: boolean = false, removeKeyboard: boolean = false): Promise<{ success: boolean; error?: string }> {
+    async sendMessage(
+      customerId: string,
+      chatId: string,
+      message: string,
+      showWantButton: boolean = false,
+      removeKeyboard: boolean = false,
+      parse_mode: "HTML" = undefined
+    ): Promise<{ success: boolean; error?: string }> {
         const bot = this.getBot(customerId);
         const botInfo = this.getBotInfo(customerId);
-        
+
         if (!bot || !botInfo) {
-            return { 
-                success: false, 
-                error: botInfo?.status === 'error' 
-                    ? `Bot for customer ${botInfo.username} is in error state` 
-                    : 'Bot not found' 
+            return {
+                success: false,
+                error: botInfo?.status === 'error'
+                  ? `Bot for customer ${botInfo.username} is in error state`
+                  : 'Bot not found'
             };
         }
 
         try {
+            const options: any = {
+                parse_mode,
+            };
+
             if (removeKeyboard) {
-                // Отправляем сообщение и удаляем клавиатуру
-                await bot.telegram.sendMessage(chatId, message, {
-                    reply_markup: {
-                        remove_keyboard: true
-                    }
-                });
-            } else if (showWantButton) {
-                // Отправляем сообщение с текстовой кнопкой "Хочу"
-                await bot.telegram.sendMessage(chatId, message, {
-                    reply_markup: {
-                        keyboard: [
-                            [{ text: 'Хочу' }]
-                        ],
-                        resize_keyboard: true,
-                        one_time_keyboard: true
-                    }
-                });
-            } else {
-                // Отправляем обычное сообщение без кнопки
-                await bot.telegram.sendMessage(chatId, message);
+                options.reply_markup = { remove_keyboard: true };
             }
-            
-            this.emit('message:sent', { customerId, chatId, messageLength: message.length, hasButton: showWantButton, removedKeyboard: removeKeyboard });
+
+            if (showWantButton) {
+                options.reply_markup = {
+                    keyboard: [[{ text: 'Хочу' }]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                };
+            }
+
+            await bot.telegram.sendMessage(chatId, message, options);
+
+            this.emit('message:sent', {
+                customerId,
+                chatId,
+                messageLength: message.length,
+                hasButton: showWantButton,
+                removedKeyboard: removeKeyboard,
+            });
+
             return { success: true };
+
         } catch (error: any) {
             console.error(`❌ Failed to send message via bot for customer ${botInfo.username}:`, error);
-            this.emit('message:failed', { customerId, chatId, error });
-            return { success: false, error: error.message || 'Unknown error' };
+
+            this.emit('message:failed', {
+                customerId,
+                chatId,
+                error,
+            });
+
+            return {
+                success: false,
+                error: error.message || 'Unknown error',
+            };
         }
+
     }
 
     // Проверка статуса бота
     async checkBotStatus(customerId: string): Promise<{ success: boolean; botInfo?: any; error?: string }> {
         const bot = this.getBot(customerId);
         const botInstance = this.getBotInfo(customerId);
-        
+
         if (!bot || !botInstance) {
             return { success: false, error: 'Bot not found or inactive' };
         }
 
         try {
             const botInfo = await bot.telegram.getMe();
-            return { 
-                success: true, 
+            return {
+                success: true,
                 botInfo: {
                     ...botInfo,
                     isListening: botInstance.isListening,
@@ -898,12 +917,12 @@ class BotManager extends EventEmitter {
     // Остановка сервиса
     async stop() {
         console.log('🛑 Stopping BotManager...');
-        
+
         // Останавливаем всех ботов
         for (const botInstance of this.bots.values()) {
             await this.stopBotListening(botInstance);
         }
-        
+
         this.bots.clear();
         console.log('🛑 BotManager stopped');
         this.emit('manager:stopped');
@@ -912,12 +931,12 @@ class BotManager extends EventEmitter {
     // Принудительная перезагрузка всех ботов
     async reload() {
         console.log('🔄 Reloading all bots...');
-        
+
         // Останавливаем всех ботов
         for (const botInstance of this.bots.values()) {
             await this.stopBotListening(botInstance);
         }
-        
+
         this.bots.clear();
         await this.loadAllBots();
         console.log(`✅ Reloaded ${this.bots.size} bots`);
@@ -927,4 +946,4 @@ class BotManager extends EventEmitter {
 
 // Экспортируем singleton
 export const botManager = new BotManager();
-export default botManager; 
+export default botManager;

@@ -11,25 +11,25 @@ const sendExternalMessage = async (botToken: string, chat_id: string, message: s
         if (!botToken) {
             return { success: false, error: 'Bot token is not provided for this customer.' };
         }
-        
+
         console.log(`Attempting to send message to chat_id: ${chat_id} with bot token: ${botToken.substring(0, 10)}...`);
-        
+
         const bot = new Telegraf(botToken);
         await bot.telegram.sendMessage(chat_id, message);
-        
+
         console.log(`Message successfully sent to chat_id: ${chat_id}`);
         return { success: true };
     } catch (error: any) {
         console.error('Error sending telegram message:', error);
-        
+
         // Более подробная обработка ошибок от Telegram API
         let errorMessage = 'Unknown error';
-        
+
         if (error.response) {
             // Ошибка от Telegram API
             const { error_code, description } = error.response;
             errorMessage = `Telegram API Error ${error_code}: ${description}`;
-            
+
             // Специальная обработка распространенных ошибок
             if (error_code === 400) {
                 if (description.includes('chat not found')) {
@@ -42,14 +42,14 @@ const sendExternalMessage = async (botToken: string, chat_id: string, message: s
             } else if (error_code === 404) {
                 errorMessage = 'Chat not found or bot has no access to this chat. Проверьте, что пользователь начал диалог с ботом.';
             }
-            
+
             console.error(`Telegram API Error Details: Code ${error_code}, Description: ${description}`);
         } else {
             errorMessage = error.message || 'Unknown error';
         }
-        
-        return { 
-            success: false, 
+
+        return {
+            success: false,
             error: errorMessage
         };
     }
@@ -72,11 +72,11 @@ const checkBotAndChat = async (botToken: string, chat_id: string): Promise<{ suc
         }
 
         const bot = new Telegraf(botToken);
-        
+
         // Проверяем информацию о боте
         const botInfo = await bot.telegram.getMe();
         console.log(`Bot info: @${botInfo.username} (${botInfo.first_name})`);
-        
+
         // Пытаемся получить информацию о чате
         try {
             const chatInfo = await bot.telegram.getChat(chat_id);
@@ -84,17 +84,17 @@ const checkBotAndChat = async (botToken: string, chat_id: string): Promise<{ suc
             return { success: true, botInfo, chatInfo };
         } catch (chatError: any) {
             console.error(`Error getting chat info for ${chat_id}:`, chatError);
-            return { 
-                success: false, 
-                botInfo, 
-                error: `Chat access error: ${chatError.description || chatError.message}` 
+            return {
+                success: false,
+                botInfo,
+                error: `Chat access error: ${chatError.description || chatError.message}`
             };
         }
     } catch (error: any) {
         console.error('Error checking bot status:', error);
-        return { 
-            success: false, 
-            error: `Bot error: ${error.description || error.message}` 
+        return {
+            success: false,
+            error: `Bot error: ${error.description || error.message}`
         };
     }
 };
@@ -119,7 +119,7 @@ export const sendSingleMessage = async (req: AuthRequest, res: Response) => {
     try {
         // Используем BotManager вместо создания нового экземпляра каждый раз
         const result = await botManager.sendMessage(credentials.customerId, chat_id, message);
-        
+
         const log = new MessageLog({
             chat_id,
             message,
@@ -160,7 +160,7 @@ export const sendMassMessage = async (req: AuthRequest, res: Response) => {
     for (const chat_id of chat_ids) {
         // Используем BotManager
         const result = await botManager.sendMessage(credentials.customerId, chat_id, message);
-        
+
         const log = new MessageLog({
             chat_id,
             message,
@@ -190,12 +190,12 @@ export const broadcastMessage = async (req: AuthRequest, res: Response) => {
 
     try {
         const users = await User.find({ customerId: credentials.customerId }, 'chat_id');
-        
+
         const results = [];
         for (const user of users) {
             // Используем BotManager
             const result = await botManager.sendMessage(credentials.customerId, user.chat_id, message);
-            
+
             const log = new MessageLog({
                 chat_id: user.chat_id,
                 message,
@@ -207,14 +207,14 @@ export const broadcastMessage = async (req: AuthRequest, res: Response) => {
             results.push({ chat_id: user.chat_id, ...result });
         }
 
-        res.status(200).json({ 
-            message: 'Broadcast completed', 
+        res.status(200).json({
+            message: 'Broadcast completed',
             statistics: {
                 total: users.length,
                 success: results.filter(r => r.success).length,
                 failure: results.filter(r => !r.success).length
             },
-            results 
+            results
         });
     } catch (error) {
         res.status(500).json({ message: 'Error during broadcast', error });
@@ -259,14 +259,14 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
     try {
         // Используем BotManager для проверки статуса
         const result = await botManager.checkBotStatus(credentials.customerId);
-        
+
         if (result.success) {
-            res.status(200).json({ 
+            res.status(200).json({
                 message: 'Bot accessible',
                 botInfo: result.botInfo
             });
         } else {
-            res.status(400).json({ 
+            res.status(400).json({
                 message: 'Bot access issue',
                 error: result.error
             });
@@ -279,13 +279,13 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для n8n - отправка сообщения по customerId через API ключ
 export const sendMessageFromN8N = async (req: Request, res: Response) => {
     try {
-        const { customerId, chat_id, message, showWantButton, removeKeyboard } = req.body;
+        const { customerId, chat_id, message, showWantButton, removeKeyboard, parse_mode = undefined } = req.body;
 
         // Валидация входных данных
         if (!customerId || !chat_id || !message) {
-            res.status(400).json({ 
+            res.status(400).json({
                 success: false,
-                message: 'customerId, chat_id and message are required' 
+                message: 'customerId, chat_id and message are required'
             });
             return;
         }
@@ -299,8 +299,15 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
         console.log(logMessage);
 
         // Используем BotManager для отправки через n8n
-        const result = await botManager.sendMessage(customerId, chat_id, message, showWantButton || false, removeKeyboard || false);
-        
+        const result = await botManager.sendMessage(
+          customerId,
+          chat_id,
+          message,
+          showWantButton || false,
+          removeKeyboard || false,
+          parse_mode
+          );
+
         // Сохраняем лог сообщения
         const log = new MessageLog({
             chat_id,
@@ -315,16 +322,16 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
         console.log(`Message ${result.success ? 'sent successfully' : 'failed'} from N8N via ${botInfo?.username || 'unknown'}`);
 
         if (!result.success) {
-            res.status(500).json({ 
+            res.status(500).json({
                 success: false,
-                message: 'Failed to send message', 
+                message: 'Failed to send message',
                 error: result.error,
                 customer: botInfo?.username || 'unknown'
             });
             return;
         }
 
-        res.status(200).json({ 
+        res.status(200).json({
             success: true,
             message: 'Message sent successfully via N8N',
             customer: botInfo?.username || 'unknown',
@@ -335,9 +342,9 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error in sendMessageFromN8N:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: 'Error sending message from N8N', 
+            message: 'Error sending message from N8N',
             error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
@@ -346,7 +353,7 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
 // Новый эндпоинт для получения статистики ботов (для админа)
 export const getBotManagerStats = async (req: AuthRequest, res: Response) => {
     const { user } = req;
-    
+
     // Только админ может видеть статистику всех ботов
     if (user?.role !== 'admin') {
         res.status(403).json({ message: 'Forbidden: Admin only' });
@@ -356,7 +363,7 @@ export const getBotManagerStats = async (req: AuthRequest, res: Response) => {
     try {
         const stats = botManager.getStats();
         const allBots = botManager.getAllBots();
-        
+
         const botsInfo = Array.from(allBots.values()).map(bot => ({
             customerId: bot.customerId,
             username: bot.username,
@@ -379,7 +386,7 @@ export const getBotManagerStats = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для принудительной синхронизации с базой данных (для админа)
 export const syncBotManager = async (req: AuthRequest, res: Response) => {
     const { user } = req;
-    
+
     // Только админ может запускать синхронизацию
     if (user?.role !== 'admin') {
         res.status(403).json({ message: 'Forbidden: Admin only' });
@@ -389,9 +396,9 @@ export const syncBotManager = async (req: AuthRequest, res: Response) => {
     try {
         console.log('🔄 Manual sync requested by admin');
         await botManager.syncWithDatabase();
-        
+
         const stats = botManager.getStats();
-        
+
         res.json({
             message: 'Bot manager synchronized with database',
             stats,
@@ -401,4 +408,4 @@ export const syncBotManager = async (req: AuthRequest, res: Response) => {
         console.error('Error syncing bot manager:', error);
         res.status(500).json({ message: 'Error syncing bot manager', error });
     }
-}; 
+};
