@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
+import { IContent } from "../models/content.model";
 
-// Определим тип для данных, которые будем получать
 interface ForecastData {
   yearDoor: { arcanum: number; text: string };
   events: { arcanum: number; text: string };
@@ -12,8 +12,13 @@ interface ForecastData {
   }>;
 }
 
+interface PdfData {
+  forecast: ForecastData;
+  saleScript: IContent | null;
+}
+
 export function generateForecastPdf(
-  data: ForecastData,
+  data: PdfData,
   stream: Writable,
   birthDate: string
 ): void {
@@ -23,25 +28,15 @@ export function generateForecastPdf(
     bufferPages: true,
   });
 
-  // Связываем документ с потоком (например, HTTP-ответом)
   doc.pipe(stream);
 
-  // --- Стили и шрифты ---
-  // (pdfkit не поддерживает кириллицу по умолчанию, нужно встроить шрифт)
-  // Скачайте шрифт, поддерживающий кириллицу (например, DejaVuSans.ttf),
-  // и положите его в папку, например, `src/assets/fonts`
-  // Путь к шрифту:
   const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
   const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
 
   doc.registerFont("DejaVu-Regular", fontPath);
   doc.registerFont("DejaVu-Bold", fontBoldPath);
 
-  // --- Заголовок документа ---
-  
-  // Добавляем изображение
   try {
-    // Центрируем изображение по горизонтали
     const imageWidth = 200;
     const imageHeight = 150;
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -51,8 +46,7 @@ export function generateForecastPdf(
       fit: [imageWidth, imageHeight]
     });
     
-    // Перемещаем курсор ниже изображения
-    doc.y = doc.y + imageHeight + 20; // 20 пикселей дополнительного отступа
+    doc.y = doc.y + imageHeight + 20;
   } catch (error) {
     console.log('Изображение не найдено:', error);
   }
@@ -67,45 +61,27 @@ export function generateForecastPdf(
     .text(`по дате рождения: ${birthDate}`, { align: "center" });
   doc.moveDown(3);
 
-  // --- Годовые показатели ---
   doc.font("DejaVu-Bold").fontSize(18).text("Главные темы года");
   doc.moveDown();
 
-  // Дверь года
   doc.font("DejaVu-Bold").fontSize(14).text("ДВЕРЬ ГОДА: Ваш главный шанс");
-  
-  // Добавляем изображение карты Таро (если есть)
-  // const cardImagePath = `./src/assets/images/cards/${data.yearDoor.arcanum}.jpg`;
-  // try {
-  //   doc.image(cardImagePath, {
-  //     fit: [80, 120],
-  //     align: 'left'
-  //   });
-  // } catch (error) {
-  //   // Если изображение не найдено, продолжаем без него
-  // }
-  
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.yearDoor.text, { align: "justify" });
+    .text(data.forecast.yearDoor.text, { align: "justify" });
   doc.moveDown(2);
 
-  // События
   doc.font("DejaVu-Bold").fontSize(14).text("СОБЫТИЙНЫЙ УДАР: Чего избегать");
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.events.text, { align: "justify" });
+    .text(data.forecast.events.text, { align: "justify" });
   doc.moveDown(3);
 
-  // --- Ежемесячные прогнозы ---
   doc.font("DejaVu-Bold").fontSize(18).text("Прогноз по месяцам");
   doc.moveDown();
 
-  data.monthlyForecasts.forEach((monthData) => {
-    // Проверяем, хватит ли места на странице для следующего блока, иначе переносим на новую
-    // (очень приблизительная проверка, но для начала сойдет)
+  data.forecast.monthlyForecasts.forEach((monthData) => {
     if (doc.y > 650) {
       doc.addPage();
     }
@@ -116,7 +92,6 @@ export function generateForecastPdf(
       .text(monthData.monthName, { underline: true });
     doc.moveDown();
 
-    // Экзамен месяца
     doc.font("DejaVu-Bold").fontSize(12).text("ЭКЗАМЕН МЕСЯЦА");
     doc
       .font("DejaVu-Regular")
@@ -124,7 +99,6 @@ export function generateForecastPdf(
       .text(monthData.exam.text, { align: "justify" });
     doc.moveDown();
 
-    // Риск месяца
     doc.font("DejaVu-Bold").fontSize(12).text("РИСК МЕСЯЦА");
     doc
       .font("DejaVu-Regular")
@@ -133,6 +107,25 @@ export function generateForecastPdf(
     doc.moveDown(2);
   });
 
-  // Завершаем документ
+  if (data.saleScript) {
+    doc.addPage();
+    doc
+      .font("DejaVu-Bold")
+      .fontSize(20)
+      .text(data.saleScript.title, { align: "center" });
+    doc.moveDown(2);
+
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(14)
+      .text(data.saleScript.description, { align: "center" });
+    doc.moveDown(2);
+    
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(11)
+      .text(data.saleScript.content, { align: "left" });
+  }
+
   doc.end();
 }

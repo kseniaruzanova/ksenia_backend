@@ -24,7 +24,7 @@ const initializeApp = async () => {
         console.log('✅ Database connected');
         
         // Инициализируем BotManager после подключения к БД
-        await botManager.initialize();
+        // await botManager.initialize();
         console.log('✅ BotManager initialized');
         
         // Слушаем события от BotManager

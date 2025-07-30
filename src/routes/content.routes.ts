@@ -14,14 +14,15 @@ import { validate } from '../middleware/validate';
 import { 
   createContentSchema, 
   updateContentSchema, 
-  getContentSchema, 
+  getContentSchema,
+  getActiveContentSchema,
   deleteContentSchema 
 } from '../lib/validators/contentValidators';
 
 const router = Router();
 
 // Публичные роуты (без аутентификации)
-router.get('/active', getActiveContent);
+router.get('/active', validate(getActiveContentSchema), getActiveContent);
 
 // Защищенные роуты для супер администратора
 router.use(authMiddleware, adminAuthMiddleware);
