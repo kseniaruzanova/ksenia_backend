@@ -81,6 +81,24 @@ class BotManager extends EventEmitter {
     constructor() {
         super();
         console.log('🤖 BotManager initialized');
+        this.startSubscriptionChecker();
+    }
+
+    // Новый метод для периодической проверки истекших подписок
+    private startSubscriptionChecker() {
+        setInterval(async () => {
+            console.log('⏰ Checking for expired subscriptions...');
+            const customers = await Customer.find({ 
+                subscriptionStatus: 'active',
+                subscriptionEndsAt: { $lt: new Date() } 
+            });
+
+            for (const customer of customers) {
+                console.log(`⌛ Subscription expired for ${customer.username}. Deactivating...`);
+                customer.subscriptionStatus = 'expired';
+                await customer.save(); // Это вызовет наш middleware и остановит бота
+            }
+        }, 3600 * 1000); // Проверять каждый час
     }
 
     // Функция для очистки объекта от циклических ссылок
@@ -208,7 +226,7 @@ class BotManager extends EventEmitter {
     private async loadAllBots() {
         console.log('🔍 Loading all customers from database...');
 
-        const customers = await Customer.find({}, 'username botToken _id');
+        const customers = await Customer.find({}, 'username botToken _id subscriptionStatus subscriptionEndsAt');
         console.log(`📊 Found ${customers.length} customers in database`);
 
         if (customers.length === 0) {
@@ -220,14 +238,17 @@ class BotManager extends EventEmitter {
         const botPromises = customers.map(async (customer) => {
             console.log(`👤 Processing customer: ${customer.username}, has token: ${!!customer.botToken}`);
 
-            if (customer.botToken) {
+            const isSubscriptionActive = customer.subscriptionStatus === 'active' && customer.subscriptionEndsAt && customer.subscriptionEndsAt > new Date();
+
+            if (customer.botToken && isSubscriptionActive) {
                 try {
+                    console.log(`✅ Subscription active for ${customer.username}. Adding bot.`);
                     await this.addBot((customer._id as any).toString(), customer.username, customer.botToken);
                 } catch (error) {
                     console.error(`❌ Failed to process customer ${customer.username}:`, error);
                 }
             } else {
-                console.log(`⚠️ Customer ${customer.username} has no bot token`);
+                console.log(`🚫 Customer ${customer.username} has no bot token or an inactive subscription.`);
             }
         });
 
@@ -703,36 +724,60 @@ class BotManager extends EventEmitter {
         }
     }
 
+    // НОВЫЙ ПУБЛИЧНЫЙ МЕТОД для обновления подписки
+    async updateSubscription(customerId: string, newStatus: 'active' | 'inactive' | 'expired', endsAt?: Date) {
+        const customer = await Customer.findById(customerId);
+        if (!customer) {
+            console.error(`Customer with ID ${customerId} not found for subscription update.`);
+            return { success: false, message: 'Customer not found' };
+        }
+
+        customer.subscriptionStatus = newStatus;
+        if (endsAt) {
+            customer.subscriptionEndsAt = endsAt;
+        } else if (newStatus === 'active') {
+            // По умолчанию даем подписку на 30 дней, если дата не указана
+            const newEndsAt = new Date();
+            newEndsAt.setDate(newEndsAt.getDate() + 30);
+            customer.subscriptionEndsAt = newEndsAt;
+        }
+
+        await customer.save(); // Это вызовет наш post-save hook и обновит состояние бота
+
+        return { success: true, customer };
+    }
+
     // Обработчик изменений от Mongoose middleware
     async handleCustomerChange(operation: 'save' | 'update' | 'delete', customer: any) {
         try {
             const customerId = customer._id.toString();
             const username = customer.username;
             const botToken = customer.botToken;
+            const isSubscriptionActive = customer.subscriptionStatus === 'active' && customer.subscriptionEndsAt && customer.subscriptionEndsAt > new Date();
 
-            console.log(`📡 Customer change detected: ${operation} for ${username}`);
+            console.log(`📡 Customer change detected: ${operation} for ${username}. Subscription active: ${isSubscriptionActive}`);
 
-            switch (operation) {
-                case 'save':
-                    // Может быть как создание, так и обновление
-                    if (botToken) {
-                        await this.addBot(customerId, username, botToken);
-                    }
-                    break;
+            const existingBot = this.bots.get(customerId);
 
-                case 'update':
-                    if (botToken) {
-                        await this.updateBot(customerId, username, botToken);
-                    } else {
-                        // Если токен удален, удаляем бота
-                        await this.removeBot(customerId);
-                    }
-                    break;
-
-                case 'delete':
-                    await this.removeBot(customerId);
-                    break;
+            if (operation === 'delete') {
+                await this.removeBot(customerId);
+                return;
             }
+
+            if (botToken && isSubscriptionActive) {
+                // Если подписка активна и есть токен
+                if (existingBot) {
+                    await this.updateBot(customerId, username, botToken);
+                } else {
+                    await this.addBot(customerId, username, botToken);
+                }
+            } else {
+                // Если подписка неактивна или нет токена
+                if (existingBot) {
+                    await this.removeBot(customerId);
+                }
+            }
+
         } catch (error) {
             console.error('❌ Error handling customer change:', error);
             this.emit('change:error', { error, operation, customer });

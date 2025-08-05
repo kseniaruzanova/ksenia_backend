@@ -4,6 +4,12 @@ export interface ICustomer extends Document {
   username: string;
   password?: string;
   botToken: string;
+  
+  // Новые поля для подписки
+  tariff?: 'basic' | 'pro';
+  subscriptionStatus?: 'active' | 'inactive' | 'expired';
+  subscriptionEndsAt?: Date;
+
   currentPrice?: number;
   basePrice?: number;
   cardNumber?: string;
@@ -19,6 +25,12 @@ const customerSchema = new Schema<ICustomer>({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   botToken: { type: String, required: true },
+
+  // Схема для новых полей
+  tariff: { type: String, enum: ['basic', 'pro'], default: null },
+  subscriptionStatus: { type: String, enum: ['active', 'inactive', 'expired'], default: 'inactive' },
+  subscriptionEndsAt: { type: Date, default: null },
+
   currentPrice: { type: Number },
   basePrice: { type: Number },
   cardNumber: { type: String },

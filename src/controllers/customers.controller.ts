@@ -11,7 +11,7 @@ const generatePassword = (length = 8) => {
         .slice(0, length);
 };
 
-export const createCustomer = async (req: Request, res: Response) => {
+export const createCustomer = async (req: Request, res: Response): Promise<void> => {
     try {
         const { username, botToken } = req.body;
         if (!username || !botToken) {
@@ -49,7 +49,7 @@ export const createCustomer = async (req: Request, res: Response) => {
     }
 };
 
-export const getCustomers = async (req: Request, res: Response) => {
+export const getCustomers = async (req: Request, res: Response): Promise<void> => {
     try {
         const customers = await Customer.find().select('-password');
         res.json(customers);
@@ -58,7 +58,7 @@ export const getCustomers = async (req: Request, res: Response) => {
     }
 };
 
-export const deleteCustomer = async (req: Request, res: Response) => {
+export const deleteCustomer = async (req: Request, res: Response): Promise<void> => {
     try {
         const customer = await Customer.findByIdAndDelete(req.params.id);
         if (!customer) {
@@ -72,7 +72,7 @@ export const deleteCustomer = async (req: Request, res: Response) => {
 };
 
 // Эндпоинт для получения собственных данных кастомером
-export const getMyProfile = async (req: AuthRequest, res: Response) => {
+export const getMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { user } = req;
         
@@ -121,7 +121,7 @@ export const getMyProfile = async (req: AuthRequest, res: Response) => {
 };
 
 // Эндпоинт для обновления собственных данных кастомером
-export const updateMyProfile = async (req: AuthRequest, res: Response) => {
+export const updateMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { user } = req;
         
@@ -172,7 +172,7 @@ export const updateMyProfile = async (req: AuthRequest, res: Response) => {
 };
 
 // Эндпоинт для n8n - получение данных кастомера по customerId через API ключ
-export const getCustomerById = async (req: Request, res: Response) => {
+export const getCustomerById = async (req: Request, res: Response): Promise<void> => {
     try {
         const { customerId } = req.body;
 
@@ -200,7 +200,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
             success: true,
             message: 'Customer data retrieved successfully',
             customer: {
-                _id: customer._id,
+                _id: customer.id,
                 username: customer.username,
                 botToken: customer.botToken,
                 currentPrice: customer.currentPrice,
@@ -222,4 +222,42 @@ export const getCustomerById = async (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
-}; 
+};
+
+// Новый контроллер для обновления подписки администратором
+export const updateCustomerSubscription = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params; // ID кастомера
+        const { status, endsAt, tariff } = req.body; // 'active', 'inactive', 'expired'
+
+        if (!status || !['active', 'inactive', 'expired'].includes(status)) {
+            res.status(400).json({ message: 'Valid status is required: active, inactive, or expired.' });
+            return;
+        }
+
+        const { botManager } = await import('../services/botManager.service');
+        const result = await botManager.updateSubscription(id, status, endsAt ? new Date(endsAt) : undefined);
+
+        if (!result.success || !result.customer) {
+            res.status(404).json({ message: result.message || 'Customer not found.' });
+            return;
+        }
+        
+        const customerToUpdate = result.customer;
+
+        // Дополнительно обновим тариф, если он передан
+        if (tariff && ['basic', 'pro'].includes(tariff)) {
+            customerToUpdate.tariff = tariff;
+            await customerToUpdate.save();
+        }
+
+        res.json({
+            message: `Subscription for customer ${customerToUpdate.username} updated successfully.`,
+            customer: customerToUpdate
+        });
+
+    } catch (error) {
+        console.error('Error updating subscription:', error);
+        res.status(500).json({ message: 'Error updating subscription', error });
+    }
+};

@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { createCustomer, getCustomers, deleteCustomer, getMyProfile, updateMyProfile, getCustomerById } from '../controllers/customers.controller';
+import { createCustomer, getCustomers, deleteCustomer, getMyProfile, updateMyProfile, getCustomerById, updateCustomerSubscription } from '../controllers/customers.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
 import customerSettingsRoutes from './customerSettings.routes';
+import { adminAuthMiddleware } from '../middleware/adminAuth.middleware';
 
 const router = Router();
 
@@ -17,9 +18,10 @@ router.get('/my-profile', getMyProfile);      // Получить свой пр�
 router.put('/my-profile', updateMyProfile);   // Обновить свой профиль
 
 // Админские роуты
-router.post('/', createCustomer);
-router.get('/', getCustomers);
-router.delete('/:id', deleteCustomer);
+router.post('/', adminAuthMiddleware, createCustomer);
+router.get('/', adminAuthMiddleware, getCustomers);
+router.delete('/:id', adminAuthMiddleware, deleteCustomer);
+router.post('/:id/subscription', adminAuthMiddleware, updateCustomerSubscription); // Новый роут
 
 // Вложенные роуты для настроек кастомера
 router.use('/:id', customerSettingsRoutes);
