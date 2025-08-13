@@ -4,10 +4,10 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import mongoose from 'mongoose';
 
 // Проверка, что запрос пришел от клиента
-const getCustomerId = (req: AuthRequest) => {
+export const getCustomerId = (req: AuthRequest) => {
     const { user } = req;
     console.log('User from JWT:', user);
-    
+
     if (user?.role === 'admin') {
         return 'admin'; // Специальное значение для администратора
     }
@@ -31,7 +31,7 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
         const { page = 1, limit = 10, chat_id, state, sortBy } = req.query;
 
         const query: any = {};
-        
+
         // Основная фильтрация по customerId - ВСЕГДА для кастомеров
         if (customerIdOrAdmin !== 'admin') {
             // Преобразуем customerId в ObjectId для правильного сравнения
@@ -59,7 +59,7 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
             .sort(sortOptions)
             .limit(Number(limit))
             .skip((Number(page) - 1) * Number(limit));
-            
+
         const users = await usersQuery.exec();
 
         const count = await User.countDocuments(query);
@@ -85,19 +85,19 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
         res.status(403).json({ message: 'Forbidden: This action is only for customers.' });
         return;
     }
-    
+
     try {
         const chat_id = req.params.id;
         const query: any = { chat_id };
-        
+
         // Кастомеры видят только своих пользователей
         if (customerIdOrAdmin !== 'admin') {
             const customerObjectId = new mongoose.Types.ObjectId(customerIdOrAdmin);
             query.customerId = customerObjectId;
         }
-        
+
         const user = await User.findOne(query);
-        
+
         if (!user) {
             res.status(404).json({ message: 'User not found' });
             return;
@@ -124,21 +124,21 @@ export const upsertUser = async (req: Request, res: Response) => {
 
     try {
         const user = await User.findOneAndUpdate(
-            { 
+            {
                 chat_id: chat_id,
                 customerId: customerId
             },
-            { 
+            {
                 $set: {
                     ...userData,
                     chat_id: chat_id,
-                    customerId: customerId 
+                    customerId: customerId
                 },
                 $setOnInsert: {
                     state: 'new_chat'
                 }
             },
-            { 
+            {
                 new: true,
                 upsert: true,
                 runValidators: true
@@ -166,7 +166,7 @@ export const checkUserExists = async (req: Request, res: Response) => {
     }
 
     try {
-        const user = await User.findOne({ 
+        const user = await User.findOne({
             chat_id: chat_id,
             customerId: customerId
         });
@@ -185,7 +185,7 @@ export const checkUserExists = async (req: Request, res: Response) => {
 // Временный эндпоинт для диагностики (только для админов)
 export const debugData = async (req: AuthRequest, res: Response) => {
     const customerIdOrAdmin = getCustomerId(req);
-    
+
     // Только админ может видеть отладочную информацию
     if (customerIdOrAdmin !== 'admin') {
         res.status(403).json({ message: 'Forbidden: Admin only' });
@@ -195,7 +195,7 @@ export const debugData = async (req: AuthRequest, res: Response) => {
     try {
         // Получаем всех пользователей с их customerId
         const users = await User.find({}, 'chat_id customerId state').limit(20);
-        
+
         // Получаем всех кастомеров
         const Customer = require('../models/customer.model').default;
         const customers = await Customer.find({}, 'username _id').limit(20);
@@ -221,7 +221,7 @@ export const debugData = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для исправления индексов (только для админа)
 export const fixIndexes = async (req: AuthRequest, res: Response) => {
     const customerIdOrAdmin = getCustomerId(req);
-    
+
     // Только админ может исправлять индексы
     if (customerIdOrAdmin !== 'admin') {
         res.status(403).json({ message: 'Forbidden: Admin only' });
@@ -230,14 +230,14 @@ export const fixIndexes = async (req: AuthRequest, res: Response) => {
 
     try {
         console.log('Starting index fix process...');
-        
+
         // Получаем текущие индексы
         const indexes = await User.collection.listIndexes().toArray();
         console.log('Current indexes:', JSON.stringify(indexes, null, 2));
 
         // Ищем проблемный индекс только по chat_id
-        const chatIdIndex = indexes.find((idx: any) => 
-            idx.name === 'chat_id_1' || 
+        const chatIdIndex = indexes.find((idx: any) =>
+            idx.name === 'chat_id_1' ||
             (idx.key && Object.keys(idx.key).length === 1 && idx.key.chat_id === 1)
         );
 
@@ -254,9 +254,9 @@ export const fixIndexes = async (req: AuthRequest, res: Response) => {
         }
 
         // Проверяем есть ли правильный составной индекс
-        const compositeIndex = indexes.find((idx: any) => 
-            idx.key && 
-            idx.key.chat_id === 1 && 
+        const compositeIndex = indexes.find((idx: any) =>
+            idx.key &&
+            idx.key.chat_id === 1 &&
             idx.key.customerId === 1 &&
             Object.keys(idx.key).length === 2
         );
@@ -265,7 +265,7 @@ export const fixIndexes = async (req: AuthRequest, res: Response) => {
         if (!compositeIndex) {
             console.log('Creating proper composite index...');
             await User.collection.createIndex(
-                { chat_id: 1, customerId: 1 }, 
+                { chat_id: 1, customerId: 1 },
                 { unique: true, name: 'chat_id_1_customerId_1' }
             );
             createdIndex = 'chat_id_1_customerId_1';
@@ -274,7 +274,7 @@ export const fixIndexes = async (req: AuthRequest, res: Response) => {
 
         // Получаем финальные индексы
         const finalIndexes = await User.collection.listIndexes().toArray();
-        
+
         res.json({
             message: 'Index fix completed',
             actions: {
@@ -297,12 +297,12 @@ export const fixIndexes = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для обновления конкретных полей пользователя (для n8n)
 export const updateUserFields = async (req: Request, res: Response) => {
     try {
-        const { 
-            chat_id, 
-            customerId, 
-            answer_1, 
-            state, 
-            birthday, 
+        const {
+            chat_id,
+            customerId,
+            answer_1,
+            state,
+            birthday,
             usermessage2,
             answer_2,
             usermessage3,
@@ -317,17 +317,17 @@ export const updateUserFields = async (req: Request, res: Response) => {
         } = req.body;
 
         if (!chat_id || !customerId) {
-            res.status(400).json({ 
+            res.status(400).json({
                 success: false,
-                message: 'chat_id and customerId are required' 
+                message: 'chat_id and customerId are required'
             });
             return;
         }
 
         if (!mongoose.Types.ObjectId.isValid(customerId)) {
-            res.status(400).json({ 
+            res.status(400).json({
                 success: false,
-                message: 'Invalid customerId format' 
+                message: 'Invalid customerId format'
             });
             return;
         }
@@ -351,9 +351,9 @@ export const updateUserFields = async (req: Request, res: Response) => {
 
         // Проверяем что есть хотя бы одно поле для обновления
         if (Object.keys(updateFields).length === 0) {
-            res.status(400).json({ 
+            res.status(400).json({
                 success: false,
-                message: 'At least one field must be provided for update: answer_1, state, birthday, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages' 
+                message: 'At least one field must be provided for update: answer_1, state, birthday, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages'
             });
             return;
         }
@@ -362,32 +362,32 @@ export const updateUserFields = async (req: Request, res: Response) => {
 
         // Находим и обновляем пользователя
         const user = await User.findOneAndUpdate(
-            { 
+            {
                 chat_id: chat_id,
                 customerId: customerId
             },
-            { 
+            {
                 $set: updateFields
             },
-            { 
+            {
                 new: true,
                 runValidators: true
             }
         );
 
         if (!user) {
-            res.status(404).json({ 
+            res.status(404).json({
                 success: false,
-                message: 'User not found with provided chat_id and customerId' 
+                message: 'User not found with provided chat_id and customerId'
             });
             return;
         }
 
         console.log(`Successfully updated user ${chat_id} for customer ${customerId}`);
 
-        res.status(200).json({ 
+        res.status(200).json({
             success: true,
-            message: 'User fields updated successfully', 
+            message: 'User fields updated successfully',
             user: {
                 chat_id: user.chat_id,
                 customerId: user.customerId,
@@ -411,9 +411,9 @@ export const updateUserFields = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error updating user fields:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: 'Error updating user fields', 
+            message: 'Error updating user fields',
             error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
@@ -429,7 +429,7 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 
     try {
         const query: any = {};
-        
+
         // Основная фильтрация по customerId - ВСЕГДА для кастомеров
         if (customerIdOrAdmin !== 'admin') {
             // Преобразуем customerId в ObjectId для правильного сравнения
@@ -452,9 +452,9 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
             // Получаем информацию о кастомерах
             const Customer = require('../models/customer.model').default;
             const customers = await Customer.find({}, 'username _id');
-            
+
             console.log(`Found ${customers.length} customers in database`);
-            
+
             // Создаем мапу кастомеров
             const customerMap = new Map();
             customers.forEach((customer: any) => {
@@ -464,7 +464,7 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
             // Группируем пользователей по кастомерам
             const usersByCustomer: any = {};
             const usersWithoutCustomer: any[] = [];
-            
+
             users.forEach((user, index) => {
                 // Проверяем что customerId существует
                 if (!user.customerId) {
@@ -477,10 +477,10 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
                     usersWithoutCustomer.push(user);
                     return;
                 }
-                
+
                 const customerId = user.customerId.toString();
                 const customerName = customerMap.get(customerId) || 'Unknown Customer';
-                
+
                 if (!usersByCustomer[customerId]) {
                     usersByCustomer[customerId] = {
                         customerId,
@@ -516,4 +516,4 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
         console.error('Error in getAllUsers:', error);
         res.status(500).json({ message: 'Error fetching all users', error });
     }
-}; 
+};
