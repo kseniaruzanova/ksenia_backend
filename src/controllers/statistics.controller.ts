@@ -5,8 +5,8 @@ import { getCustomerId } from './users.controller';
 
 
 export const getGeneralStats = async (req: AuthRequest, res: Response) => {
-
   const customerIdOrAdmin = getCustomerId(req);
+  const user = req.user;
   if (!customerIdOrAdmin) {
     res.status(403).json({ message: 'Forbidden: This action is only for customers and admins.' });
     return;
@@ -16,10 +16,13 @@ export const getGeneralStats = async (req: AuthRequest, res: Response) => {
     if (customerIdOrAdmin === 'admin') {
       stats = await StatisticsService.getGeneralStatsForAdmin();
     } else {
-      stats = await StatisticsService.getGeneralStatsPerUser(customerIdOrAdmin);
+      stats = await StatisticsService.getGeneralStatsPerUser(user?.username ?? '');
     }
-
-    res.status(201).json(stats);
+    const userStats = await StatisticsService.getStatUsers(customerIdOrAdmin);
+    res.status(201).json({
+      ...stats,
+      ...userStats
+    });
   } catch (error) {
     res.status(400).json({error: 'Ошибка создания платежа', details: error});
   }

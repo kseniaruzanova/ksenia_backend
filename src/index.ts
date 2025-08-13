@@ -12,6 +12,7 @@ import customerRoutes from './routes/customers.routes';
 import incomingMessagesRoutes from './routes/incomingMessages.routes';
 import forecastRoutes from './routes/forecastRoutes';
 import contentRoutes from './routes/content.routes';
+import statisticsRoutes from './routes/statistics.routes';
 import qs from 'qs'
 
 dotenv.config();
@@ -113,6 +114,7 @@ app.use('/api/incoming', incomingMessagesRoutes);
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/statistics', statisticsRoutes);
 
 const PORT = process.env.PORT || 3000;
 
