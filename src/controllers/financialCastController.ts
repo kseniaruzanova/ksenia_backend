@@ -64,8 +64,8 @@ export const getFinancialCast = async (req: Request, res: Response) => {
   const shadowWealth: number = toArcana(day+month+yearSum);
 
   const saleScriptContent = await Content.findOne({
-    productType: 'forecast',
-    productId: 'taroscope-main',
+    productType: 'financialCast',
+    productId: 'taroscope-financialCast',
     isActive: true
   }).lean();
 
@@ -149,8 +149,8 @@ export const getFinancialCastAsPdf = async (req: Request, res: Response) => {
     };
 
     const saleScriptContent = await Content.findOne({
-      productType: 'forecast',
-      productId: 'taroscope-main',
+      productType: 'financialCast',
+      productId: 'taroscope-financialCast',
       isActive: true
     }).lean();
     
