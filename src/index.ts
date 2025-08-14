@@ -11,6 +11,7 @@ import messageRoutes from './routes/messages.routes';
 import customerRoutes from './routes/customers.routes';
 import incomingMessagesRoutes from './routes/incomingMessages.routes';
 import forecastRoutes from './routes/forecastRoutes';
+import financialCast from './routes/financialCastRoutes';
 import contentRoutes from './routes/content.routes';
 import statisticsRoutes from './routes/statistics.routes';
 import qs from 'qs'
@@ -112,6 +113,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/incoming', incomingMessagesRoutes);
 app.use('/api/forecast', forecastRoutes);
+app.use('/api/financialCast', financialCast);
 app.use('/api/content', contentRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/statistics', statisticsRoutes);
