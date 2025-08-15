@@ -218,6 +218,20 @@ export function generateFinancialCastPdf(
   doc.font("DejaVu-Bold").fontSize(16).text("Ритуалы");
   doc.moveDown(1);
   data.financialCast.rituals.forEach((ritual) => {
+    try {
+      const imageWidth = 200;
+      const imageHeight = 150;
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+      
+      doc.image('./src/assets/rituals.jpg', x, doc.y, {
+        fit: [imageWidth, imageHeight]
+      });
+      
+      doc.y = doc.y + 100 + 10;
+    } catch (error) {
+      console.log('Изображение ритуала не найдено:', error);
+    }
     doc.font("DejaVu-Bold").fontSize(13).text(ritual.title);
     doc
       .font("DejaVu-Regular")

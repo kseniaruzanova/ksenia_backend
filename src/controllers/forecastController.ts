@@ -148,11 +148,11 @@ export const getForecastAsPdf = async (req: Request, res: Response) => {
     };
 
     // Получаем связанный контент для PDF
-    const saleScriptContent = await Content.findOne({
-      productType: 'forecast',
-      productId: 'taroscope-main',
-      isActive: true
-    }).lean();
+    // const saleScriptContent = await Content.findOne({
+    //   productType: 'forecast',
+    //   productId: 'taroscope-main',
+    //   isActive: true
+    // }).lean();
     
     const filename = `forecast_${birthDate.replace(/\./g, '-')}.pdf`;
     res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
@@ -160,7 +160,7 @@ export const getForecastAsPdf = async (req: Request, res: Response) => {
 
     const pdfData = {
         forecast: forecastData,
-        saleScript: saleScriptContent,
+        saleScript: null, //saleScriptContent,
     };
 
     generateForecastPdf(pdfData, res, birthDate);

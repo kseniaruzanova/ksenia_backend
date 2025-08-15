@@ -148,11 +148,11 @@ export const getFinancialCastAsPdf = async (req: Request, res: Response) => {
       }))
     };
 
-    const saleScriptContent = await Content.findOne({
-      productType: 'financialCast',
-      productId: 'taroscope-financialCast',
-      isActive: true
-    }).lean();
+    // const saleScriptContent = await Content.findOne({
+    //   productType: 'financialCast',
+    //   productId: 'taroscope-financialCast',
+    //   isActive: true
+    // }).lean();
     
     const filename = `financialCast_${birthDate.replace(/\./g, '-')}.pdf`;
     res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
@@ -160,7 +160,7 @@ export const getFinancialCastAsPdf = async (req: Request, res: Response) => {
 
     const pdfData = {
       financialCast: financialCastData,
-      saleScript: saleScriptContent,
+      saleScript: null, //saleScriptContent,
     };
 
     generateFinancialCastPdf(pdfData, res, birthDate);
