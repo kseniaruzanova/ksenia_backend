@@ -6,7 +6,7 @@ import karmicLessonsData from "../data/mistakesIncarnation/karmicLessons.json";
 import lessonIncarnationData from "../data/mistakesIncarnation/lessonIncarnation.json";
 
 import { AppError } from "../middleware/errorHandler";
-import { generateForecastPdf, generateMistakesIncarnationPdf } from "../services/pdfGenerator.service";
+import { generateMistakesIncarnationPdf } from "../services/pdfGenerator.service";
 
 // Типизируем наши данные для большей надежности
 type ArcanasData = { [key: string]: string };
