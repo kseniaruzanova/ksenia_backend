@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 
 import { Request, Response } from "express";
 
@@ -29,11 +30,22 @@ export const getArcanumRealizationAsPdf = async (req: Request, res: Response) =>
 
   const finalNumber: number = toArcana(day+month+yearSum);
   
-  const arcanFilePath = "./src/assets/fonts/data/arcanumRealization/arcan_${finalNumber}.pdf";
+  const arcanFilePath = path.join(
+    __dirname,
+    '..',
+    '..',
+    'src',
+    'data',
+    'arcanumRealization',
+    `arcan_${finalNumber}.pdf`
+  );
 
+  // Настройка заголовков ответа
   const filename = `arcanumRealization_${birthDate.replace(/\./g, '-')}.pdf`;
   res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-type', 'application/pdf');
-    
-  res.sendFile(arcanFilePath);
+
+  // Отправка файла
+  const fileStream = fs.createReadStream(arcanFilePath);
+  fileStream.pipe(res);
 };
