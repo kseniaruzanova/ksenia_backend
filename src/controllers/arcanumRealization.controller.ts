@@ -29,7 +29,7 @@ export const getArcanumRealizationAsPdf = async (req: Request, res: Response) =>
 
   const finalNumber: number = toArcana(day+month+yearSum);
   
-  const arcanFilePath = path.join(__dirname, '..', 'data', 'arcanumRealization', `arcan_${finalNumber}.pdf`);
+  const arcanFilePath = path.join(__dirname, 'src', 'data', 'arcanumRealization', `arcan_${finalNumber}.pdf`);
 
   const filename = `arcanumRealization_${birthDate.replace(/\./g, '-')}.pdf`;
   res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
