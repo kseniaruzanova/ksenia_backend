@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getFinancialCast, getFinancialCastAsPdf } from "../controllers/financialCastController";
+import { getFinancialCast, getFinancialCastAsPdf } from "../controllers/financialCastController.controller";
 import { validate } from "../middleware/validate";
 import { forecastSchema } from "../lib/validators/forecastValidators";
 import { catchAsync } from "../lib/catchAsync";

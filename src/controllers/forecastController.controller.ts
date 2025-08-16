@@ -7,7 +7,7 @@ import yearDoorData from "../data/taroscop/yearDoor.json";
 import riskData from "../data/taroscop/risk.json";
 import eventsData from "../data/taroscop/events.json";
 import { AppError } from "../middleware/errorHandler";
-import { generateForecastPdf } from "../services/pdfGenerator";
+import { generateForecastPdf } from "../services/pdfGenerator.service";
 
 // Типизируем наши данные для большей надежности
 type ArcanasData = { [key: string]: string };

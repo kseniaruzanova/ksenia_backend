@@ -42,7 +42,7 @@ export function generateForecastPdf(
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
-    doc.image('./src/assets/photo_2025-07-25_20-34-07.jpg', x, doc.y, {
+    doc.image('./src/assets/images/forecast.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
     });
     
@@ -130,6 +130,7 @@ export function generateForecastPdf(
   doc.end();
 }
 
+
 interface FinancialCastData {
   moneyKnot: { arcanum: number; text: string };
   archetypePoverty: { arcanum: number; text: string };
@@ -168,7 +169,7 @@ export function generateFinancialCastPdf(
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
-    doc.image('./src/assets/financialCast.jpg', x, doc.y, {
+    doc.image('./src/assets/images/financialCast.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
     });
     
@@ -224,7 +225,7 @@ export function generateFinancialCastPdf(
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
       const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
       
-      doc.image('./src/assets/rituals.jpg', x, doc.y, {
+      doc.image('./src/assets/images/rituals.jpg', x, doc.y, {
         fit: [imageWidth, imageHeight]
       });
       
@@ -241,6 +242,101 @@ export function generateFinancialCastPdf(
   });
 
   doc.moveDown(3);
+
+  if (data.saleScript) {
+    doc.addPage();
+    doc
+      .font("DejaVu-Bold")
+      .fontSize(20)
+      .text(data.saleScript.title, { align: "center" });
+    doc.moveDown(2);
+
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(14)
+      .text(data.saleScript.description, { align: "center" });
+    doc.moveDown(2);
+    
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(11)
+      .text(data.saleScript.content, { align: "left" });
+  }
+
+  doc.end();
+}
+
+
+interface MistakesIncarnationData {
+  lessonIncarnation: { arcanum: number; text: string };
+  karmicLessons: { arcanum: number; text: string };
+}
+
+interface MistakesIncarnationPdfData {
+  mistakesIncarnation: MistakesIncarnationData;
+  saleScript: IContent | null;
+}
+
+export function generateMistakesIncarnationPdf(
+  data: MistakesIncarnationPdfData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
+  const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth = 180;
+    const imageHeight = 230;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/mistakesIncarnation.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Расчет «Ошибки прошлого воплощения»", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(16).text("Ваш урок на это воплощение. Этот расчет не меняется в течение жизни! Это ваше ядро личности!");
+  doc.moveDown(1);
+  doc.font("DejaVu-Bold").fontSize(14).text("Ваш урок на это воплощение:");
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.mistakesIncarnation.lessonIncarnation.text, { align: "justify" });
+  doc.moveDown(2);
+
+  doc.font("DejaVu-Bold").fontSize(16).text("Кармические уроки, кармические ошибки и кармические черты характера (это нельзя повторять в этой жизни):");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.mistakesIncarnation.karmicLessons.text, { align: "justify" });
+  doc.moveDown(2);
 
   if (data.saleScript) {
     doc.addPage();

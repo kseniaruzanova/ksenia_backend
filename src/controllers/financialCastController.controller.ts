@@ -9,7 +9,7 @@ import shadowBData from "../data/financialCast/shadowB.json";
 import ritualsData from "../data/financialCast/rituals.json";
 
 import { AppError } from "../middleware/errorHandler";
-import { generateFinancialCastPdf } from "../services/pdfGenerator";
+import { generateFinancialCastPdf } from "../services/pdfGenerator.service";
 
 // Типизируем наши данные для большей надежности
 type ArcanasData = { [key: string]: string };
