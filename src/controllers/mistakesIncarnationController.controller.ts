@@ -37,8 +37,8 @@ export const getMistakesIncarnation = async (req: Request, res: Response) => {
 
   // Получаем связанный контент
   const saleScriptContent = await Content.findOne({
-    productType: 'forecast',
-    productId: 'taroscope-main',
+    productType: 'mistakesIncarnation',
+    productId: 'taroscope-mistakesIncarnation',
     isActive: true
   }).lean();
 
