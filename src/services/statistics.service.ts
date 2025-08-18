@@ -1,6 +1,6 @@
 import { log } from 'console';
 import Payment, { IPayment } from '../models/payment.model';
-import { User } from '../models/user.model';
+import User from '../models/user.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { Response } from 'express';
 import mongoose from 'mongoose';
@@ -83,8 +83,8 @@ export class StatisticsService {
         users.forEach((user, index) => {
           // Проверяем что customerId существует
           if (!user.customerId) {
-            console.warn(`User ${user.chatId || `at index ${index}`} has no customerId. User data:`, {
-              chat_id: user.chatId,
+            console.warn(`User ${user.chat_id || `at index ${index}`} has no customerId. User data:`, {
+              chat_id: user.chat_id,
               state: user.state,
               customerId: user.customerId,
               _id: user._id
