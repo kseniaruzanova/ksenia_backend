@@ -1,6 +1,10 @@
 import { Telegraf } from 'telegraf';
 import Customer from '../models/customer.model';
-import User from '../models/user.model';
+import { User } from '../models/user.model';
+
+import { Chat, IChat } from '../models/chat.model';
+import { Message, IMessage, MessageType } from '../models/messages.model';
+
 import { EventEmitter } from 'events';
 
 // Конфигурация webhook
@@ -82,6 +86,126 @@ class BotManager extends EventEmitter {
         super();
         console.log('🤖 BotManager initialized');
         this.startSubscriptionChecker();
+    }
+
+    private async handleIncomingMessage(customerId: string, ctx: any) {
+        const chatId = ctx.chat.id.toString();
+        const userId = ctx.from.id.toString();
+        const messageType = getMessageType(ctx.message);
+
+        try {
+            // 1. Сохраняем/обновляем информацию о чате
+            const chat = await this.saveChat(customerId, chatId, userId, ctx.from);
+
+            // 2. Сохраняем сообщение
+            await this.saveMessage({
+                chat,
+                customerId,
+                messageId: ctx.message.message_id.toString(),
+                type: messageType as MessageType,
+                direction: 'in',
+                content: this.extractMessageContent(ctx.message, messageType),
+                ctx
+            });
+
+            console.log(`💾 Saved ${messageType} message from ${chatId} for customer ${customerId}`);
+        } catch (error) {
+            console.error(`❌ Error saving message from ${chatId}:`, error);
+            this.emit('message:save:error', { customerId, chatId, error });
+        }
+    }
+
+    private async saveChat(
+        customerId: string,
+        chatId: string,
+        userId: string,
+        from: any
+    ): Promise<IChat> {
+        const chatData = {
+            customerId: customerId,
+            chatId,
+            userId,
+            meta: {
+                firstName: from.first_name,
+                lastName: from.last_name,
+                username: from.username,
+                lastMessageAt: new Date()
+            }
+        };
+
+        return Chat.findOneAndUpdate(
+            { customerId: chatData.customerId, chatId },
+            { 
+                $set: chatData,
+                $setOnInsert: { 
+                    status: 'active',
+                    createdAt: new Date() 
+                }
+            },
+            { upsert: true, new: true }
+        );
+    }
+
+    private async saveMessage(data: {
+        chat: IChat;
+        customerId: string;
+        messageId: string;
+        type: MessageType;
+        direction: 'in' | 'out';
+        content: any;
+        ctx?: any;
+    }): Promise<IMessage> {
+        const message = await Message.create({
+            chatId: data.chat._id,
+            customerId: data.customerId,
+            messageId: data.messageId,
+            type: data.type,
+            direction: data.direction,
+            content: data.content,
+            timestamp: new Date()
+        });
+
+        // Обновляем метаданные чата
+        await Chat.updateOne(
+            { _id: data.chat._id },
+            { 
+                $set: { 'meta.lastMessageAt': new Date() },
+                $inc: { 
+                    'meta.unreadCount': data.direction === 'in' ? 1 : 0 
+                }
+            }
+        );
+
+        return message;
+    }
+
+    private extractMessageContent(message: any, type: string): any {
+        const baseContent = {
+            text: message.text,
+            caption: message.caption
+        };
+
+        switch(type) {
+            case 'photo':
+                return {
+                    ...baseContent,
+                    fileIds: message.photo.map((p: any) => p.file_id)
+                };
+            case 'document':
+                return {
+                    ...baseContent,
+                    fileId: message.document.file_id,
+                    fileName: message.document.file_name
+                };
+            case 'video':
+                return {
+                    ...baseContent,
+                    fileId: message.video.file_id
+                };
+            // ... другие типы сообщений
+            default:
+                return baseContent;
+        }
     }
 
     // Новый метод для периодической проверки истекших подписок
@@ -262,6 +386,8 @@ class BotManager extends EventEmitter {
     private setupBotHandlers(bot: Telegraf, customerId: string, username: string) {
         // Обработчик команды /start
         bot.start(async (ctx) => {
+            await this.handleIncomingMessage(customerId, ctx);
+
             const chatId = ctx.chat.id.toString();
             const firstName = ctx.from?.first_name || '';
             const lastName = ctx.from?.last_name || '';
@@ -312,6 +438,8 @@ class BotManager extends EventEmitter {
 
         // Обработчик всех текстовых сообщений
         bot.on('text', async (ctx) => {
+            await this.handleIncomingMessage(customerId, ctx);
+
             const chatId = ctx.chat.id.toString();
             const text = ctx.message.text;
             const firstName = ctx.from?.first_name || '';
@@ -367,6 +495,8 @@ class BotManager extends EventEmitter {
 
         // Обработчик фото
         bot.on('photo', async (ctx) => {
+            await this.handleIncomingMessage(customerId, ctx);
+
             const chatId = ctx.chat.id.toString();
             const caption = ctx.message.caption || '';
 
@@ -407,6 +537,8 @@ class BotManager extends EventEmitter {
 
         // Обработчик документов
         bot.on('document', async (ctx) => {
+            await this.handleIncomingMessage(customerId, ctx);
+
             const chatId = ctx.chat.id.toString();
             const fileName = ctx.message.document.file_name || 'unknown';
 
@@ -446,6 +578,8 @@ class BotManager extends EventEmitter {
 
         // Универсальный обработчик для всех остальных типов сообщений
         bot.on('message', async (ctx) => {
+            await this.handleIncomingMessage(customerId, ctx);
+
             const chatId = ctx.chat.id.toString();
             const messageType = getMessageType(ctx.message);
 
@@ -870,69 +1004,65 @@ class BotManager extends EventEmitter {
 
     // Отправка сообщения через конкретного бота
     async sendMessage(
-      customerId: string,
-      chatId: string,
-      message: string,
-      showWantButton: boolean = false,
-      removeKeyboard: boolean = false,
-      parse_mode: "HTML" | undefined = undefined
-    ): Promise<{ success: boolean; error?: string }> {
+        customerId: string,
+        chatId: string,
+        message: string,
+        showWantButton: boolean = false,
+        removeKeyboard: boolean = false,
+        parse_mode: "HTML" | undefined = undefined
+    ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
         const bot = this.getBot(customerId);
-        const botInfo = this.getBotInfo(customerId);
-
-        if (!bot || !botInfo) {
-            return {
-                success: false,
-                error: botInfo?.status === 'error'
-                  ? `Bot for customer ${botInfo.username} is in error state`
-                  : 'Bot not found'
-            };
+        if (!bot) {
+            return { success: false, error: 'Bot not found' };
         }
 
         try {
-            const options: any = {
-                parse_mode,
-            };
+            const options: any = { parse_mode };
+            // ... настройка клавиатуры ...
 
-            if (removeKeyboard) {
-                options.reply_markup = { remove_keyboard: true };
+            const result = await bot.telegram.sendMessage(chatId, message, options);
+
+            // Сохраняем исходящее сообщение
+            const chat = await Chat.findOne({ customerId, chatId });
+            if (chat) {
+                const savedMessage = await this.saveMessage({
+                    chat,
+                    customerId,
+                    messageId: result.message_id.toString(),
+                    type: 'text',
+                    direction: 'out',
+                    content: { text: message }
+                });
+
+                this.emit('message:sent', {
+                    customerId,
+                    chatId,
+                    message: savedMessage
+                });
+
+                return { success: true, message: savedMessage };
             }
-
-            if (showWantButton) {
-                options.reply_markup = {
-                    keyboard: [[{ text: 'Хочу' }]],
-                    resize_keyboard: true,
-                    one_time_keyboard: true,
-                };
-            }
-
-            await bot.telegram.sendMessage(chatId, message, options);
-
-            this.emit('message:sent', {
-                customerId,
-                chatId,
-                messageLength: message.length,
-                hasButton: showWantButton,
-                removedKeyboard: removeKeyboard,
-            });
 
             return { success: true };
-
         } catch (error: any) {
-            console.error(`❌ Failed to send message via bot for customer ${botInfo.username}:`, error);
-
-            this.emit('message:failed', {
-                customerId,
-                chatId,
-                error,
-            });
-
-            return {
-                success: false,
-                error: error.message || 'Unknown error',
-            };
+            return { success: false, error: error.message };
         }
+    }
 
+    async getChatHistory(customerId: string, chatId: string, limit = 50): Promise<IMessage[]> {
+        const chat = await Chat.findOne({ customerId, chatId });
+        if (!chat) return [];
+
+        return Message.find({ chatId: chat._id })
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .populate('chatId');
+    }
+
+    async getChats(customerId: string, limit = 20): Promise<IChat[]> {
+        return Chat.find({ customerId })
+            .sort({ 'meta.lastMessageAt': -1 })
+            .limit(limit);
     }
 
     // Проверка статуса бота

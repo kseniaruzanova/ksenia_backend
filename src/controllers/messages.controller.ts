@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Telegraf } from 'telegraf';
 import MessageLog from '../models/messageLog.model';
-import User from '../models/user.model';
+import { User } from '../models/user.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { botManager } from '../services/botManager.service';
 
@@ -194,17 +194,17 @@ export const broadcastMessage = async (req: AuthRequest, res: Response) => {
         const results = [];
         for (const user of users) {
             // Используем BotManager
-            const result = await botManager.sendMessage(credentials.customerId, user.chat_id, message);
+            const result = await botManager.sendMessage(credentials.customerId, user.chatId, message);
 
             const log = new MessageLog({
-                chat_id: user.chat_id,
+                chat_id: user.chatId,
                 message,
                 status: result.success ? 'sent' : 'failed',
                 error: result.error,
                 customerId: credentials.customerId,
             });
             await log.save();
-            results.push({ chat_id: user.chat_id, ...result });
+            results.push({ chat_id: user.chatId, ...result });
         }
 
         res.status(200).json({

@@ -9,7 +9,7 @@ import paymentsRoutes from './routes/payments.routes';
 import userRoutes from './routes/users.routes';
 import messageRoutes from './routes/messages.routes';
 import customerRoutes from './routes/customers.routes';
-import incomingMessagesRoutes from './routes/incomingMessages.routes';
+// import incomingMessagesRoutes from './routes/incomingMessages.routes';
 import forecastRoutes from './routes/forecast.routes';
 import financialCast from './routes/financialCast.routes';
 import mistakesIncarnation from './routes/mistakesIncarnation.routes';
@@ -114,12 +114,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/customers', customerRoutes);
-app.use('/api/incoming', incomingMessagesRoutes);
+// app.use('/api/incoming', incomingMessagesRoutes);
+
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/financialCast', financialCast);
 app.use('/api/mistakesIncarnation', mistakesIncarnation);
 app.use('/api/arcanumRealization', arcanumRealization);
 app.use('/api/awakeningCodes', awakeningCodes);
+
 app.use('/api/content', contentRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/statistics', statisticsRoutes);

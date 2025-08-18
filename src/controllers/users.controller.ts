@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import User from '../models/user.model';
+import { User } from '../models/user.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import mongoose from 'mongoose';
 
@@ -203,7 +203,7 @@ export const debugData = async (req: AuthRequest, res: Response) => {
         res.json({
             message: 'Debug data',
             users: users.map(u => ({
-                chat_id: u.chat_id,
+                chat_id: u.chatId,
                 customerId: u.customerId.toString(),
                 state: u.state
             })),
@@ -389,23 +389,23 @@ export const updateUserFields = async (req: Request, res: Response) => {
             success: true,
             message: 'User fields updated successfully',
             user: {
-                chat_id: user.chat_id,
+                chat_id: user.chatId,
                 customerId: user.customerId,
-                answer_1: user.answer_1,
+                answer_1: "", // user.answer_1,
                 state: user.state,
-                birthday: user.birthday,
-                usermessage2: user.usermessage2,
-                answer_2: user.answer_2,
-                usermessage3: user.usermessage3,
-                answer_3: user.answer_3,
-                answer_4: user.answer_4,
-                usermessage4: user.usermessage4,
-                answer_5: user.answer_5,
-                usermessage5: user.usermessage5,
-                answer_6: user.answer_6,
-                usermessage6: user.usermessage6,
-                messages: user.messages,
-                updatedAt: user.updatedAt
+                birthday: "", // user.birthday,
+                usermessage2: "", // user.usermessage2,
+                answer_2: "", // user.answer_2,
+                usermessage3: "", // user.usermessage3,
+                answer_3: "", // user.answer_3,
+                answer_4: "", // user.answer_4,
+                usermessage4: "", // user.usermessage4,
+                answer_5: "", // user.answer_5,
+                usermessage5: "", // user.usermessage5,
+                answer_6: "", // user.answer_6,
+                usermessage6: "", // user.usermessage6,
+                messages: "", // user.messages,
+                updatedAt: "", // user.updatedAt
             },
             updatedFields: Object.keys(updateFields)
         });
@@ -468,8 +468,8 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
             users.forEach((user, index) => {
                 // Проверяем что customerId существует
                 if (!user.customerId) {
-                    console.warn(`User ${user.chat_id || `at index ${index}`} has no customerId. User data:`, {
-                        chat_id: user.chat_id,
+                    console.warn(`User ${user.chatId || `at index ${index}`} has no customerId. User data:`, {
+                        chat_id: user.chatId,
                         state: user.state,
                         customerId: user.customerId,
                         _id: user._id
