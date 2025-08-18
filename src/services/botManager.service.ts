@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf';
 import Customer from '../models/customer.model';
-import { User } from '../models/user.model';
+import User from '../models/user.model';
 
 import { Chat, IChat } from '../models/chat.model';
 import { Message, IMessage, MessageType } from '../models/messages.model';
