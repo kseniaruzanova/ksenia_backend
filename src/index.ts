@@ -99,7 +99,7 @@ const initializeApp = async () => {
     }
 };
 
-// initializeApp();
+initializeApp();
 
 app.use(cors());
 app.use(express.json());
