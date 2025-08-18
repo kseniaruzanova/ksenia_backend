@@ -360,3 +360,106 @@ export function generateMistakesIncarnationPdf(
 
   doc.end();
 }
+
+
+interface AwakeningCodesData {
+  core: { arcanum: number; text: string };
+  fear: { arcanum: number; text: string };
+  implementation: { arcanum: number; text: string };
+}
+
+interface AwakeningCodesPdfData {
+  awakeningCodes: AwakeningCodesData;
+  saleScript: IContent | null;
+}
+
+export function generateAwakeningCodesPdf(
+  data: AwakeningCodesPdfData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
+  const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth = 180;
+    const imageHeight = 230;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/awakeningCodes.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Расчет «Три кода пробуждения: твоя суть, твой страх и твоя реализация»", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(16).text("Трактовка 1: Ядро");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.awakeningCodes.core.text, { align: "justify" });
+  doc.moveDown(2);
+
+  doc.font("DejaVu-Bold").fontSize(16).text("Трактовка 2: Страх");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.awakeningCodes.fear.text, { align: "justify" });
+  doc.moveDown(2);
+
+  doc.font("DejaVu-Bold").fontSize(16).text("Трактовка 3: Реализация");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.awakeningCodes.implementation.text, { align: "justify" });
+  doc.moveDown(2);
+
+  if (data.saleScript) {
+    doc.addPage();
+    doc
+      .font("DejaVu-Bold")
+      .fontSize(20)
+      .text(data.saleScript.title, { align: "center" });
+    doc.moveDown(2);
+
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(14)
+      .text(data.saleScript.description, { align: "center" });
+    doc.moveDown(2);
+    
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(11)
+      .text(data.saleScript.content, { align: "left" });
+  }
+
+  doc.end();
+}

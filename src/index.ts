@@ -14,6 +14,7 @@ import forecastRoutes from './routes/forecast.routes';
 import financialCast from './routes/financialCast.routes';
 import mistakesIncarnation from './routes/mistakesIncarnation.routes';
 import arcanumRealization from './routes/arcanumRealization.routes';
+import awakeningCodes from './routes/awakeningCodes.routes';
 import contentRoutes from './routes/content.routes';
 import statisticsRoutes from './routes/statistics.routes';
 import qs from 'qs'
@@ -97,7 +98,7 @@ const initializeApp = async () => {
     }
 };
 
-initializeApp();
+// initializeApp();
 
 app.use(cors());
 app.use(express.json());
@@ -118,6 +119,7 @@ app.use('/api/forecast', forecastRoutes);
 app.use('/api/financialCast', financialCast);
 app.use('/api/mistakesIncarnation', mistakesIncarnation);
 app.use('/api/arcanumRealization', arcanumRealization);
+app.use('/api/awakeningCodes', awakeningCodes);
 app.use('/api/content', contentRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/statistics', statisticsRoutes);
