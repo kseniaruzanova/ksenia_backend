@@ -34,7 +34,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
 
     // 2. Теперь ищем сообщения для этого чата
     const query: any = { 
-      chatId: new mongoose.Types.ObjectId(chat.id) // Используем _id чата из коллекции Chat
+      chatId: chat._id // Используем _id чата из коллекции Chat
     };
 
     if (!isAdmin) {
