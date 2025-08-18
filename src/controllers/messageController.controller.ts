@@ -18,11 +18,39 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Функция для безопасного преобразования ID
+    const toSafeObjectId = (id: string) => {
+      try {
+        return new mongoose.Types.ObjectId(id);
+      } catch (e) {
+        return null;
+      }
+    };
+
+    console.log(chat_id);
+    console.log(customerId);
+    const chatIdObj = toSafeObjectId(chat_id);
+    const customerIdObj = toSafeObjectId(customerId!);
+
+    if (!chatIdObj) {
+      return res.status(400).json({
+        success: false,
+        message: 'Неверный формат ID чата'
+      });
+    }
+
     // Проверяем доступ к чату
     if (!isAdmin) {
+      if (!customerIdObj) {
+        return res.status(400).json({
+          success: false,
+          message: 'Неверный формат customerId'
+        });
+      }
+
       const hasAccess = await Message.exists({
-        chatId: new mongoose.Types.ObjectId(chat_id),
-        customerId: new mongoose.Types.ObjectId(customerId)
+        chatId: chatIdObj,
+        customerId: customerIdObj
       });
       
       if (!hasAccess) {
@@ -34,11 +62,11 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
     }
 
     const query: any = { 
-      chatId: new mongoose.Types.ObjectId(chat_id)
+      chatId: chatIdObj
     };
 
     if (!isAdmin) {
-      query.customerId = new mongoose.Types.ObjectId(customerId);
+      query.customerId = customerIdObj;
     }
 
     if (before) {
@@ -51,7 +79,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
       .lean();
 
     // Получаем информацию о пользователе чата
-    const userInfo = await User.findOne({ chat_id }, { 
+    const userInfo = await User.findOne({ _id: chatIdObj }, { 
       state: 1,
       birthday: 1,
       updatedAt: 1
@@ -59,7 +87,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
 
     res.json({
       success: true,
-      messages: messages.reverse(), // Чтобы новые были внизу
+      messages: messages.reverse(),
       userInfo: userInfo || {}
     });
   } catch (error) {
@@ -67,7 +95,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ 
       success: false, 
       message: 'Ошибка при получении сообщений чата',
-      error: ""
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
