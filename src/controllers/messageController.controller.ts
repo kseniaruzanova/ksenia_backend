@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import Message from '../models/messageLog.model';
+import { Message } from '../models/messages.model';
 import User from '../models/user.model';
 import { Chat } from '../models/chat.model'; // Импортируем модель чата
 import mongoose from 'mongoose';
