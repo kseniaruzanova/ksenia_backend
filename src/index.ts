@@ -8,8 +8,9 @@ import authRoutes from './routes/auth.routes';
 import paymentsRoutes from './routes/payments.routes';
 import userRoutes from './routes/users.routes';
 import messageRoutes from './routes/messages.routes';
+import messageChat from './routes/messageChat.routes';
 import customerRoutes from './routes/customers.routes';
-// import incomingMessagesRoutes from './routes/incomingMessages.routes';
+import incomingMessagesRoutes from './routes/incomingMessages.routes';
 import forecastRoutes from './routes/forecast.routes';
 import financialCast from './routes/financialCast.routes';
 import mistakesIncarnation from './routes/mistakesIncarnation.routes';
@@ -98,7 +99,7 @@ const initializeApp = async () => {
     }
 };
 
-initializeApp();
+// initializeApp();
 
 app.use(cors());
 app.use(express.json());
@@ -113,8 +114,9 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/chat/messages', messageChat);
 app.use('/api/customers', customerRoutes);
-// app.use('/api/incoming', incomingMessagesRoutes);
+app.use('/api/incoming', incomingMessagesRoutes);
 
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/financialCast', financialCast);
