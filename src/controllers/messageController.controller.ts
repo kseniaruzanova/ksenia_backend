@@ -32,6 +32,9 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
     const chatIdObj = toSafeObjectId(chat_id);
     const customerIdObj = toSafeObjectId(customerId!);
 
+    console.log(chatIdObj);
+    console.log(customerIdObj);
+
     if (!chatIdObj) {
       return res.status(400).json({
         success: false,
