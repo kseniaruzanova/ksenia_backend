@@ -202,7 +202,6 @@ class BotManager extends EventEmitter {
                     ...baseContent,
                     fileId: message.video.file_id
                 };
-            // ... другие типы сообщений
             default:
                 return baseContent;
         }
@@ -1012,13 +1011,33 @@ class BotManager extends EventEmitter {
         parse_mode: "HTML" | undefined = undefined
     ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
         const bot = this.getBot(customerId);
-        if (!bot) {
-            return { success: false, error: 'Bot not found' };
+        const botInfo = this.getBotInfo(customerId);
+
+        if (!bot || !botInfo) {
+            return {
+                success: false,
+                error: botInfo?.status === 'error'
+                  ? `Bot for customer ${botInfo.username} is in error state`
+                  : 'Bot not found'
+            };
         }
 
         try {
-            const options: any = { parse_mode };
-            // ... настройка клавиатуры ...
+            const options: any = {
+                parse_mode,
+            };
+
+            if (removeKeyboard) {
+                options.reply_markup = { remove_keyboard: true };
+            }
+
+            if (showWantButton) {
+                options.reply_markup = {
+                    keyboard: [[{ text: 'Хочу' }]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                };
+            }
 
             const result = await bot.telegram.sendMessage(chatId, message, options);
 
@@ -1032,20 +1051,31 @@ class BotManager extends EventEmitter {
                     type: 'text',
                     direction: 'out',
                     content: { text: message }
-                });
-
-                this.emit('message:sent', {
-                    customerId,
-                    chatId,
-                    message: savedMessage
-                });
-
-                return { success: true, message: savedMessage };
+                }); 
             }
+
+            this.emit('message:sent', {
+                customerId,
+                chatId,
+                messageLength: message.length,
+                hasButton: showWantButton,
+                removedKeyboard: removeKeyboard,
+            });
 
             return { success: true };
         } catch (error: any) {
-            return { success: false, error: error.message };
+            console.error(`❌ Failed to send message via bot for customer ${botInfo.username}:`, error);
+
+            this.emit('message:failed', {
+                customerId,
+                chatId,
+                error,
+            });
+
+            return {
+                success: false,
+                error: error.message || 'Unknown error',
+            };
         }
     }
 

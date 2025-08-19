@@ -1,14 +1,13 @@
 import { Request, Response } from 'express';
 import { Message } from '../models/messages.model';
 import User from '../models/user.model';
-import { Chat } from '../models/chat.model'; // Импортируем модель чата
+import { Chat } from '../models/chat.model';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth.middleware';
 
-// Получение сообщений конкретного чата
 export const getChatMessages = async (req: AuthRequest, res: Response) => {
   try {
-    const { chat_id, before } = req.body;
+    const { chat_id, before, limit = 50 } = req.body;
     const isAdmin = req.user?.role === 'admin';
     const customerId = req.user?.customerId;
 
@@ -19,7 +18,7 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // 1. Сначала находим чат в коллекции Chat
+    // Находим чат в коллекции Chat
     const chat = await Chat.findOne({ 
       chatId: chat_id,
       ...(isAdmin ? {} : { customerId: new mongoose.Types.ObjectId(customerId) })
@@ -32,9 +31,9 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // 2. Теперь ищем сообщения для этого чата
+    // Формируем запрос для сообщений
     const query: any = { 
-      chatId: chat._id // Используем _id чата из коллекции Chat
+      chatId: chat._id
     };
 
     if (!isAdmin) {
@@ -47,10 +46,10 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
 
     const messages = await Message.find(query)
       .sort({ timestamp: -1 })
-      .limit(50)
+      .limit(parseInt(limit as string))
       .lean();
 
-    // 3. Получаем информацию о пользователе чата
+    // Получаем информацию о пользователе чата
     const userInfo = await User.findOne({ _id: chat._id }, { 
       state: 1,
       birthday: 1,
@@ -61,7 +60,8 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
       success: true,
       messages: messages.reverse(),
       userInfo: userInfo || {},
-      chatMeta: chat.meta // Дополнительно возвращаем мета-информацию о чате
+      chatMeta: chat.meta,
+      hasMore: messages.length >= limit // Флаг, есть ли еще сообщения для загрузки
     });
   } catch (error) {
     console.error('Error fetching chat messages:', error);
