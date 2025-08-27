@@ -6,7 +6,7 @@ import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
 
 const router = express.Router();
 
-router.use(authMiddleware);
+// router.use(authMiddleware);
 
 router.get('/create/link/basic', catchAsync(getLinkProdamusBasic));
 
