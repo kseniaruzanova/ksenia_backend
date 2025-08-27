@@ -21,7 +21,7 @@ export const login = async (req: Request, res: Response) => {
     console.log({ username, password })
 
     if (adminLogin && adminPassword && username === adminLogin && password === adminPassword) {
-        const token = jwt.sign({ username: adminLogin, role: 'admin' }, jwtSecret, { expiresIn: '8h' });
+        const token = jwt.sign({ username: adminLogin, role: 'admin', tariff: "pro" }, jwtSecret, { expiresIn: '8h' });
         res.json({ token, role: 'admin' });
         return;
     }
@@ -34,8 +34,10 @@ export const login = async (req: Request, res: Response) => {
                 username: customer.username,
                 role: 'customer',
                 customerId: customer._id,
-                botToken: customer.botToken, // Включаем токен бота в JWT
+                botToken: customer.botToken,
+                tariff: customer.tariff
             };
+            console.log(payload)
             const token = jwt.sign(payload, jwtSecret, { expiresIn: '8h' });
             res.json({ token, role: 'customer' });
             return;

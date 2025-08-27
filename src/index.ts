@@ -1,4 +1,4 @@
-import express from 'express';
+import express from "express";
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db';
@@ -12,6 +12,7 @@ import messageChat from './routes/messageChat.routes';
 import customerRoutes from './routes/customers.routes';
 import incomingMessagesRoutes from './routes/incomingMessages.routes';
 import forecastRoutes from './routes/forecast.routes';
+import prodamusRoutes from './routes/prodamus.routes';
 import financialCast from './routes/financialCast.routes';
 import mistakesIncarnation from './routes/mistakesIncarnation.routes';
 import arcanumRealization from './routes/arcanumRealization.routes';
@@ -127,6 +128,8 @@ app.use('/api/awakeningCodes', awakeningCodes);
 app.use('/api/content', contentRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/statistics', statisticsRoutes);
+
+app.use('/api/prodamus', prodamusRoutes);
 
 const PORT = process.env.PORT || 3000;
 

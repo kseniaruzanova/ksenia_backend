@@ -27,7 +27,7 @@ const customerSchema = new Schema<ICustomer>({
   botToken: { type: String, required: true },
 
   // Схема для новых полей
-  tariff: { type: String, enum: ['basic', 'pro'], default: null },
+  tariff: { type: String, enum: ['basic', 'pro'], default: "none" },
   subscriptionStatus: { type: String, enum: ['active', 'inactive', 'expired'], default: 'inactive' },
   subscriptionEndsAt: { type: Date, default: null },
 
