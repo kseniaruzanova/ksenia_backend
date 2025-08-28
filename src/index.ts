@@ -19,6 +19,7 @@ import arcanumRealization from './routes/arcanumRealization.routes';
 import awakeningCodes from './routes/awakeningCodes.routes';
 import contentRoutes from './routes/content.routes';
 import statisticsRoutes from './routes/statistics.routes';
+import tarotRoutes from './routes/tarot.routes'
 import qs from 'qs'
 
 dotenv.config();
@@ -124,6 +125,7 @@ app.use('/api/financialCast', financialCast);
 app.use('/api/mistakesIncarnation', mistakesIncarnation);
 app.use('/api/arcanumRealization', arcanumRealization);
 app.use('/api/awakeningCodes', awakeningCodes);
+app.use('/api/tarot', tarotRoutes);
 
 app.use('/api/content', contentRoutes);
 app.use('/api/payments', paymentsRoutes);
