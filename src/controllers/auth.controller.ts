@@ -148,7 +148,8 @@ export const refreshToken = async (req: any, res: Response) => {
             // Для админа просто обновляем время
             const newToken = jwt.sign({ 
                 username: decoded.username, 
-                role: 'admin' 
+                role: 'admin', 
+                tariff: "pro"
             }, jwtSecret, { expiresIn: '8h' });
             
             res.json({ 

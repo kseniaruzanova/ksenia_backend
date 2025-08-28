@@ -96,6 +96,6 @@ const MessageSchema = new Schema<IMessage>({
 // Индексы для быстрого поиска сообщений
 MessageSchema.index({ chatId: 1, timestamp: 1 });
 MessageSchema.index({ customerId: 1, timestamp: 1 });
-MessageSchema.index({ messageId: 1 }, { unique: true });
+MessageSchema.index({ messageId: 1 });
 
 export const Message = model<IMessage>('Message', MessageSchema);
