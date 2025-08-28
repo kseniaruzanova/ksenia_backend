@@ -85,13 +85,15 @@ export const verifyToken = async (req: any, res: Response) => {
             const actualData = {
                 username: customer.username,
                 customerId: customer._id,
-                botToken: customer.botToken
+                botToken: customer.botToken,
+                tariff: !customer.tariff
             };
 
             const tokenData = {
                 username: decoded.username,
-                customerId: decoded.customerId,
-                botToken: decoded.botToken
+                customerId: customer._id,
+                botToken: customer.botToken,
+                tariff: !customer.tariff
             };
 
             console.log('Token data vs DB data:', { tokenData, actualData });
@@ -172,6 +174,7 @@ export const refreshToken = async (req: any, res: Response) => {
                 role: 'customer',
                 customerId: customer._id,
                 botToken: customer.botToken,
+                tariff: customer.tariff
             };
             
             const newToken = jwt.sign(payload, jwtSecret, { expiresIn: '8h' });
