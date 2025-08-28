@@ -16,7 +16,7 @@ export const getLinkProdamusBasic = async (req: AuthRequest, res: Response): Pro
             customer_extra: user.customerId,
             subscription: 2473695,
             urlReturn: "https://botprorok.ru/",
-            urlSuccess: "https://botprorok.ru/"
+            urlSuccess: "https://botprorok.ru/notification/success"
         });
 
         res.json({
@@ -41,8 +41,8 @@ export const getLinkProdamusPro = async (req: AuthRequest, res: Response): Promi
         const link = createProdamusPayLink("astroxenia", {
             customer_extra: user.customerId,
             subscription: 2474522,
-            urlReturn: "https://botprorok.ru/",
-            urlSuccess: "https://botprorok.ru/"
+            urlReturn: "https://botprorok.ru",
+            urlSuccess: "https://botprorok.ru/notification/success"
         });
 
         res.json({
