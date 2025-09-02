@@ -15,6 +15,8 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.9",
+    "astronomia": "^4.2.0",
+    "astronomy-engine": "^2.1.19",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -31,7 +33,7 @@
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/google-spreadsheet": "^3.3.2",
-    "@types/node": "^22.15.30",
+    "@types/node": "^22.18.0",
     "@types/pdfkit": "^0.17.2",
     "google-spreadsheet": "^4.1.5",
     "nodemon": "^3.1.10",
