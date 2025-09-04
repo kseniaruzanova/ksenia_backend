@@ -21,7 +21,9 @@ import contentRoutes from './routes/content.routes';
 import statisticsRoutes from './routes/statistics.routes';
 import tarotRoutes from './routes/tarot.routes'
 import astroRoutes from './routes/astro.routes'
+import videoRoutes from './routes/videos.route';
 import qs from 'qs'
+import path from "path";
 
 dotenv.config();
 
@@ -134,6 +136,8 @@ app.use('/api/statistics', statisticsRoutes);
 
 app.use('/api/prodamus', prodamusRoutes);
 app.use('/api/astro', astroRoutes);
+
+app.use('/api/videos', videoRoutes);
 
 const PORT = process.env.PORT || 3000;
 

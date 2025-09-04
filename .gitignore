@@ -3,3 +3,4 @@ dist
 .env
 google-credentials.json
 .idea
+uploads
