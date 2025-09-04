@@ -22,16 +22,50 @@ export const initGridFS = () => {
 
 export const getGridFSBuckets = () => ({ videoBucket, thumbnailBucket });
 
-function bufferToStream(buffer: Buffer): Readable {
-  const stream = new Readable();
-  stream.push(buffer);
-  stream.push(null);
-  return stream;
-}
+// Middleware для отслеживания прогресса загрузки
+export const uploadProgressMiddleware: RequestHandler = (req, res, next) => {
+  const contentLength = parseInt(req.headers['content-length'] || '0');
+  
+  // Если content-length не указан или равен 0, пропускаем отслеживание
+  if (contentLength <= 0) {
+    return next();
+  }
+  
+  let uploadedBytes = 0;
+  
+  req.on('data', (chunk: Buffer) => {
+    uploadedBytes += chunk.length;
+    const progress = Math.min((uploadedBytes / contentLength) * 100, 100);
+    
+    // Сохраняем прогресс в request object
+    req.uploadProgress = progress;
+    
+    // Можно отправлять прогресс через WebSocket или сохранять в сессии
+    console.log(`Upload progress: ${progress.toFixed(2)}%`);
+    
+    // Для реального приложения можно добавить отправку через WebSocket:
+    // if (req.socket && progress % 5 === 0) { // Отправляем каждые 5%
+    //   req.socket.emit('upload-progress', { progress });
+    // }
+  });
+  
+  req.on('end', () => {
+    req.uploadProgress = 100;
+    console.log('Upload completed');
+  });
+  
+  req.on('error', (error) => {
+    console.error('Upload error:', error);
+    req.uploadProgress = -1; // Ошибка
+  });
+  
+  next();
+};
 
-async function saveToGridFS(
+async function saveToGridFSWithProgress(
   bucket: mongoose.mongo.GridFSBucket,
-  file: { buffer?: Buffer; originalname: string; mimetype: string }
+  file: { buffer?: Buffer; originalname: string; mimetype: string; size: number },
+  onProgress?: (progress: number) => void
 ): Promise<mongoose.Types.ObjectId> {
   if (!file.buffer) throw new Error("Нет буфера для сохранения в GridFS");
 
@@ -40,9 +74,12 @@ async function saveToGridFS(
       contentType: file.mimetype
     });
 
+    let uploadedBytes = 0;
+    
     uploadStream.on("error", (error) => {
       reject(error);
     });
+    
     uploadStream.on("finish", () => {
       resolve(uploadStream.id);
     });
@@ -50,6 +87,15 @@ async function saveToGridFS(
     const readableStream = new Readable();
     readableStream.push(file.buffer);
     readableStream.push(null);
+    
+    // Мониторим прогресс загрузки
+    readableStream.on('data', (chunk) => {
+      uploadedBytes += chunk.length;
+      if (onProgress) {
+        onProgress((uploadedBytes / file.size) * 100);
+      }
+    });
+    
     readableStream.pipe(uploadStream);
   });
 }
@@ -90,11 +136,22 @@ export const createVideo: RequestHandler = async (req, res) => {
     let source: string | mongoose.Types.ObjectId | undefined;
     let thumbnail: mongoose.Types.ObjectId | string | undefined;
 
+    // Функция для отслеживания прогресса
+    const onVideoProgress = (progress: number) => {
+      // Можно отправлять прогресс через WebSocket или сохранять в сессии
+      console.log(`Video upload progress: ${progress.toFixed(2)}%`);
+      // Для реального приложения нужно реализовать механизм отправки прогресса клиенту
+    };
+
+    const onThumbnailProgress = (progress: number) => {
+      console.log(`Thumbnail upload progress: ${progress.toFixed(2)}%`);
+    };
+
     // --- Видео ---
     if (type === "file" && req.files && "video" in req.files) {
       const videoFile = (req.files as any).video[0];
       console.log("Сохраняем видео:", videoFile.originalname);
-      source = await saveToGridFS(videoBucket, videoFile);
+      source = await saveToGridFSWithProgress(videoBucket, videoFile, onVideoProgress);
       console.log("Видео успешно сохранено, _id:", source.toString());
     } else if (type === "link") {
       source = sourceLink;
@@ -105,11 +162,9 @@ export const createVideo: RequestHandler = async (req, res) => {
       const thumbFile = (req.files as any).thumbnail[0];
 
       if (thumbFile.buffer) {
-        // сохраняем в GridFS
         console.log("Сохраняем thumbnail в GridFS:", thumbFile.originalname);
-        thumbnail = await saveToGridFS(thumbnailBucket, thumbFile);
+        thumbnail = await saveToGridFSWithProgress(thumbnailBucket, thumbFile, onThumbnailProgress);
       } else if (thumbFile.originalname && thumbFile.originalname.startsWith("http")) {
-        // сохраняем как ссылку
         console.log("Thumbnail пришёл как URL, сохраняем ссылку:", thumbFile.originalname);
         thumbnail = thumbFile.originalname;
       }
@@ -148,13 +203,23 @@ export const updateVideo: RequestHandler = async (req, res) => {
     if (title) found.title = title;
     if (description) found.description = description;
     
+    // Функции для отслеживания прогресса
+    const onVideoProgress = (progress: number) => {
+      console.log(`Video upload progress: ${progress.toFixed(2)}%`);
+      // Здесь можно добавить отправку прогресса через WebSocket
+    };
+
+    const onThumbnailProgress = (progress: number) => {
+      console.log(`Thumbnail upload progress: ${progress.toFixed(2)}%`);
+    };
+
     // Обновление типа и источника
     if (type && type !== found.type) {
       found.type = type;
       
       // Если меняем тип, нужно обработать старый источник
       if (found.type === "file" && typeof found.source === "string") {
-        // Был link, стал file - удаляем старый источник (если нужно)
+        // Был link, стал file
         found.source = sourceLink as any;
       } else if (found.type === "link" && found.source instanceof mongoose.Types.ObjectId) {
         // Был file, стал link - удаляем старый файл
@@ -164,45 +229,94 @@ export const updateVideo: RequestHandler = async (req, res) => {
     }
 
     // Обновление видео файла
-    if (type === "file" && req.files && "video" in req.files) {
+    if (req.files && "video" in req.files) {
+      const videoFile = (req.files as any).video[0];
+      
+      // Валидация видео файла
+      if (!videoFile.mimetype.startsWith('video/')) {
+        res.status(400).json({ message: "Загруженный файл не является видео" });
+        return;
+      }
+
       // Удаляем старый файл
       if (found.source instanceof mongoose.Types.ObjectId) {
         await deleteFromGridFS(videoBucket, found.source);
       }
       
-      const videoFile = (req.files as any).video[0];
-      found.source = await saveToGridFS(videoBucket, videoFile);
+      // Сохраняем новый файл с отслеживанием прогресса
+      found.source = await saveToGridFSWithProgress(videoBucket, videoFile, onVideoProgress);
+      found.type = "file"; // Принудительно устанавливаем тип file при загрузке видео
     } else if (type === "link" && sourceLink) {
       // Удаляем старый файл если был
       if (found.source instanceof mongoose.Types.ObjectId) {
         await deleteFromGridFS(videoBucket, found.source);
       }
       found.source = sourceLink;
+      found.type = "link";
     }
 
     // Обновление thumbnail
     if (req.files && "thumbnail" in req.files) {
       const thumbFile = (req.files as any).thumbnail[0];
       
+      // Валидация изображения
+      if (!thumbFile.mimetype.startsWith('image/') && !thumbFile.originalname.startsWith("http")) {
+        res.status(400).json({ message: "Загруженный файл не является изображением" });
+        return;
+      }
+
       // Удаляем старый thumbnail если он был файлом
       if (found.thumbnail instanceof mongoose.Types.ObjectId) {
         await deleteFromGridFS(thumbnailBucket, found.thumbnail);
       }
       
       if (thumbFile.buffer) {
-        // Сохраняем новый файл
-        found.thumbnail = await saveToGridFS(thumbnailBucket, thumbFile);
+        // Сохраняем новый файл с отслеживанием прогресса
+        found.thumbnail = await saveToGridFSWithProgress(thumbnailBucket, thumbFile, onThumbnailProgress);
       } else if (thumbFile.originalname && thumbFile.originalname.startsWith("http")) {
         // Сохраняем как ссылку
         found.thumbnail = thumbFile.originalname;
+      } else if (thumbFile.buffer) {
+        // Для buffer файлов без HTTP ссылки
+        found.thumbnail = await saveToGridFSWithProgress(thumbnailBucket, thumbFile, onThumbnailProgress);
       }
     }
 
+    // Проверяем, что источник установлен корректно
+    if (!found.source) {
+      res.status(400).json({ message: "Источник видео обязателен" });
+      return;
+    }
+
     const updated = await found.save();
-    res.status(200).json(updated);
+    
+    // Отправляем обновленное видео с populate если нужно
+    const populatedVideo = await Video.findById(updated._id);
+    
+    res.status(200).json({
+      message: "Видео успешно обновлено",
+      video: populatedVideo
+    });
+    
   } catch (error: any) {
     console.error("Ошибка в updateVideo:", error);
-    res.status(400).json({ message: "Ошибка при обновлении видео", error });
+    
+    // Более детальная обработка ошибок
+    if (error.name === 'ValidationError') {
+      res.status(400).json({ 
+        message: "Ошибка валидации данных", 
+        errors: error.errors 
+      });
+    } else if (error.name === 'CastError') {
+      res.status(400).json({ 
+        message: "Неверный формат ID видео" 
+      });
+    } else {
+      res.status(500).json({ 
+        message: "Ошибка при обновлении видео", 
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
   }
 };
 
@@ -246,18 +360,45 @@ export const getFile: RequestHandler = async (req, res) => {
       return;
     }
 
-    const downloadStream = videoBucket.openDownloadStream(id);
+    const file = files[0];
+    const fileSize = file.length;
     
-    // Устанавливаем заголовки
-    res.set("Content-Type", files[0].contentType || "application/octet-stream");
-    res.set("Content-Disposition", `inline; filename="${files[0].filename}"`);
+    // Поддержка диапазонов для потокового воспроизведения
+    const range = req.headers.range;
     
-    downloadStream.on("error", (error: any) => {
-      console.error("Ошибка при чтении файла:", error);
-      res.status(404).json({ message: "Файл не найден" });
-    });
+    if (range) {
+      // Обработка запроса с диапазоном
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunksize = (end - start) + 1;
+      
+      const head = {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': file.contentType || 'video/mp4',
+      };
+      
+      res.writeHead(206, head);
+      
+      const downloadStream = videoBucket.openDownloadStream(id, {
+        start,
+        end: end + 1
+      });
+      
+      downloadStream.pipe(res);
+    } else {
+      // Полный файл
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': file.contentType || 'video/mp4',
+      });
+      
+      const downloadStream = videoBucket.openDownloadStream(id);
+      downloadStream.pipe(res);
+    }
     
-    downloadStream.pipe(res);
   } catch (error: any) {
     console.error("Ошибка в getFile:", error);
     res.status(404).json({ message: "Файл не найден", error });

@@ -1,4 +1,3 @@
-// routes/videos.ts
 import express from 'express';
 import multer from 'multer';
 import {
@@ -7,21 +6,19 @@ import {
   updateVideo,
   deleteVideo,
   getFile,
-  getThumbnail
+  getThumbnail,
+  uploadProgressMiddleware
 } from '../controllers/video.controller';
 
 const router = express.Router();
 
-// Настройка multer для памяти (чтобы потом сохранять в GridFS)
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Получить список всех видео
-router.get('/', getVideos);
-
-// Создать новое видео (файл видео + обложка)
+// Добавляем middleware для отслеживания прогресса
 router.post(
   '/',
+  uploadProgressMiddleware,
   upload.fields([
     { name: 'video', maxCount: 1 },
     { name: 'thumbnail', maxCount: 1 }
@@ -29,9 +26,9 @@ router.post(
   createVideo
 );
 
-// Обновить видео по ID (файл видео + обложка)
 router.put(
   '/:id',
+  uploadProgressMiddleware,
   upload.fields([
     { name: 'video', maxCount: 1 },
     { name: 'thumbnail', maxCount: 1 }
@@ -39,13 +36,10 @@ router.put(
   updateVideo
 );
 
-// Удалить видео по ID
+// Остальные маршруты без изменений
+router.get('/', getVideos);
 router.delete('/:id', deleteVideo);
-
-// Получить файл видео по ID (GridFS)
 router.get('/file/:id', getFile);
-
-// Получить thumbnail по ID (GridFS)
 router.get('/thumbnail/:id', getThumbnail);
 
 export default router;
