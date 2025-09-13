@@ -51,7 +51,7 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
       userId, 
       text,
       raw: updateData, 
-      date: new Date(ctx.date * 1000), 
+      date: new Date("date" in ctx ? ctx.date : ctx.message.date * 1000), 
       isCallback,
     });
 
