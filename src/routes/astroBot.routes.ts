@@ -359,7 +359,7 @@ astroRoutes.post("/outgoing", async (req: Request, res: Response) => {
 			userId: 0,
 			text: "text" in msg ? msg.text : msg.caption,
 			raw: msg,
-			date: new Date(msg.date * 1000 + 2000),
+			date: new Date(msg.date * 1000 + 20),
 		});
 
     res.json({ ok: true });
