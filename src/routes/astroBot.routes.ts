@@ -346,21 +346,22 @@ astroRoutes.post("/outgoing", async (req: Request, res: Response) => {
   try {
     const body = req.body as any;
 
-    if (!body.chatId || !body.text) {
-      res.status(400).json({ ok: false, error: "chatId и text обязательны" });
+    if (!body.ok || !body.result) {
+      res.status(400).json({ ok: false, error: "Некорректный формат JSON" });
       return;
     }
 
-    // const msg = await AstroBot.telegram.sendMessage(body.chatId, body.text, body.extra || {});
+    const msg = body.result;
 
-    // await AstroBotMessage.create({
-    //   messageId: msg.message_id,
-    //   chatId: body.chatId,
-    //   userId: 0,
-    //   text: msg.text,
-    //   raw: msg,
-    //   date: new Date(msg.date * 1000),
-    // });
+    // сохраняем сообщение
+    await AstroBotMessage.create({
+      messageId: msg.message_id,
+      chatId: msg.chat.id,
+      userId: 0,
+      text: msg.text,
+      raw: msg,
+      date: new Date(msg.date * 1000),
+    });
 
     res.json({ ok: true });
   } catch (err) {
