@@ -49,7 +49,9 @@ export class AstroProcessor {
   // --- ВСПОМОГАТЕЛЬНОЕ ---
 
   private jdFromDate(date: Date): number {
-    return AstronomyService.dateToJulian(date);
+    // Убедитесь, что работаете с UTC временем
+    const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+    return AstronomyService.dateToJulian(utcDate);
   }
 
   private dateFromJd(jd: number): Date {
@@ -93,28 +95,33 @@ export class AstroProcessor {
 
   /** Облиquity + Local Sidereal Time + MC для Equal/Whole */
   private computeMC(date: Date, longitude: number): number {
-    // местное звёздное время (в часах)
-    const lstHours = Astronomy.SiderealTime(date) + longitude/15;
+    // Получаем UTC дату
+    const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+    
+    // Вычисляем гринвичское звёздное время
+    const gstHours = Astronomy.SiderealTime(utcDate);
+    
+    // Преобразуем в местное звёздное время
+    const lstHours = gstHours + longitude / 15;
     const lst = ((lstHours % 24) + 24) % 24;
-    const lstDeg = lst * 15; // 360° = 24h
-
-    // MC — просто LST, преобразованный к эклиптике с учётом наклона?
-    // В строгом виде MC ≠ LST, но для Equal/Whole будем использовать
-    // проекцию на эклиптику через формулу Meeus? Чтобы не усложнять —
-    // возьмём приближение: MC ≈ LST с приведением в 0..360.
-    // Для визуализации и сортировки домов этого достаточно.
-    return norm360(lstDeg);
+    
+    return norm360(lst * 15);
   }
 
   private computeAscWholeEqual(date: Date, lat: number, lon: number): number {
-    // Для Whole/Equal нам нужен знак ASC, а не точный градус Placidus.
-    // Чтобы определить знак ASC, используем азимут восточного горизонта
-    // через положение эклиптики относительно местного меридиана упрощённо.
-    // Для стабильности в UI применим приближение: Ascendant ≈ (MC - 90°).
-    // Это прибл. верно в средних широтах и подходит для Whole/Equal сеток.
     const mc = this.computeMC(date, lon);
-    const asc = norm360(mc - 90);
-    return asc;
+    
+    // Более точная формула для ASC
+    const epsilon = 23.4393; // Наклон эклиптики
+    const mcRad = mc * Math.PI / 180;
+    const latRad = lat * Math.PI / 180;
+    
+    const ascRad = Math.atan2(
+      Math.cos(mcRad),
+      -Math.sin(mcRad) * Math.cos(epsilon) + Math.tan(latRad) * Math.sin(epsilon)
+    );
+    
+    return norm360(ascRad * 180 / Math.PI);
   }
 
   private buildHousesWhole(asc: number): HouseCusp[] {
@@ -152,18 +159,20 @@ export class AstroProcessor {
     lon: number,
     timezone: number = 0
   ): Promise<NatalChart> {
+    const utcDate = birthDate;
+
     const planetNames = Array.from(this.planetCodes.keys());
 
     // Планеты
     const planets: PlanetPosition[] = [];
     for (const name of planetNames) {
-      const pos = await this.planetPosition(birthDate, name);
+      const pos = await this.planetPosition(utcDate, name);
       planets.push(pos);
     }
 
     // Asc/MC (упрощённая модель для Whole/Equal)
-    const mc = this.computeMC(birthDate, lon);
-    const asc = this.computeAscWholeEqual(birthDate, lat, lon);
+    const mc = this.computeMC(utcDate, lon);
+    const asc = this.computeAscWholeEqual(utcDate, lat, lon);
 
     // Дома
     const houses =

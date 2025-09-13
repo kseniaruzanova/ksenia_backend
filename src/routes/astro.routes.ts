@@ -20,12 +20,18 @@ async function ensureInit() {
 router.post('/natal', async (req, res) => {
   try {
     await ensureInit();
-
+    console.log(req.body)
     const { date, latitude, longitude, timezone } = req.body;
-    const d = date ? new Date(date) : new Date();
+    
+    const localDateStr = date.replace('T', ' ') + ':00';
+    const birthDate = new Date(Date.parse(localDateStr + ' GMT+' + timezone));
+    
+    console.log('Input date:', date);
+    console.log('Parsed date:', birthDate);
+    console.log('UTC representation:', birthDate.toISOString());
 
     const chart = await astro.calculateNatalChart(
-      d,
+      birthDate,
       latitude,
       longitude,
       timezone ?? 0
