@@ -360,7 +360,7 @@ astroRoutes.post("/outgoing", async (req: Request, res: Response) => {
       userId: 0,
       text: msg.text,
       raw: msg,
-      date: new Date(msg.date * 1000),
+      date: new Date((msg.date+1) * 1000),
     });
 
     res.json({ ok: true });
