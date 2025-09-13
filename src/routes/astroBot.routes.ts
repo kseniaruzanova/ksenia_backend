@@ -5,15 +5,15 @@ const astroRoutes = Router();
 
 astroRoutes.post("/incoming", async (req: Request, res: Response) => {
   try {
-    const update = req.body as any;
+    const updateData = req.body as any;
     let ctx: any;
     let isCallback = false;
 
-    if (update.callback_query) {
-      ctx = update.callback_query;
+    if (updateData.callback_query) {
+      ctx = updateData.callback_query;
       isCallback = true;
-    } else if (update.message) {
-      ctx = update.message;
+    } else if (updateData.message) {
+      ctx = updateData.message;
     } else {
       res.json({ ok: true, info: "Unknown update type" });
     }
@@ -27,7 +27,7 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
         { 
           chatId, 
           type: ctx.chat?.type || "private", 
-          title: "title" in ctx.chat ? ctx.chat.title : undefined, 
+          title: "title" in ctx.from ? ctx.from.title : undefined, 
           username: "username" in ctx.from ? ctx.from.username : ctx.chat?.username, 
           firstName: "first_name" in ctx.from ? ctx.from.first_name : ctx.chat?.first_name, 
           lastName: "last_name" in ctx.from ? ctx.from.last_name : ctx.chat?.last_name, 
@@ -50,7 +50,7 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
       chatId, 
       userId, 
       text,
-      raw: update, 
+      raw: updateData, 
       date: new Date(ctx.date * 1000), 
       isCallback,
     });
