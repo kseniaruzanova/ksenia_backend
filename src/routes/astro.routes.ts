@@ -6,7 +6,7 @@ import { degreesToSign, formatZodiacPosition } from '../lib/zodiac';
 const router = Router();
 
 const config: EphemerisConfig = { ephemerisPath: '', flags: 0 };
-const astro = new AstroProcessor(config, 'WHOLE');
+const astro = new AstroProcessor(config, 'EQUAL');
 
 async function ensureInit() {
   if (!(astro as any)._inited) {
@@ -15,23 +15,19 @@ async function ensureInit() {
   }
 }
 
-// POST /api/astro/natal
-// { "date":"1998-01-01T12:34:00Z", "latitude":55.75, "longitude":37.61, "timezone":3 }
 router.post('/natal', async (req, res) => {
   try {
     await ensureInit();
     console.log(req.body)
     const { date, latitude, longitude, timezone } = req.body;
-    
-    const localDateStr = date.replace('T', ' ') + ':00';
-    const birthDate = new Date(Date.parse(localDateStr + ' GMT+' + timezone));
-    
-    console.log('Input date:', date);
-    console.log('Parsed date:', birthDate);
-    console.log('UTC representation:', birthDate.toISOString());
+
+    const birthDateUTC = parseBirthDate(date, timezone);
+
+    console.log("Input date (local):", date);
+    console.log("Converted UTC:", birthDateUTC.toISOString());
 
     const chart = await astro.calculateNatalChart(
-      birthDate,
+      birthDateUTC,
       latitude,
       longitude,
       timezone ?? 0
@@ -39,7 +35,6 @@ router.post('/natal', async (req, res) => {
 
     const aspects = astro.calculateAspects(chart.planets);
 
-    // Расширенный ответ с информацией о знаках зодиака
     res.json({
       planets: chart.planets.map((p: any) => ({
         name: p.name,
@@ -75,5 +70,15 @@ router.post('/natal', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+function parseBirthDate(dateStr: string, timezone: number): Date {
+  // dateStr приходит в формате "YYYY-MM-DDTHH:mm"
+  const [d, t] = dateStr.split("T");
+  const [year, month, day] = d.split("-").map(Number);
+  const [hour, minute] = t.split(":").map(Number);
+
+  // создаём UTC-дата: вычитаем смещение часового пояса
+  return new Date(Date.UTC(year, month - 1, day, hour - timezone, minute));
+}
 
 export default router; 
