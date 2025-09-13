@@ -8,11 +8,7 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
     const ctx = req.body.message as any;
 
 		const chatId = ctx.chat.id; 
-		const userId = ctx.from?.id; 
-		let text = ""; 
-		if ("text" in ctx.message) { 
-			text = ctx.message.text; 
-		}
+		const userId = ctx.chat.id; 
 
     if (chatId) {
       await AstroBotChat.updateOne( 
@@ -21,9 +17,9 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
             chatId, 
             type: ctx.chat.type, 
             title: "title" in ctx.chat ? ctx.chat.title : undefined, 
-            username: ctx.from.username, 
-            firstName: ctx.from.first_name, 
-            lastName: ctx.from.last_name, 
+            username: "username" in ctx.chat ? ctx.chat.username : undefined, 
+            firstName: "first_name" in ctx.chat ? ctx.chat.first_name : undefined, 
+            lastName: "last_name" in ctx.chat ? ctx.chat.last_name : undefined, 
         }, 
         { upsert: true } 
 			);
@@ -31,12 +27,12 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
 
      
     await AstroBotMessage.create({ 
-			messageId: ctx.message.message_id, 
+			messageId: ctx.message_id, 
 			chatId, 
 			userId, 
-			text: "text" in ctx.message ? ctx.message.text : undefined, 
-			raw: ctx.message, 
-			date: new Date(ctx.message.date * 1000), 
+			text: "text" in ctx ? ctx.text : undefined, 
+			raw: ctx, 
+			date: new Date(ctx.date * 1000), 
 		});
 
     res.json({ ok: true });
