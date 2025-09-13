@@ -357,7 +357,7 @@ astroRoutes.post("/outgoing", async (req: Request, res: Response) => {
 			messageId: msg.message_id,
 			chatId: msg.chat.id,
 			userId: 0,
-			text: msg.text,
+			text: "text" in msg ? msg.text : msg.caption,
 			raw: msg,
 			date: new Date(msg.date * 1000 + 2000),
 		});
