@@ -353,15 +353,14 @@ astroRoutes.post("/outgoing", async (req: Request, res: Response) => {
 
     const msg = body.result;
 
-    // сохраняем сообщение
     await AstroBotMessage.create({
-      messageId: msg.message_id,
-      chatId: msg.chat.id,
-      userId: 0,
-      text: msg.text,
-      raw: msg,
-      date: new Date((msg.date+1) * 1000),
-    });
+			messageId: msg.message_id,
+			chatId: msg.chat.id,
+			userId: msg.from?.id || 0,
+			text: msg.text,
+			raw: msg,
+			date: new Date(msg.date * 1000 + 2000),
+		});
 
     res.json({ ok: true });
   } catch (err) {
