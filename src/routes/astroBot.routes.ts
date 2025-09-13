@@ -9,9 +9,26 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
     let ctx: any;
     let isCallback = false;
 
+		let buttonText = '';
+
     if (updateData.callback_query) {
       ctx = updateData.callback_query;
       isCallback = true;
+      
+      const callbackData = ctx.data;
+      const inlineKeyboard = ctx.message?.reply_markup?.inline_keyboard;
+      
+      if (inlineKeyboard && Array.isArray(inlineKeyboard)) {
+        for (const row of inlineKeyboard) {
+          for (const button of row) {
+            if (button.callback_data === callbackData) {
+              buttonText = button.text;
+              break;
+            }
+          }
+          if (buttonText) break;
+        }
+      }
     } else if (updateData.message) {
       ctx = updateData.message;
     } else {
@@ -40,7 +57,7 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
     let text: string | undefined;
     
     if (isCallback) {
-      text = `Я нажал на кнопку: ${ctx.data}`;
+      text = `Я нажал на кнопку: ${buttonText || ctx.data}`;
     } else {
       text = "text" in ctx ? ctx.text : undefined;
     }
