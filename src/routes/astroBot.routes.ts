@@ -7,6 +7,8 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
   try {
     const body = req.body as any;
 
+    console.log(body);
+    
     if (body.chatId) {
       await AstroBotChat.updateOne(
         { chatId: body.chatId },
