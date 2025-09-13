@@ -7,35 +7,41 @@ astroRoutes.post("/incoming", async (req: Request, res: Response) => {
   try {
     const body = req.body as any;
 
-    console.log(body);
-    
-    if (body.chatId) {
-      await AstroBotChat.updateOne(
-        { chatId: body.chatId },
-        {
-          chatId: body.chatId,
-          type: body.type,
-          title: body.title,
-          username: body.username,
-          firstName: body.firstName,
-          lastName: body.lastName,
-        },
-        { upsert: true }
-      );
+		const chatId = body.chat.id; 
+		const userId = body.from?.id; 
+		let text = ""; 
+		if ("text" in body.message) { 
+			text = body.message.text; 
+		}
+
+    if (chatId) {
+      await AstroBotChat.updateOne( 
+        { chatId }, 
+        { 
+            chatId, 
+            type: body.chat.type, 
+            title: "title" in body.chat ? body.chat.title : undefined, 
+            username: body.from.username, 
+            firstName: body.from.first_name, 
+            lastName: body.from.last_name, 
+        }, 
+        { upsert: true } 
+			);
     }
 
-    await AstroBotMessage.create({
-      messageId: body.messageId,
-      chatId: body.chatId,
-      userId: body.userId,
-      text: body.text,
-      raw: body.raw,
-      date: body.date ? new Date(body.date) : new Date(),
-    });
+     
+    await AstroBotMessage.create({ 
+			messageId: body.message.message_id, 
+			chatId, 
+			userId, 
+			text: "text" in body.message ? body.message.text : undefined, 
+			raw: body.message, 
+			date: new Date(body.message.date * 1000), 
+		});
 
     res.json({ ok: true });
   } catch (err) {
-    console.error("Ошибка при /astro/incoming:", err);
+    console.error("Ошибка при /astroBot/incoming:", err);
     res.status(500).json({ ok: false, error: String(err) });
   }
 });
