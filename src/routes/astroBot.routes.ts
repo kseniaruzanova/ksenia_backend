@@ -1,39 +1,59 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response } from 'express';
 import { AstroBotChat, AstroBotMessage } from "../models/astrobot.model";
 
 const astroRoutes = Router();
 
 astroRoutes.post("/incoming", async (req: Request, res: Response) => {
   try {
-    const ctx = req.body.message as any;
+    const update = req.body as any;
+    let ctx: any;
+    let isCallback = false;
 
-		const chatId = ctx.chat.id; 
-		const userId = ctx.chat.id; 
+    if (update.callback_query) {
+      ctx = update.callback_query;
+      isCallback = true;
+    } else if (update.message) {
+      ctx = update.message;
+    } else {
+      res.json({ ok: true, info: "Unknown update type" });
+    }
+
+    const chatId = ctx.chat?.id || ctx.from?.id;
+    const userId = ctx.from?.id;
 
     if (chatId) {
       await AstroBotChat.updateOne( 
         { chatId }, 
         { 
-            chatId, 
-            type: ctx.chat.type, 
-            title: "title" in ctx.chat ? ctx.chat.title : undefined, 
-            username: "username" in ctx.chat ? ctx.chat.username : undefined, 
-            firstName: "first_name" in ctx.chat ? ctx.chat.first_name : undefined, 
-            lastName: "last_name" in ctx.chat ? ctx.chat.last_name : undefined, 
+          chatId, 
+          type: ctx.chat?.type || "private", 
+          title: "title" in ctx.chat ? ctx.chat.title : undefined, 
+          username: "username" in ctx.from ? ctx.from.username : ctx.chat?.username, 
+          firstName: "first_name" in ctx.from ? ctx.from.first_name : ctx.chat?.first_name, 
+          lastName: "last_name" in ctx.from ? ctx.from.last_name : ctx.chat?.last_name, 
         }, 
         { upsert: true } 
-			);
+      );
     }
 
-     
+    // Обрабатываем текст в зависимости от типа запроса
+    let text: string | undefined;
+    
+    if (isCallback) {
+      text = `Я нажал на кнопку: ${ctx.data}`;
+    } else {
+      text = "text" in ctx ? ctx.text : undefined;
+    }
+
     await AstroBotMessage.create({ 
-			messageId: ctx.message_id, 
-			chatId, 
-			userId, 
-			text: "text" in ctx ? ctx.text : undefined, 
-			raw: ctx, 
-			date: new Date(ctx.date * 1000), 
-		});
+      messageId: isCallback ? ctx.message?.message_id : ctx.message_id, 
+      chatId, 
+      userId, 
+      text,
+      raw: update, 
+      date: new Date(ctx.date * 1000), 
+      isCallback,
+    });
 
     res.json({ ok: true });
   } catch (err) {
