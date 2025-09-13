@@ -356,7 +356,7 @@ astroRoutes.post("/outgoing", async (req: Request, res: Response) => {
     await AstroBotMessage.create({
 			messageId: msg.message_id,
 			chatId: msg.chat.id,
-			userId: msg.from?.id || 0,
+			userId: 0,
 			text: msg.text,
 			raw: msg,
 			date: new Date(msg.date * 1000 + 2000),
