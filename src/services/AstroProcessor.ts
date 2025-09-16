@@ -52,6 +52,7 @@ export class AstroProcessor {
     return AstronomyService.dateToJulian(date);
   }
 
+
   private dateFromJd(jd: number): Date {
     return AstronomyService.julianToDate(jd);
   }
@@ -88,6 +89,7 @@ export class AstroProcessor {
       zodiacSign
     };
   }
+
 
   // --- ДОМА (Whole Sign / Equal / Placidus) ---
   private degToRad(d: number) { return d * Math.PI / 180; }

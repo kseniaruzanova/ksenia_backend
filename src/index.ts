@@ -23,6 +23,7 @@ import tarotRoutes from './routes/tarot.routes'
 import astroRoutes from './routes/astro.routes'
 import videoRoutes from './routes/videos.route';
 import astroBotRoutes from './routes/astroBot.routes';
+import geocodingRoutes from './routes/geocoding.routes';
 import qs from 'qs'
 
 dotenv.config();
@@ -137,6 +138,7 @@ app.use('/api/statistics', statisticsRoutes);
 app.use('/api/prodamus', prodamusRoutes);
 app.use('/api/astro', astroRoutes);
 app.use('/api/astroBot', astroBotRoutes);
+app.use('/api/geocoding', geocodingRoutes);
 
 app.use('/api/videos', videoRoutes);
 
