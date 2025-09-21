@@ -1008,7 +1008,7 @@ class BotManager extends EventEmitter {
         message: string,
         showWantButton: boolean = false,
         removeKeyboard: boolean = false,
-        parse_mode: "HTML" | undefined = undefined
+        parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined
     ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
         const bot = this.getBot(customerId);
         const botInfo = this.getBotInfo(customerId);
