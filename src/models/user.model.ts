@@ -5,6 +5,10 @@ export interface IUser extends Document {
   state: string;
   answer_1?: string;
   birthday?: string;
+  birthTime?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: number;
   usermessage2?: string;
   answer_2?: string;
   usermessage3?: string;
@@ -26,6 +30,10 @@ const userSchema = new Schema<IUser>({
   state: { type: String, required: true },
   answer_1: { type: String },
   birthday: { type: String },
+  birthTime: { type: String },
+  latitude: { type: Number },
+  longitude: { type: Number },
+  timezone: { type: Number },
   usermessage2: { type: String },
   answer_2: { type: String },
   usermessage3: { type: String },

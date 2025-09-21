@@ -303,6 +303,10 @@ export const updateUserFields = async (req: Request, res: Response) => {
             answer_1,
             state,
             birthday,
+            birthTime,
+            latitude,
+            longitude,
+            timezone,
             usermessage2,
             answer_2,
             usermessage3,
@@ -337,6 +341,10 @@ export const updateUserFields = async (req: Request, res: Response) => {
         if (answer_1 !== undefined) updateFields.answer_1 = answer_1;
         if (state !== undefined) updateFields.state = state;
         if (birthday !== undefined) updateFields.birthday = birthday;
+        if (birthTime !== undefined) updateFields.birthTime = birthTime;
+        if (latitude !== undefined) updateFields.latitude = latitude;
+        if (longitude !== undefined) updateFields.longitude = longitude;
+        if (timezone !== undefined) updateFields.timezone = timezone;
         if (usermessage2 !== undefined) updateFields.usermessage2 = usermessage2;
         if (answer_2 !== undefined) updateFields.answer_2 = answer_2;
         if (usermessage3 !== undefined) updateFields.usermessage3 = usermessage3;
@@ -353,7 +361,7 @@ export const updateUserFields = async (req: Request, res: Response) => {
         if (Object.keys(updateFields).length === 0) {
             res.status(400).json({
                 success: false,
-                message: 'At least one field must be provided for update: answer_1, state, birthday, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages'
+                message: 'At least one field must be provided for update: answer_1, state, birthday, birthTime, latitude, longitude, timezone, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages'
             });
             return;
         }
@@ -394,6 +402,10 @@ export const updateUserFields = async (req: Request, res: Response) => {
                 answer_1: user.answer_1,
                 state: user.state,
                 birthday: user.birthday,
+                birthTime: user.birthTime,
+                latitude: user.latitude,
+                longitude: user.longitude,
+                timezone: user.timezone,
                 usermessage2: user.usermessage2,
                 answer_2: user.answer_2,
                 usermessage3: user.usermessage3,
