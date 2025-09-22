@@ -151,25 +151,35 @@ router.post('/planet-sign', async (req: Request, res: Response): Promise<void> =
 
     // Получаем знак зодиака
     const zodiacSign = degreesToSign(planetData.longitude);
-    const signNumber = zodiacSign.sign;
+    const signNumber = parseInt(zodiacSign.sign.toString());
     
-    // Маппинг номеров знаков на названия
+    console.log("Zodiac calculation:", {
+      longitude: planetData.longitude,
+      zodiacSign: zodiacSign,
+      signNumber: signNumber,
+      signNumberType: typeof signNumber
+    });
+    
+    // Маппинг номеров знаков на названия (английские)
+    // 1 - Aries, 2 - Taurus, 3 - Gemini, 4 - Cancer
+    // 5 - Leo, 6 - Virgo, 7 - Libra, 8 - Scorpio
+    // 9 - Sagittarius, 10 - Capricorn, 11 - Aquarius, 12 - Pisces
     const signNames = {
-      1: 'овен',
-      2: 'телец', 
-      3: 'близнецы',
-      4: 'рак',
-      5: 'лев',
-      6: 'дева',
-      7: 'весы',
-      8: 'скорпион',
-      9: 'стрелец',
-      10: 'козерог',
-      11: 'водолей',
-      12: 'рыбы'
+      1: 'Aries',
+      2: 'Taurus', 
+      3: 'Gemini',
+      4: 'Cancer',
+      5: 'Leo',
+      6: 'Virgo',
+      7: 'Libra',
+      8: 'Scorpio',
+      9: 'Sagittarius',
+      10: 'Capricorn',
+      11: 'Aquarius',
+      12: 'Pisces'
     };
 
-    const signName = signNames[signNumber as unknown as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12] || 'неизвестно';
+    const signName = signNames[signNumber as unknown as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12] || 'Unknown';
 
     res.json({
       planet: planetData.name,
