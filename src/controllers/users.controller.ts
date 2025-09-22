@@ -577,6 +577,14 @@ export const checkUserData = async (req: Request, res: Response) => {
                 longitude: user.longitude !== undefined,
                 timezone: !!user.timezone,
                 city_name: !!(user as any).city_name
+            },
+            values: {
+                birthday: user.birthday || null,
+                birthTime: user.birthTime || null,
+                latitude: user.latitude !== undefined ? user.latitude : null,
+                longitude: user.longitude !== undefined ? user.longitude : null,
+                timezone: user.timezone || null,
+                city_name: (user as any).city_name || null
             }
         });
     } catch (error) {
