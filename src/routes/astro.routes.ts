@@ -115,13 +115,20 @@ router.post('/planet-sign', async (req: Request, res: Response): Promise<void> =
     const convertedBirthday = user.birthday.includes('.') 
       ? convertDateFormat(user.birthday) 
       : user.birthday;
-    const dateStr = `${convertedBirthday}T${user.birthTime}`;
+    
+    // Проверяем формат времени и добавляем 0:00 если необходимо
+    const formattedBirthTime = user.birthTime && user.birthTime.includes(':') 
+      ? user.birthTime 
+      : '0:00';
+    
+    const dateStr = `${convertedBirthday}T${formattedBirthTime}`;
     const birthDateUTC = parseBirthDate(dateStr, user.timezone || 0);
 
     console.log("User birth data:", {
       originalBirthday: user.birthday,
       convertedBirthday: convertedBirthday,
-      birthTime: user.birthTime,
+      originalBirthTime: user.birthTime,
+      formattedBirthTime: formattedBirthTime,
       latitude: user.latitude,
       longitude: user.longitude,
       timezone: user.timezone
