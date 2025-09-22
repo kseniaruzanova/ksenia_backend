@@ -111,11 +111,16 @@ router.post('/planet-sign', async (req: Request, res: Response): Promise<void> =
     }
 
     // Формируем дату рождения из данных пользователя
-    const dateStr = `${user.birthday}T${user.birthTime}`;
+    // Преобразуем дату из формата ММ.ДД.ГГ в ГГ-ММ-ДД если необходимо
+    const convertedBirthday = user.birthday.includes('.') 
+      ? convertDateFormat(user.birthday) 
+      : user.birthday;
+    const dateStr = `${convertedBirthday}T${user.birthTime}`;
     const birthDateUTC = parseBirthDate(dateStr, user.timezone || 0);
 
     console.log("User birth data:", {
-      birthday: user.birthday,
+      originalBirthday: user.birthday,
+      convertedBirthday: convertedBirthday,
       birthTime: user.birthTime,
       latitude: user.latitude,
       longitude: user.longitude,
@@ -199,6 +204,13 @@ function parseBirthDate(dateStr: string, timezone: number): Date {
 
   // создаём UTC-дата: вычитаем смещение часового пояса
   return new Date(Date.UTC(year, month - 1, day, hour - timezone, minute));
+}
+
+function convertDateFormat(dateStr: string): string {
+  // Преобразует дату из формата ММ.ДД.ГГ в ГГ-ММ-ДД
+  // Пример: "09.09.2006" -> "2006-09-09"
+  const [month, day, year] = dateStr.split(".");
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
 export default router; 
