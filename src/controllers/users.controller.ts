@@ -307,6 +307,7 @@ export const updateUserFields = async (req: Request, res: Response) => {
             latitude,
             longitude,
             timezone,
+            city_name,
             usermessage2,
             answer_2,
             usermessage3,
@@ -345,6 +346,7 @@ export const updateUserFields = async (req: Request, res: Response) => {
         if (latitude !== undefined) updateFields.latitude = latitude;
         if (longitude !== undefined) updateFields.longitude = longitude;
         if (timezone !== undefined) updateFields.timezone = timezone;
+        if (city_name !== undefined) updateFields.city_name = city_name;
         if (usermessage2 !== undefined) updateFields.usermessage2 = usermessage2;
         if (answer_2 !== undefined) updateFields.answer_2 = answer_2;
         if (usermessage3 !== undefined) updateFields.usermessage3 = usermessage3;
@@ -361,7 +363,7 @@ export const updateUserFields = async (req: Request, res: Response) => {
         if (Object.keys(updateFields).length === 0) {
             res.status(400).json({
                 success: false,
-                message: 'At least one field must be provided for update: answer_1, state, birthday, birthTime, latitude, longitude, timezone, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages'
+                message: 'At least one field must be provided for update: answer_1, state, birthday, birthTime, latitude, longitude, timezone, city_name, usermessage2, answer_2, usermessage3, answer_3, answer_4, usermessage4, answer_5, usermessage5, answer_6, usermessage6, messages'
             });
             return;
         }
@@ -406,6 +408,7 @@ export const updateUserFields = async (req: Request, res: Response) => {
                 latitude: user.latitude,
                 longitude: user.longitude,
                 timezone: user.timezone,
+                city_name: (user as any).city_name,
                 usermessage2: user.usermessage2,
                 answer_2: user.answer_2,
                 usermessage3: user.usermessage3,
@@ -527,5 +530,57 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error('Error in getAllUsers:', error);
         res.status(500).json({ message: 'Error fetching all users', error });
+    }
+};
+
+// Проверка наличия данных пользователя (birthday, birthTime, latitude, longitude, timezone)
+export const checkUserData = async (req: Request, res: Response) => {
+    const { chat_id, customerId } = req.body;
+
+    if (!chat_id || !customerId) {
+        res.status(400).json({ message: 'chat_id and customerId are required' });
+        return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+        res.status(400).json({ message: 'Invalid customerId format' });
+        return;
+    }
+
+    try {
+        const user = await User.findOne({
+            chat_id: chat_id,
+            customerId: customerId
+        });
+
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        // Проверяем наличие всех требуемых полей
+        const hasRequiredData = !!(
+            user.birthday &&
+            user.birthTime &&
+            user.latitude !== undefined &&
+            user.longitude !== undefined &&
+            user.timezone &&
+            (user as any).city_name
+        );
+
+        res.status(200).json({ 
+            hasRequiredData,
+            details: {
+                birthday: !!user.birthday,
+                birthTime: !!user.birthTime,
+                latitude: user.latitude !== undefined,
+                longitude: user.longitude !== undefined,
+                timezone: !!user.timezone,
+                city_name: !!(user as any).city_name
+            }
+        });
+    } catch (error) {
+        console.error('Error checking user data:', error);
+        res.status(500).json({ message: 'Error checking user data', error });
     }
 };

@@ -9,6 +9,7 @@ export interface IUser extends Document {
   latitude?: number;
   longitude?: number;
   timezone?: number;
+  city_name?: string;
   usermessage2?: string;
   answer_2?: string;
   usermessage3?: string;
@@ -34,6 +35,7 @@ const userSchema = new Schema<IUser>({
   latitude: { type: Number },
   longitude: { type: Number },
   timezone: { type: Number },
+  city_name: { type: String },
   usermessage2: { type: String },
   answer_2: { type: String },
   usermessage3: { type: String },

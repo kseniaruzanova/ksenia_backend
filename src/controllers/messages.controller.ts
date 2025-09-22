@@ -281,7 +281,7 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для n8n - отправка сообщения по customerId через API ключ
 export const sendMessageFromN8N = async (req: Request, res: Response) => {
     try {
-        const { customerId, chat_id, message, showWantButton, showCorrectButton, removeKeyboard, parse_mode = undefined } = req.body;
+        const { customerId, chat_id, message, showWantButton, showCorrectButton, removeKeyboard, parse_mode = undefined, customButtons } = req.body;
 
         // Валидация входных данных
         if (!customerId || !chat_id || !message) {
@@ -295,6 +295,8 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
         let logMessage = `N8N sending message via customer ${customerId} to chat ${chat_id}`;
         if (removeKeyboard) {
             logMessage += ' with keyboard removal';
+        } else if (customButtons && customButtons.length > 0) {
+            logMessage += ` with custom buttons: ${customButtons.join(', ')}`;
         } else if (showWantButton) {
             logMessage += ' with want button';
         } else if (showCorrectButton) {
@@ -310,7 +312,8 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
           showWantButton || false,
           showCorrectButton || false,
           removeKeyboard || false,
-          parse_mode
+          parse_mode,
+          customButtons
           );
 
         // Сохраняем лог сообщения
@@ -344,7 +347,9 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             messageLength: message.length,
             showWantButton: showWantButton || false,
             showCorrectButton: showCorrectButton || false,
-            removeKeyboard: removeKeyboard || false
+            removeKeyboard: removeKeyboard || false,
+            customButtons: customButtons || null,
+            customButtonsCount: customButtons ? customButtons.length : 0
         });
     } catch (error) {
         console.error('Error in sendMessageFromN8N:', error);

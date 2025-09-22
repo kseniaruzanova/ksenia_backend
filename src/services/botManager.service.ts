@@ -1009,7 +1009,8 @@ class BotManager extends EventEmitter {
         showWantButton: boolean = false,
         showCorrectButton: boolean = false,
         removeKeyboard: boolean = false,
-        parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined
+        parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined,
+        customButtons?: string[]
     ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
         const bot = this.getBot(customerId);
         const botInfo = this.getBotInfo(customerId);
@@ -1030,6 +1031,14 @@ class BotManager extends EventEmitter {
 
             if (removeKeyboard) {
                 options.reply_markup = { remove_keyboard: true };
+            } else if (customButtons && customButtons.length > 0) {
+                // Создаем кнопки из массива
+                const keyboard = customButtons.map(buttonText => [{ text: buttonText }]);
+                options.reply_markup = {
+                    keyboard,
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                };
             } else if (showWantButton) {
                 options.reply_markup = {
                     keyboard: [[{ text: 'Хочу' }]],
@@ -1063,9 +1072,11 @@ class BotManager extends EventEmitter {
                 customerId,
                 chatId,
                 messageLength: message.length,
-                hasButton: showWantButton || showCorrectButton,
+                hasButton: showWantButton || showCorrectButton || (customButtons && customButtons.length > 0),
                 hasWantButton: showWantButton,
                 hasCorrectButton: showCorrectButton,
+                hasCustomButtons: customButtons && customButtons.length > 0,
+                customButtonsCount: customButtons ? customButtons.length : 0,
                 removedKeyboard: removeKeyboard,
             });
 
