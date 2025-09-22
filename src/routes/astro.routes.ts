@@ -181,16 +181,36 @@ router.post('/planet-sign', async (req: Request, res: Response): Promise<void> =
 
     const signNumber = signNumbers[signName as keyof typeof signNumbers] || 0;
 
+    // Маппинг номеров знаков на русские названия
+    const russianSignNames = {
+      1: 'овен',
+      2: 'телец', 
+      3: 'близнецы',
+      4: 'рак',
+      5: 'лев',
+      6: 'дева',
+      7: 'весы',
+      8: 'скорпион',
+      9: 'стрелец',
+      10: 'козерог',
+      11: 'водолей',
+      12: 'рыбы'
+    };
+
+    const russianName = russianSignNames[signNumber as keyof typeof russianSignNames] || 'неизвестно';
+
     res.json({
       planet: planetData.name,
       longitude: planetData.longitude,
       zodiacSign: {
         number: signNumber,
         name: signName,
+        russianName: russianName,
         degree: zodiacSign.degree,
         minute: zodiacSign.minute,
         second: zodiacSign.second,
-        formattedPosition: `${zodiacSign.degree}°${zodiacSign.minute}'${zodiacSign.second}" ${signName}`
+        formattedPosition: `${zodiacSign.degree}°${zodiacSign.minute}'${zodiacSign.second}" ${signName}`,
+        formattedPositionRussian: `${zodiacSign.degree}°${zodiacSign.minute}'${zodiacSign.second}" ${russianName}`
       },
       date: chart.date,
       location: chart.location,
