@@ -1112,6 +1112,7 @@ class BotManager extends EventEmitter {
         try {
             const options: any = {
                 parse_mode,
+                caption: caption || '',
             };
 
             if (removeKeyboard) {
