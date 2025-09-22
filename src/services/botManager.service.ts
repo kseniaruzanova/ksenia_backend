@@ -1007,6 +1007,7 @@ class BotManager extends EventEmitter {
         chatId: string,
         message: string,
         showWantButton: boolean = false,
+        showCorrectButton: boolean = false,
         removeKeyboard: boolean = false,
         parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined
     ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
@@ -1029,11 +1030,15 @@ class BotManager extends EventEmitter {
 
             if (removeKeyboard) {
                 options.reply_markup = { remove_keyboard: true };
-            }
-
-            if (showWantButton) {
+            } else if (showWantButton) {
                 options.reply_markup = {
                     keyboard: [[{ text: 'Хочу' }]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                };
+            } else if (showCorrectButton) {
+                options.reply_markup = {
+                    keyboard: [[{ text: 'Верно' }]],
                     resize_keyboard: true,
                     one_time_keyboard: true,
                 };
@@ -1058,7 +1063,9 @@ class BotManager extends EventEmitter {
                 customerId,
                 chatId,
                 messageLength: message.length,
-                hasButton: showWantButton,
+                hasButton: showWantButton || showCorrectButton,
+                hasWantButton: showWantButton,
+                hasCorrectButton: showCorrectButton,
                 removedKeyboard: removeKeyboard,
             });
 
@@ -1069,6 +1076,101 @@ class BotManager extends EventEmitter {
             this.emit('message:failed', {
                 customerId,
                 chatId,
+                error,
+            });
+
+            return {
+                success: false,
+                error: error.message || 'Unknown error',
+            };
+        }
+    }
+
+    // Отправка файла через конкретного бота
+    async sendFile(
+        customerId: string,
+        chatId: string,
+        filePath: string,
+        caption?: string,
+        showWantButton: boolean = false,
+        showCorrectButton: boolean = false,
+        removeKeyboard: boolean = false,
+        parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined
+    ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
+        const bot = this.getBot(customerId);
+        const botInfo = this.getBotInfo(customerId);
+
+        if (!bot || !botInfo) {
+            return {
+                success: false,
+                error: botInfo?.status === 'error'
+                  ? `Bot for customer ${botInfo.username} is in error state`
+                  : 'Bot not found'
+            };
+        }
+
+        try {
+            const options: any = {
+                parse_mode,
+            };
+
+            if (removeKeyboard) {
+                options.reply_markup = { remove_keyboard: true };
+            } else if (showWantButton) {
+                options.reply_markup = {
+                    keyboard: [[{ text: 'Хочу' }]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                };
+            } else if (showCorrectButton) {
+                options.reply_markup = {
+                    keyboard: [[{ text: 'Верно' }]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                };
+            }
+
+            // Отправляем файл как документ
+            const result = await bot.telegram.sendDocument(chatId, { source: filePath }, options);
+
+            // Сохраняем исходящее сообщение
+            const chat = await Chat.findOne({ customerId, chatId });
+            if (chat) {
+                const savedMessage = await this.saveMessage({
+                    chat,
+                    customerId,
+                    messageId: result.message_id.toString(),
+                    type: 'document',
+                    direction: 'out',
+                    content: { 
+                        document: {
+                            file_name: filePath.split('/').pop() || 'unknown',
+                            file_path: filePath
+                        },
+                        caption: caption || ''
+                    }
+                }); 
+            }
+
+            this.emit('file:sent', {
+                customerId,
+                chatId,
+                filePath,
+                caption: caption || '',
+                hasButton: showWantButton || showCorrectButton,
+                hasWantButton: showWantButton,
+                hasCorrectButton: showCorrectButton,
+                removedKeyboard: removeKeyboard,
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            console.error(`❌ Failed to send file via bot for customer ${botInfo.username}:`, error);
+
+            this.emit('file:failed', {
+                customerId,
+                chatId,
+                filePath,
                 error,
             });
 

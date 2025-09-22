@@ -4,6 +4,8 @@ import MessageLog from '../models/messageLog.model';
 import User from '../models/user.model';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { botManager } from '../services/botManager.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Эта функция теперь принимает токен бота как аргумент
 const sendExternalMessage = async (botToken: string, chat_id: string, message: string): Promise<{ success: boolean; error?: string }> => {
@@ -279,7 +281,7 @@ export const checkBotStatus = async (req: AuthRequest, res: Response) => {
 // Эндпоинт для n8n - отправка сообщения по customerId через API ключ
 export const sendMessageFromN8N = async (req: Request, res: Response) => {
     try {
-        const { customerId, chat_id, message, showWantButton, removeKeyboard, parse_mode = undefined } = req.body;
+        const { customerId, chat_id, message, showWantButton, showCorrectButton, removeKeyboard, parse_mode = undefined } = req.body;
 
         // Валидация входных данных
         if (!customerId || !chat_id || !message) {
@@ -295,6 +297,8 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             logMessage += ' with keyboard removal';
         } else if (showWantButton) {
             logMessage += ' with want button';
+        } else if (showCorrectButton) {
+            logMessage += ' with correct button';
         }
         console.log(logMessage);
 
@@ -304,6 +308,7 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
           chat_id,
           message,
           showWantButton || false,
+          showCorrectButton || false,
           removeKeyboard || false,
           parse_mode
           );
@@ -338,6 +343,7 @@ export const sendMessageFromN8N = async (req: Request, res: Response) => {
             chat_id,
             messageLength: message.length,
             showWantButton: showWantButton || false,
+            showCorrectButton: showCorrectButton || false,
             removeKeyboard: removeKeyboard || false
         });
     } catch (error) {
@@ -407,5 +413,111 @@ export const syncBotManager = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error('Error syncing bot manager:', error);
         res.status(500).json({ message: 'Error syncing bot manager', error });
+    }
+};
+
+// Эндпоинт для отправки файла из папки data/natal/{имя}/{номер}
+export const sendFileMessage = async (req: Request, res: Response) => {
+    try {
+        const { 
+            customerId, 
+            chat_id, 
+            name, 
+            number, 
+            caption, 
+            showWantButton, 
+            showCorrectButton, 
+            removeKeyboard, 
+            parse_mode = undefined 
+        } = req.body;
+
+        // Валидация входных данных
+        if (!customerId || !chat_id || !name || !number) {
+            res.status(400).json({
+                success: false,
+                message: 'customerId, chat_id, name and number are required'
+            });
+            return;
+        }
+
+        // Формируем путь к файлу
+        const fileName = `${number}.pdf`;
+        const filePath = path.join(process.cwd(), 'src', 'data', 'natal', name, fileName);
+
+        // Проверяем существование файла
+        if (!fs.existsSync(filePath)) {
+            res.status(404).json({
+                success: false,
+                message: `File not found: ${filePath}`,
+                expectedPath: filePath
+            });
+            return;
+        }
+
+        let logMessage = `Sending file via customer ${customerId} to chat ${chat_id}`;
+        logMessage += ` - File: ${name}/${fileName}`;
+        if (removeKeyboard) {
+            logMessage += ' with keyboard removal';
+        } else if (showWantButton) {
+            logMessage += ' with want button';
+        } else if (showCorrectButton) {
+            logMessage += ' with correct button';
+        }
+        console.log(logMessage);
+
+        // Используем BotManager для отправки файла
+        const result = await botManager.sendFile(
+            customerId,
+            chat_id,
+            filePath,
+            caption,
+            showWantButton || false,
+            showCorrectButton || false,
+            removeKeyboard || false,
+            parse_mode
+        );
+
+        // Сохраняем лог сообщения
+        const log = new MessageLog({
+            chat_id,
+            message: `File: ${name}/${fileName}${caption ? ` - ${caption}` : ''}`,
+            status: result.success ? 'sent' : 'failed',
+            error: result.error,
+            customerId: customerId,
+        });
+        await log.save();
+
+        const botInfo = botManager.getBotInfo(customerId);
+        console.log(`File ${result.success ? 'sent successfully' : 'failed'} via ${botInfo?.username || 'unknown'}`);
+
+        if (!result.success) {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send file',
+                error: result.error,
+                customer: botInfo?.username || 'unknown'
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'File sent successfully',
+            customer: botInfo?.username || 'unknown',
+            chat_id,
+            fileName: `${name}/${fileName}`,
+            filePath: filePath,
+            caption: caption || '',
+            showWantButton: showWantButton || false,
+            showCorrectButton: showCorrectButton || false,
+            removeKeyboard: removeKeyboard || false
+        });
+    } catch (error) {
+        console.error('Error in sendFileMessage:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error sending file',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 };
