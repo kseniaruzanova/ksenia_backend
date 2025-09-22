@@ -77,24 +77,27 @@ router.post('/planet-sign', async (req: Request, res: Response): Promise<void> =
     await ensureInit();
     console.log('Planet sign request:', req.body);
     
-    const { userId, planet } = req.body;
+    const { chat_id, customerId, planet } = req.body;
 
     // Доступные планеты для запросов:
     // Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
     // Солнце, Луна, Меркурий, Венера, Марс, Юпитер, Сатурн, Уран, Нептун, Плутон
 
-    if (!userId || !planet) {
+    if (!chat_id || !customerId || !planet) {
       res.status(400).json({ 
-        error: 'userId and planet are required' 
+        error: 'chat_id, customerId and planet are required' 
       });
       return;
     }
 
-    // Получаем данные пользователя из базы данных
-    const user = await User.findById(userId);
+    // Получаем данные пользователя из базы данных по chat_id и customerId
+    const user = await User.findOne({
+      chat_id: chat_id,
+      customerId: customerId
+    });
     if (!user) {
       res.status(404).json({ 
-        error: 'User not found' 
+        error: 'User not found with provided chat_id and customerId' 
       });
       return;
     }
@@ -178,7 +181,8 @@ router.post('/planet-sign', async (req: Request, res: Response): Promise<void> =
       location: chart.location,
       user: {
         id: user._id,
-        chat_id: user.chat_id
+        chat_id: user.chat_id,
+        customerId: user.customerId
       }
     });
   } catch (e: any) {
