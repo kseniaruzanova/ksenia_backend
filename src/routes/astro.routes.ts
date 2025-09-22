@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { EphemerisConfig } from '../models/chart.model';
 import { AstroProcessor } from '../services/AstroProcessor';
 import { degreesToSign, formatZodiacPosition } from '../lib/zodiac';
+import User from '../models/user.model';
 
 const router = Router();
 
@@ -67,6 +68,121 @@ router.post('/natal', async (req, res) => {
       location: chart.location
     });
   } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/planet-sign', async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureInit();
+    console.log('Planet sign request:', req.body);
+    
+    const { userId, planet } = req.body;
+
+    // Доступные планеты для запросов:
+    // Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto
+    // Солнце, Луна, Меркурий, Венера, Марс, Юпитер, Сатурн, Уран, Нептун, Плутон
+
+    if (!userId || !planet) {
+      res.status(400).json({ 
+        error: 'userId and planet are required' 
+      });
+      return;
+    }
+
+    // Получаем данные пользователя из базы данных
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ 
+        error: 'User not found' 
+      });
+      return;
+    }
+
+    // Проверяем наличие необходимых данных
+    if (!user.birthday || !user.birthTime || !user.latitude || !user.longitude) {
+      res.status(400).json({ 
+        error: 'User birth data is incomplete. Required: birthday, birthTime, latitude, longitude' 
+      });
+      return;
+    }
+
+    // Формируем дату рождения из данных пользователя
+    const dateStr = `${user.birthday}T${user.birthTime}`;
+    const birthDateUTC = parseBirthDate(dateStr, user.timezone || 0);
+
+    console.log("User birth data:", {
+      birthday: user.birthday,
+      birthTime: user.birthTime,
+      latitude: user.latitude,
+      longitude: user.longitude,
+      timezone: user.timezone
+    });
+    console.log("Formed date string:", dateStr);
+    console.log("Converted UTC:", birthDateUTC.toISOString());
+    console.log("Planet:", planet);
+
+    const chart = await astro.calculateNatalChart(
+      birthDateUTC,
+      user.latitude,
+      user.longitude,
+      user.timezone || 0
+    );
+
+    // Находим нужную планету
+    const planetData = chart.planets.find((p: any) => 
+      p.name.toLowerCase() === planet.toLowerCase()
+    );
+
+    if (!planetData) {
+      res.status(404).json({ 
+        error: `Planet ${planet} not found` 
+      });
+      return;
+    }
+
+    // Получаем знак зодиака
+    const zodiacSign = degreesToSign(planetData.longitude);
+    const signNumber = zodiacSign.sign;
+    
+    // Маппинг номеров знаков на названия
+    const signNames = {
+      1: 'овен',
+      2: 'телец', 
+      3: 'близнецы',
+      4: 'рак',
+      5: 'лев',
+      6: 'дева',
+      7: 'весы',
+      8: 'скорпион',
+      9: 'стрелец',
+      10: 'козерог',
+      11: 'водолей',
+      12: 'рыбы'
+    };
+
+    const signName = signNames[signNumber as unknown as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12] || 'неизвестно';
+
+    res.json({
+      planet: planetData.name,
+      longitude: planetData.longitude,
+      zodiacSign: {
+        number: signNumber,
+        name: signName,
+        degree: zodiacSign.degree,
+        minute: zodiacSign.minute,
+        second: zodiacSign.second,
+        formattedPosition: `${zodiacSign.degree}°${zodiacSign.minute}'${zodiacSign.second}" ${signName}`
+      },
+      date: chart.date,
+      location: chart.location,
+      user: {
+        id: user._id,
+        chat_id: user.chat_id
+      }
+    });
+  } catch (e: any) {
+    console.error('Error in planet-sign route:', e);
     res.status(500).json({ error: e.message });
   }
 });
