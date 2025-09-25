@@ -183,7 +183,7 @@ class BirthdayMessagingService extends EventEmitter {
             console.log(`🎂 Sending birthday message to ${user.chatId} (${user.customerName}): "${birthdayMessage}"`);
             
             // Отправляем сообщение через BotManager
-            const result = await botManager.sendMessage(user.customerId, user.chatId, birthdayMessage.replace("---", ''), false, false, false, "Markdown");
+            const result = await botManager.sendMessage(user.customerId, user.chatId, birthdayMessage.replace("---", '').replace("###", ''), false, false, false, "Markdown");
             
             if (result.success) {
                 this.emit('birthday:sent', { 
