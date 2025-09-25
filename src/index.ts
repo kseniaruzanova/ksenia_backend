@@ -4,6 +4,7 @@ import cors from 'cors';
 import connectDB from './config/db';
 import { botManager } from './services/botManager.service';
 // import { dailyMessagingService } from './services/dailyMessaging.service';
+import { birthdayMessagingService } from './services/birthdayMessaging.service';
 
 import authRoutes from './routes/auth.routes';
 import paymentsRoutes from './routes/payments.routes';
@@ -26,6 +27,7 @@ import videoRoutes from './routes/videos.route';
 import astroBotRoutes from './routes/astroBot.routes';
 import geocodingRoutes from './routes/geocoding.routes';
 import dailyMessagingRoutes from './routes/dailyMessaging.routes';
+import birthdayMessagingRoutes from './routes/birthdayMessaging.routes';
 import qs from 'qs'
 
 dotenv.config();
@@ -45,6 +47,9 @@ const initializeApp = async () => {
 
         // Инициализируем сервис ежедневных сообщений
         console.log('✅ DailyMessagingService initialized');
+
+        // Инициализируем сервис поздравлений с днем рождения
+        console.log('✅ BirthdayMessagingService initialized');
 
         // Слушаем события от BotManager
         botManager.on('bot:added', (data) => {
@@ -118,6 +123,27 @@ const initializeApp = async () => {
         //     console.log(`⏰ Next daily message scheduled for: ${data.nextTime.toISOString()}`);
         // });
 
+        // Слушаем события от BirthdayMessagingService
+        birthdayMessagingService.on('birthday:sent', (data) => {
+            console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
+        });
+
+        birthdayMessagingService.on('birthday:failed', (data) => {
+            console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
+        });
+
+        birthdayMessagingService.on('birthday:completed', (data) => {
+            console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
+        });
+
+        birthdayMessagingService.on('scheduler:started', () => {
+            console.log('🚀 Birthday messaging scheduler started');
+        });
+
+        birthdayMessagingService.on('scheduler:stopped', () => {
+            console.log('🛑 Birthday messaging scheduler stopped');
+        });
+
         // Запускаем периодическую синхронизацию каждые 5 минут как fallback
         setInterval(async () => {
             try {
@@ -131,6 +157,15 @@ const initializeApp = async () => {
 
         // Сервис ежедневных сообщений готов к использованию (планировщик не запускается автоматически)
         console.log('📅 Daily messaging service ready (scheduler disabled by default)');
+
+        // Автоматически запускаем планировщик поздравлений с днем рождения
+        try {
+            // birthdayMessagingService.updateConfig({ enabled: true });
+            // birthdayMessagingService.startBirthdayScheduler();
+            console.log('🎂 Birthday messaging scheduler started automatically');
+        } catch (error) {
+            console.error('❌ Failed to start birthday messaging scheduler:', error);
+        }
 
     } catch (error) {
         console.error('❌ Failed to initialize app:', error);
@@ -175,6 +210,7 @@ app.use('/api/geocoding', geocodingRoutes);
 
 app.use('/api/videos', videoRoutes);
 app.use('/api/daily-messaging', dailyMessagingRoutes);
+app.use('/api/birthday-messaging', birthdayMessagingRoutes);
 
 const PORT = process.env.PORT || 3000;
 
