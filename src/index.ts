@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db';
 import { botManager } from './services/botManager.service';
+// import { dailyMessagingService } from './services/dailyMessaging.service';
 
 import authRoutes from './routes/auth.routes';
 import paymentsRoutes from './routes/payments.routes';
@@ -24,6 +25,7 @@ import astroRoutes from './routes/astro.routes'
 import videoRoutes from './routes/videos.route';
 import astroBotRoutes from './routes/astroBot.routes';
 import geocodingRoutes from './routes/geocoding.routes';
+import dailyMessagingRoutes from './routes/dailyMessaging.routes';
 import qs from 'qs'
 
 dotenv.config();
@@ -40,6 +42,9 @@ const initializeApp = async () => {
         // Инициализируем BotManager после подключения к БД
         await botManager.initialize();
         console.log('✅ BotManager initialized');
+
+        // Инициализируем сервис ежедневных сообщений
+        console.log('✅ DailyMessagingService initialized');
 
         // Слушаем события от BotManager
         botManager.on('bot:added', (data) => {
@@ -88,6 +93,31 @@ const initializeApp = async () => {
             console.error(`❌ Webhook failed for customer ${data.customerId}:`, data.error);
         });
 
+        // Слушаем события от DailyMessagingService
+        // dailyMessagingService.on('message:sent', (data) => {
+        //     console.log(`📅 Daily message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
+        // });
+
+        // dailyMessagingService.on('message:failed', (data) => {
+        //     console.error(`❌ Daily message failed for ${data.chatId} (${data.customerName}):`, data.error);
+        // });
+
+        // dailyMessagingService.on('daily:completed', (data) => {
+        //     console.log(`📊 Daily messaging completed: ${data.success}/${data.total} successful`);
+        // });
+
+        // dailyMessagingService.on('scheduler:started', () => {
+        //     console.log('🚀 Daily messaging scheduler started');
+        // });
+
+        // dailyMessagingService.on('scheduler:stopped', () => {
+        //     console.log('🛑 Daily messaging scheduler stopped');
+        // });
+
+        // dailyMessagingService.on('message:scheduled', (data) => {
+        //     console.log(`⏰ Next daily message scheduled for: ${data.nextTime.toISOString()}`);
+        // });
+
         // Запускаем периодическую синхронизацию каждые 5 минут как fallback
         setInterval(async () => {
             try {
@@ -98,6 +128,9 @@ const initializeApp = async () => {
         }, 5 * 60 * 1000); // 5 минут
 
         console.log('⏰ Periodic sync scheduled every 5 minutes');
+
+        // Сервис ежедневных сообщений готов к использованию (планировщик не запускается автоматически)
+        console.log('📅 Daily messaging service ready (scheduler disabled by default)');
 
     } catch (error) {
         console.error('❌ Failed to initialize app:', error);
@@ -141,6 +174,7 @@ app.use('/api/astroBot', astroBotRoutes);
 app.use('/api/geocoding', geocodingRoutes);
 
 app.use('/api/videos', videoRoutes);
+app.use('/api/daily-messaging', dailyMessagingRoutes);
 
 const PORT = process.env.PORT || 3000;
 
