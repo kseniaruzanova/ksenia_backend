@@ -160,8 +160,8 @@ const initializeApp = async () => {
 
         // Автоматически запускаем планировщик поздравлений с днем рождения
         try {
-            // birthdayMessagingService.updateConfig({ enabled: true });
-            // birthdayMessagingService.startBirthdayScheduler();
+            birthdayMessagingService.updateConfig({ enabled: true });
+            birthdayMessagingService.startBirthdayScheduler();
             console.log('🎂 Birthday messaging scheduler started automatically');
         } catch (error) {
             console.error('❌ Failed to start birthday messaging scheduler:', error);

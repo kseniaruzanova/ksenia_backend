@@ -2,7 +2,6 @@ import { EventEmitter } from 'events';
 import * as cron from 'node-cron';
 import User from '../models/user.model';
 import { botManager } from './botManager.service';
-import mongoose from 'mongoose';
 import { toArcana } from '../utils/sendBirthdayMessages';
 
 interface BirthdayMessagingConfig {
