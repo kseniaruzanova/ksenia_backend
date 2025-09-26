@@ -182,10 +182,10 @@ export const testSingleUser = async (req: AuthRequest, res: Response) => {
     const { user } = req;
 
     // Только админ может тестировать
-    if (user?.role !== 'admin') {
-        res.status(403).json({ message: 'Forbidden: Admin only' });
-        return;
-    }
+    // if (user?.role !== 'admin') {
+    //     res.status(403).json({ message: 'Forbidden: Admin only' });
+    //     return;
+    // }
 
     try {
         const { customerId, chatId } = req.body;
