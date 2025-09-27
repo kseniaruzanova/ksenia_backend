@@ -246,7 +246,7 @@ function parseBirthDate(dateStr: string, timezone: number): Date {
 function convertDateFormat(dateStr: string): string {
   // Преобразует дату из формата ММ.ДД.ГГ в ГГ-ММ-ДД
   // Пример: "09.09.2006" -> "2006-09-09"
-  const [month, day, year] = dateStr.split(".");
+  const [day, month, year] = dateStr.split(".");
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 

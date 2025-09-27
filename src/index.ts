@@ -42,7 +42,7 @@ const initializeApp = async () => {
         console.log('✅ Database connected');
 
         // Инициализируем BotManager после подключения к БД
-        await botManager.initialize();
+        // await botManager.initialize();
         console.log('✅ BotManager initialized');
 
         // Инициализируем сервис ежедневных сообщений
@@ -52,51 +52,51 @@ const initializeApp = async () => {
         console.log('✅ BirthdayMessagingService initialized');
 
         // Слушаем события от BotManager
-        botManager.on('bot:added', (data) => {
-            console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
-        });
+        // botManager.on('bot:added', (data) => {
+        //     console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
+        // });
 
-        botManager.on('bot:updated', (data) => {
-            console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
-        });
+        // botManager.on('bot:updated', (data) => {
+        //     console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
+        // });
 
-        botManager.on('bot:removed', (data) => {
-            console.log(`🗑️ Bot removed: ${data.username}`);
-        });
+        // botManager.on('bot:removed', (data) => {
+        //     console.log(`🗑️ Bot removed: ${data.username}`);
+        // });
 
-        botManager.on('bot:error', (data) => {
-            console.log(`❌ Bot error for ${data.username}:`, data.error);
-        });
+        // botManager.on('bot:error', (data) => {
+        //     console.log(`❌ Bot error for ${data.username}:`, data.error);
+        // });
 
-        botManager.on('change:error', (data) => {
-            console.error('❌ Customer change handling error:', data.error);
-        });
+        // botManager.on('change:error', (data) => {
+        //     console.error('❌ Customer change handling error:', data.error);
+        // });
 
-        // Новые события для обработки входящих сообщений
-        botManager.on('bot:listening:started', (data) => {
-            console.log(`👂 Bot listening started: ${data.username}`);
-        });
+        // // Новые события для обработки входящих сообщений
+        // botManager.on('bot:listening:started', (data) => {
+        //     console.log(`👂 Bot listening started: ${data.username}`);
+        // });
 
-        botManager.on('bot:listening:stopped', (data) => {
-            console.log(`🔇 Bot listening stopped: ${data.username}`);
-        });
+        // botManager.on('bot:listening:stopped', (data) => {
+        //     console.log(`🔇 Bot listening stopped: ${data.username}`);
+        // });
 
-        botManager.on('message:received', (data) => {
-            console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
-        });
+        // botManager.on('message:received', (data) => {
+        //     console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
+        // });
 
-        botManager.on('bot:message:error', (data) => {
-            console.error(`❌ Bot message error for ${data.username}:`, data.error);
-        });
+        // botManager.on('bot:message:error', (data) => {
+        //     console.error(`❌ Bot message error for ${data.username}:`, data.error);
+        // });
 
-        // События webhook
-        botManager.on('webhook:success', (data) => {
-            console.log(`🌐 Webhook delivered for customer ${data.customerId} (${data.status})`);
-        });
+        // // События webhook
+        // botManager.on('webhook:success', (data) => {
+        //     console.log(`🌐 Webhook delivered for customer ${data.customerId} (${data.status})`);
+        // });
 
-        botManager.on('webhook:error', (data) => {
-            console.error(`❌ Webhook failed for customer ${data.customerId}:`, data.error);
-        });
+        // botManager.on('webhook:error', (data) => {
+        //     console.error(`❌ Webhook failed for customer ${data.customerId}:`, data.error);
+        // });
 
         // Слушаем события от DailyMessagingService
         // dailyMessagingService.on('message:sent', (data) => {
@@ -124,30 +124,30 @@ const initializeApp = async () => {
         // });
 
         // Слушаем события от BirthdayMessagingService
-        birthdayMessagingService.on('birthday:sent', (data) => {
-            console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
-        });
+        // birthdayMessagingService.on('birthday:sent', (data) => {
+        //     console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
+        // });
 
-        birthdayMessagingService.on('birthday:failed', (data) => {
-            console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
-        });
+        // birthdayMessagingService.on('birthday:failed', (data) => {
+        //     console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
+        // });
 
-        birthdayMessagingService.on('birthday:completed', (data) => {
-            console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
-        });
+        // birthdayMessagingService.on('birthday:completed', (data) => {
+        //     console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
+        // });
 
-        birthdayMessagingService.on('scheduler:started', () => {
-            console.log('🚀 Birthday messaging scheduler started');
-        });
+        // birthdayMessagingService.on('scheduler:started', () => {
+        //     console.log('🚀 Birthday messaging scheduler started');
+        // });
 
-        birthdayMessagingService.on('scheduler:stopped', () => {
-            console.log('🛑 Birthday messaging scheduler stopped');
-        });
+        // birthdayMessagingService.on('scheduler:stopped', () => {
+        //     console.log('🛑 Birthday messaging scheduler stopped');
+        // });
 
         // Запускаем периодическую синхронизацию каждые 5 минут как fallback
         setInterval(async () => {
             try {
-                await botManager.syncWithDatabase();
+                // await botManager.syncWithDatabase();
             } catch (error) {
                 console.error('❌ Periodic sync failed:', error);
             }
@@ -160,8 +160,8 @@ const initializeApp = async () => {
 
         // Автоматически запускаем планировщик поздравлений с днем рождения
         try {
-            birthdayMessagingService.updateConfig({ enabled: true });
-            birthdayMessagingService.startBirthdayScheduler();
+            // birthdayMessagingService.updateConfig({ enabled: true });
+            // birthdayMessagingService.startBirthdayScheduler();
             console.log('🎂 Birthday messaging scheduler started automatically');
         } catch (error) {
             console.error('❌ Failed to start birthday messaging scheduler:', error);
