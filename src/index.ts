@@ -124,25 +124,25 @@ const initializeApp = async () => {
         // });
 
         // Слушаем события от BirthdayMessagingService
-        // birthdayMessagingService.on('birthday:sent', (data) => {
-        //     console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
-        // });
+        birthdayMessagingService.on('birthday:sent', (data) => {
+            console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
+        });
 
-        // birthdayMessagingService.on('birthday:failed', (data) => {
-        //     console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
-        // });
+        birthdayMessagingService.on('birthday:failed', (data) => {
+            console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
+        });
 
-        // birthdayMessagingService.on('birthday:completed', (data) => {
-        //     console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
-        // });
+        birthdayMessagingService.on('birthday:completed', (data) => {
+            console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
+        });
 
-        // birthdayMessagingService.on('scheduler:started', () => {
-        //     console.log('🚀 Birthday messaging scheduler started');
-        // });
+        birthdayMessagingService.on('scheduler:started', () => {
+            console.log('🚀 Birthday messaging scheduler started');
+        });
 
-        // birthdayMessagingService.on('scheduler:stopped', () => {
-        //     console.log('🛑 Birthday messaging scheduler stopped');
-        // });
+        birthdayMessagingService.on('scheduler:stopped', () => {
+            console.log('🛑 Birthday messaging scheduler stopped');
+        });
 
         // Запускаем периодическую синхронизацию каждые 5 минут как fallback
         setInterval(async () => {
@@ -160,8 +160,8 @@ const initializeApp = async () => {
 
         // Автоматически запускаем планировщик поздравлений с днем рождения
         try {
-            // birthdayMessagingService.updateConfig({ enabled: true });
-            // birthdayMessagingService.startBirthdayScheduler();
+            birthdayMessagingService.updateConfig({ enabled: true });
+            birthdayMessagingService.startBirthdayScheduler();
             console.log('🎂 Birthday messaging scheduler started automatically');
         } catch (error) {
             console.error('❌ Failed to start birthday messaging scheduler:', error);

@@ -84,7 +84,7 @@ class BirthdayMessagingService extends EventEmitter {
     /**
      * Создать простое сообщение с датой рождения пользователя
      */
-    async generateBirthdayMessage(user: BirthdayUser): Promise<string> {
+    async generateBirthdayMessage(user: BirthdayUser): Promise<string | null> {
         try {
             const getDigitSum = (dateStr: string) => dateStr.split('.').reduce((sum: number, part: string) => 
                 sum + part.split('').reduce((s, d) => s + +d, 0), 0
@@ -168,7 +168,7 @@ class BirthdayMessagingService extends EventEmitter {
             return response.choices[0].message.content;
         } catch (error) {
             console.error('❌ Error generating birthday message:', error);
-            return `🎂 С днем рождения, ${user.customerName}! Желаем вам всего самого лучшего! ✨`;
+            return null;
         }
     }
 
@@ -178,7 +178,9 @@ class BirthdayMessagingService extends EventEmitter {
     async sendBirthdayMessage(user: BirthdayUser): Promise<{ success: boolean; error?: string }> {
         try {
             const birthdayMessage = await this.generateBirthdayMessage(user);
-            
+            if (!birthdayMessage) {
+                return { success: false, error: 'Failed to generate birthday message' };
+            }
             console.log(`🎂 Sending birthday message to ${user.chatId} (${user.customerName}): "${birthdayMessage}"`);
             
             // Отправляем сообщение через BotManager
