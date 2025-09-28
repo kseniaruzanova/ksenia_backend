@@ -45,7 +45,9 @@ export const updateBirthdayMessagingConfig = async (req: AuthRequest, res: Respo
         const {
             enabled,
             time,
-            timezone
+            timezone,
+            maxConcurrency,
+            perMessageDelayMs
         } = req.body;
 
         const newConfig: any = {};
@@ -53,6 +55,8 @@ export const updateBirthdayMessagingConfig = async (req: AuthRequest, res: Respo
         if (enabled !== undefined) newConfig.enabled = enabled;
         if (time !== undefined) newConfig.time = time;
         if (timezone !== undefined) newConfig.timezone = timezone;
+        if (maxConcurrency !== undefined) newConfig.maxConcurrency = Number(maxConcurrency);
+        if (perMessageDelayMs !== undefined) newConfig.perMessageDelayMs = Number(perMessageDelayMs);
 
         // Валидация времени
         if (time !== undefined) {
@@ -63,6 +67,20 @@ export const updateBirthdayMessagingConfig = async (req: AuthRequest, res: Respo
                 });
                 return;
             }
+        }
+
+        // Валидация числа потоков и задержки
+        if (newConfig.maxConcurrency !== undefined && (!Number.isFinite(newConfig.maxConcurrency) || newConfig.maxConcurrency < 1 || newConfig.maxConcurrency > 20)) {
+            res.status(400).json({ 
+                message: 'maxConcurrency must be an integer between 1 and 20' 
+            });
+            return;
+        }
+        if (newConfig.perMessageDelayMs !== undefined && (!Number.isFinite(newConfig.perMessageDelayMs) || newConfig.perMessageDelayMs < 0 || newConfig.perMessageDelayMs > 10000)) {
+            res.status(400).json({ 
+                message: 'perMessageDelayMs must be between 0 and 10000 ms' 
+            });
+            return;
         }
 
         birthdayMessagingService.updateConfig(newConfig);

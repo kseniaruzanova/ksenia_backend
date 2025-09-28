@@ -8,6 +8,8 @@ interface BirthdayMessagingConfig {
     enabled: boolean;
     time: string; // Время в формате "HH:MM" (например, "09:00")
     timezone: string; // Часовой пояс (например, "Europe/Moscow")
+    maxConcurrency: number; // Максимальное число одновременных запросов к ИИ
+    perMessageDelayMs: number; // Пауза между стартом соседних отправок
 }
 
 interface BirthdayUser {
@@ -22,13 +24,18 @@ class BirthdayMessagingService extends EventEmitter {
     private cronJob: cron.ScheduledTask | null = null;
     private isRunning: boolean = false;
     private lastSentDate: string | null = null;
+    
+    // Переменная для отладки и телеметрии распределения по минутам
+    private static readonly MINUTES_IN_WINDOW: number = 60;
 
     constructor() {
         super();
         this.config = {
             enabled: false,
             time: '09:00', // 9 утра по умолчанию
-            timezone: 'Europe/Moscow' // Московское время по умолчанию
+            timezone: 'Europe/Moscow', // Московское время по умолчанию
+            maxConcurrency: 3,
+            perMessageDelayMs: 0
         };
         console.log('🎂 BirthdayMessagingService initialized');
     }
@@ -80,6 +87,41 @@ class BirthdayMessagingService extends EventEmitter {
             console.error('❌ Error sending request to server:', error);
             throw error;
         }
+    }
+
+    /**
+     * Получить текущие час и минуту в указанном таймзоне
+     */
+    private getCurrentHourMinuteInTimezone(): { hour: number; minute: number; isoInTz: string } {
+        const formatter = new Intl.DateTimeFormat('ru-RU', {
+            timeZone: this.config.timezone,
+            hour12: false,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+        const parts = formatter.formatToParts(new Date());
+        const get = (type: string) => parts.find(p => p.type === type)?.value ?? '00';
+        const hour = parseInt(get('hour'), 10);
+        const minute = parseInt(get('minute'), 10);
+        const isoInTz = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:00`;
+        return { hour, minute, isoInTz };
+    }
+
+    /**
+     * Хеш для распределения пользователей по минутам окна (0-59)
+     */
+    private getMinuteBucketForUser(user: BirthdayUser): number {
+        const key = `${user.customerId}:${user.chatId}`;
+        let hash = 5381;
+        for (let i = 0; i < key.length; i++) {
+            hash = ((hash << 5) + hash) + key.charCodeAt(i);
+            hash = hash | 0;
+        }
+        const bucket = Math.abs(hash) % BirthdayMessagingService.MINUTES_IN_WINDOW;
+        return bucket;
     }
     /**
      * Создать простое сообщение с датой рождения пользователя
@@ -271,6 +313,51 @@ class BirthdayMessagingService extends EventEmitter {
     }
 
     /**
+     * Отправка сообщений только для пользователей, чей bucket совпадает с текущей минутой
+     */
+    private async sendBirthdayMessagesForCurrentMinuteBucket(): Promise<void> {
+        const { hour, minute, isoInTz } = this.getCurrentHourMinuteInTimezone();
+        // Окно отправки 09:00-09:59 по таймзоне
+        if (hour !== 9) {
+            return;
+        }
+
+        const allUsers = await this.getUsersWithBirthday();
+        const bucketUsers = allUsers.filter(u => this.getMinuteBucketForUser(u) === minute);
+
+        console.log(`🎯 ${bucketUsers.length}/${allUsers.length} users in minute bucket ${minute} at ${isoInTz} (${this.config.timezone})`);
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        // Пул воркеров с ограничением concurrency
+        const concurrency = Math.max(1, this.config.maxConcurrency);
+        const delayMs = Math.max(0, this.config.perMessageDelayMs);
+        let index = 0;
+
+        const worker = async () => {
+            while (index < bucketUsers.length) {
+                const current = index++;
+                const user = bucketUsers[current];
+                const result = await this.sendBirthdayMessage(user);
+                if (result.success) {
+                    successCount++;
+                } else {
+                    failedCount++;
+                }
+                if (delayMs > 0) {
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                }
+            }
+        };
+
+        const workers = Array.from({ length: Math.min(concurrency, bucketUsers.length) }, () => worker());
+        await Promise.all(workers);
+
+        console.log(`📊 Minute ${minute}: sent ${successCount} ok, ${failedCount} failed`);
+    }
+
+    /**
      * Запустить планировщик ежедневных поздравлений
      */
     startBirthdayScheduler(): void {
@@ -287,22 +374,20 @@ class BirthdayMessagingService extends EventEmitter {
         this.isRunning = true;
         console.log('🚀 Starting birthday messaging scheduler...');
 
-        // Создаем cron выражение для ежедневного выполнения в указанное время
-        const [hours, minutes] = this.config.time.split(':');
-        const cronExpression = `${minutes} ${hours} * * *`; // Каждый день в указанное время
+        // Запускаем крон каждую минуту в промежутке 09:00–09:59 указанной таймзоны
+        const cronExpression = `* 9 * * *`;
 
         this.cronJob = cron.schedule(cronExpression, async () => {
-            console.log('🎂 Cron job triggered - sending birthday messages...');
             try {
-                await this.sendBirthdayMessagesToAll();
+                await this.sendBirthdayMessagesForCurrentMinuteBucket();
             } catch (error) {
-                console.error('❌ Error in birthday cron job:', error);
+                console.error('❌ Error in birthday minute cron job:', error);
             }
         }, {
             timezone: this.config.timezone
         });
 
-        console.log(`⏰ Birthday messages scheduled for ${this.config.time} ${this.config.timezone}`);
+        console.log(`⏰ Birthday messages scheduled every minute 09:00–09:59 (${this.config.timezone})`);
         this.emit('scheduler:started');
     }
 
