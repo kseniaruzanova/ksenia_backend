@@ -2161,9 +2161,9 @@ class BotManager extends EventEmitter {
       
       Отвечай строго одним словом: только "true" или "false". Без пояснений, без кавычек, без пробелов, без текста.`,
         messageHistory,
-        "gpt-3.5-turbo",
+        "openai/gpt-4o-mini",
         0.3,
-        "openai"
+        "vsegpt"
       );      
       
       console.log(message);
