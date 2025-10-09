@@ -2131,7 +2131,7 @@ class BotManager extends EventEmitter {
           false,
           false,
           false,
-          undefined,
+          "Markdown",
         );
 
         await User.findOneAndUpdate(
