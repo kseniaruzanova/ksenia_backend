@@ -1,6 +1,8 @@
 import * as path from "path";
+import * as fs from "fs";
 import { Telegraf } from "telegraf";
 import { EventEmitter } from "events";
+import { Writable } from "stream";
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
@@ -11,6 +13,7 @@ import { getMonthlyHoroscopeForZodiac, isInRange } from "../utils/horoscope";
 import { getTimezoneFromLongitude } from "../utils/geocoding";
 import { convertDateFormat, parseBirthDate } from "../utils/astro";
 import { getMessageType, readSystemPromptFromFile } from "../utils/bot";
+import { toArcana, splitNumberIntoDigits, getArcanFilePath } from "../utils/arcan";
 
 import User from "../models/user.model";
 import Customer from "../models/customer.model";
@@ -21,8 +24,28 @@ import { IMessage, Message, MessageType } from "../models/messages.model";
 
 import { AstroProcessor } from "./astroProcessor.service";
 import dailyMessagingService from "./dailyMessaging.service";
+import { 
+  generateForecastPdf, 
+  generateFinancialCastPdf, 
+  generateMistakesIncarnationPdf, 
+  generateAwakeningCodesPdf 
+} from "./pdfGenerator.service";
 
 import monthlyHoroscope from "../data/natal/monthly.json";
+import monthsData from "../data/taroscop/months.json";
+import yearDoorData from "../data/taroscop/yearDoor.json";
+import riskData from "../data/taroscop/risk.json";
+import eventsData from "../data/taroscop/events.json";
+import archetypePovertyData from "../data/financialCast/archetypePoverty.json";
+import dutyData from "../data/financialCast/duty.json";
+import knotData from "../data/financialCast/knot.json";
+import shadowBData from "../data/financialCast/shadowB.json";
+import ritualsData from "../data/financialCast/rituals.json";
+import karmicLessonsData from "../data/mistakesIncarnation/karmicLessons.json";
+import lessonIncarnationData from "../data/mistakesIncarnation/lessonIncarnation.json";
+import coreData from "../data/awakeningCodes/core.json";
+import fearData from "../data/awakeningCodes/fear.json";
+import implementationData from "../data/awakeningCodes/implementation.json";
 
 class BotManager extends EventEmitter {
   private bots: Map<string, BotInstance> = new Map();
@@ -1177,11 +1200,19 @@ class BotManager extends EventEmitter {
         await this.sendMessage(
           customerId,
           chatId,
-          "🃏 *Таронумеролог*\n\nДанная функция находится в разработке и скоро будет доступна!",
+          "🃏 *Таронумеролог*\n\nВыберите нужный расчет для генерации персонального результата:",
           false,
           false,
           false,
-          "Markdown"
+          "Markdown",
+          [
+            "🔮 Тароскоп на любые месяцы",
+            "💰 Расчет 4 кода денег",
+            "🕰️ Ошибки прошлого воплощения",
+            "✨ Аркан самореализации",
+            "✨ Три кода пробуждения"
+          ],
+          true
         );
 
         this.emit('message:received', {
@@ -1283,6 +1314,73 @@ class BotManager extends EventEmitter {
         });
       } catch (error) {
         console.error(`❌ Error handling menu_subscription for customer ${username}:`, error);
+      }
+    });
+
+    // ========== Обработчики продуктов Таронумеролога ==========
+    
+    // Тароскоп на любые месяцы
+    bot.action('product_forecast', async (ctx) => {
+      const chatId = ctx.chat?.id.toString();
+      if (!chatId) return;
+
+      try {
+        await ctx.answerCbQuery();
+        await this.handleProductRequest(customerId, chatId, 'forecast', '🔮 Тароскоп на любые месяцы');
+      } catch (error) {
+        console.error(`❌ Error handling product_forecast for customer ${username}:`, error);
+      }
+    });
+
+    // Расчет 4 кода денег
+    bot.action('product_financialcast', async (ctx) => {
+      const chatId = ctx.chat?.id.toString();
+      if (!chatId) return;
+
+      try {
+        await ctx.answerCbQuery();
+        await this.handleProductRequest(customerId, chatId, 'financialCast', '💰 Расчет 4 кода денег');
+      } catch (error) {
+        console.error(`❌ Error handling product_financialcast for customer ${username}:`, error);
+      }
+    });
+
+    // Ошибки прошлого воплощения
+    bot.action('product_mistakes', async (ctx) => {
+      const chatId = ctx.chat?.id.toString();
+      if (!chatId) return;
+
+      try {
+        await ctx.answerCbQuery();
+        await this.handleProductRequest(customerId, chatId, 'mistakesIncarnation', '🕰️ Ошибки прошлого воплощения');
+      } catch (error) {
+        console.error(`❌ Error handling product_mistakes for customer ${username}:`, error);
+      }
+    });
+
+    // Аркан самореализации
+    bot.action('product_arcanum', async (ctx) => {
+      const chatId = ctx.chat?.id.toString();
+      if (!chatId) return;
+
+      try {
+        await ctx.answerCbQuery();
+        await this.handleProductRequest(customerId, chatId, 'arcanumRealization', '✨ Аркан самореализации');
+      } catch (error) {
+        console.error(`❌ Error handling product_arcanum for customer ${username}:`, error);
+      }
+    });
+
+    // Три кода пробуждения
+    bot.action('product_awakening', async (ctx) => {
+      const chatId = ctx.chat?.id.toString();
+      if (!chatId) return;
+
+      try {
+        await ctx.answerCbQuery();
+        await this.handleProductRequest(customerId, chatId, 'awakeningCodes', '✨ Три кода пробуждения');
+      } catch (error) {
+        console.error(`❌ Error handling product_awakening for customer ${username}:`, error);
       }
     });
 
@@ -1726,6 +1824,8 @@ class BotManager extends EventEmitter {
           await this.handleNatalStates(userState, text, chatId, customerId, username, user);
         } else if (userState && userState.startsWith('step_')) {
           await this.handleStepStates(userState, text, chatId, customerId);
+        } else if (userState && userState.startsWith('product_')) {
+          await this.handleProductStates(userState, text, chatId, customerId);
         } 
 
         this.emit('message:received', {
@@ -2578,6 +2678,62 @@ class BotManager extends EventEmitter {
     return stats;
   }
 
+  /**
+   * Обработка состояний пользователя при вводе даты рождения для продуктов
+   */
+  private async handleProductStates(
+    userState: string,
+    text: string,
+    chatId: string,
+    customerId: string
+  ): Promise<void> {
+    // Извлекаем тип продукта из state (формат: product_<productType>_birthday)
+    const stateMatch = userState.match(/^product_(\w+)_birthday$/);
+    if (!stateMatch) return;
+
+    const productType = stateMatch[1];
+    
+    // Проверяем формат даты
+    const dateRegex = /^([0-2]\d|3[01])\.(0\d|1[0-2])\.(19|20)\d{2}$/;
+    if (!dateRegex.test(text)) {
+      await this.sendMessage(
+        customerId,
+        chatId,
+        `❌ Неверный формат даты. Пожалуйста, введите дату рождения в формате ДД.ММ.ГГГГ (например, 15.03.1990)`,
+        false,
+        false,
+        false,
+        "Markdown"
+      );
+      return;
+    }
+
+    // Сохраняем дату рождения и сбрасываем state
+    await User.findOneAndUpdate(
+      { chat_id: chatId, customerId: customerId },
+      {
+        $set: {
+          birthday: text,
+          state: 'idle'
+        }
+      }
+    );
+
+    // Определяем название продукта
+    const productNames: { [key: string]: string } = {
+      forecast: '🔮 Тароскоп на любые месяцы',
+      financialCast: '💰 Расчет 4 кода денег',
+      mistakesIncarnation: '🕰️ Ошибки прошлого воплощения',
+      arcanumRealization: '✨ Аркан самореализации',
+      awakeningCodes: '✨ Три кода пробуждения'
+    };
+
+    const productName = productNames[productType] || 'продукт';
+
+    // Генерируем и отправляем продукт
+    await this.generateAndSendProduct(customerId, chatId, productType, text, productName);
+  }
+
   async syncWithDatabase() {
     console.log('🔄 Syncing BotManager with database...');
 
@@ -2668,6 +2824,12 @@ class BotManager extends EventEmitter {
             else if (buttonText.includes('Калькулятор Саде-сати')) callbackData = 'horoscope_sadesati';
             else if (buttonText.includes('Калькулятор карм экзамена')) callbackData = 'horoscope_karma';
             else if (buttonText.includes('Заполнить заново')) callbackData = 'horoscope_reset';
+            // Продукты Таронумеролога
+            else if (buttonText.includes('Тароскоп на любые месяцы')) callbackData = 'product_forecast';
+            else if (buttonText.includes('Расчет 4 кода денег')) callbackData = 'product_financialcast';
+            else if (buttonText.includes('Ошибки прошлого воплощения')) callbackData = 'product_mistakes';
+            else if (buttonText.includes('Аркан самореализации')) callbackData = 'product_arcanum';
+            else if (buttonText.includes('Три кода пробуждения')) callbackData = 'product_awakening';
             
             return [{
               text: buttonText,
@@ -3407,6 +3569,279 @@ class BotManager extends EventEmitter {
       console.error('❌ Error generating AI response:', error);
       return null;
     }
+  }
+
+  // ========== Методы для работы с продуктами ==========
+  
+  private async handleProductRequest(customerId: string, chatId: string, productType: string, productName: string) {
+    try {
+      // Проверяем наличие пользователя и даты рождения
+      const user = await User.findOne({ chat_id: chatId, customerId: customerId });
+      
+      if (!user || !user.birthday) {
+        // Просим ввести дату рождения
+        await User.findOneAndUpdate(
+          { chat_id: chatId, customerId: customerId },
+          {
+            $set: {
+              chat_id: chatId,
+              customerId: customerId,
+              state: `product_${productType}_birthday`
+            },
+            $setOnInsert: {
+              createdAt: new Date()
+            }
+          },
+          { upsert: true, new: true }
+        );
+
+        await this.sendMessage(
+          customerId,
+          chatId,
+          `✨ Для расчета *${productName}* мне нужна ваша дата рождения.\n\nВведите дату в формате ДД.ММ.ГГГГ (например, 15.03.1990)`,
+          false,
+          false,
+          false,
+          "Markdown"
+        );
+      } else {
+        // Генерируем и отправляем продукт
+        await this.generateAndSendProduct(customerId, chatId, productType, user.birthday, productName);
+      }
+    } catch (error) {
+      console.error(`❌ Error in handleProductRequest for ${productType}:`, error);
+      await this.sendMessage(
+        customerId,
+        chatId,
+        "❌ Произошла ошибка при обработке запроса. Попробуйте позже.",
+        false,
+        false,
+        false,
+        "Markdown"
+      );
+    }
+  }
+
+  private async generateAndSendProduct(customerId: string, chatId: string, productType: string, birthDate: string, productName: string) {
+    try {
+      await this.sendMessage(
+        customerId,
+        chatId,
+        `⏳ Генерирую *${productName}*...\n\nЭто может занять несколько секунд.`,
+        false,
+        false,
+        false,
+        "Markdown"
+      );
+
+      const tempDir = path.join(__dirname, '..', '..', 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const timestamp = Date.now();
+      const filename = `${productType}_${birthDate.replace(/\./g, '-')}_${timestamp}.pdf`;
+      const filePath = path.join(tempDir, filename);
+
+      // Генерируем PDF
+      await this.generateProductPDF(productType, birthDate, filePath);
+
+      // Отправляем файл
+      const accompanimentText = this.getProductAccompanimentText(productType);
+      await this.sendFile(
+        customerId,
+        chatId,
+        filePath,
+        accompanimentText
+      );
+
+      // Удаляем временный файл
+      setTimeout(() => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }, 5000);
+
+      console.log(`✅ Product ${productType} sent to chat ${chatId}`);
+    } catch (error) {
+      console.error(`❌ Error generating/sending product ${productType}:`, error);
+      await this.sendMessage(
+        customerId,
+        chatId,
+        "❌ Произошла ошибка при генерации продукта. Попробуйте позже.",
+        false,
+        false,
+        false,
+        "Markdown"
+      );
+    }
+  }
+
+  private async generateProductPDF(productType: string, birthDate: string, filePath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const writeStream = fs.createWriteStream(filePath);
+        
+        writeStream.on('finish', () => {
+          resolve();
+        });
+        
+        writeStream.on('error', (error) => {
+          reject(error);
+        });
+
+        switch (productType) {
+          case 'forecast':
+            this.generateForecastData(birthDate, writeStream);
+            break;
+          case 'financialCast':
+            this.generateFinancialCastData(birthDate, writeStream);
+            break;
+          case 'mistakesIncarnation':
+            this.generateMistakesIncarnationData(birthDate, writeStream);
+            break;
+          case 'arcanumRealization':
+            this.generateArcanumRealizationData(birthDate, writeStream, filePath);
+            break;
+          case 'awakeningCodes':
+            this.generateAwakeningCodesData(birthDate, writeStream);
+            break;
+          default:
+            writeStream.end();
+            reject(new Error(`Unknown product type: ${productType}`));
+            break;
+        }
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private generateForecastData(birthDate: string, stream: Writable) {
+    const parts = birthDate.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parts[2];
+
+    const yearSum = year.split("").reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
+    const rawYearDoorSum = day + month + yearSum + 9 + 10;
+    const yearDoorArcana = toArcana(rawYearDoorSum);
+    const rawEventsSum = day + 9 + 16;
+    const eventsArcana = toArcana(rawEventsSum);
+
+    const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+    const currentMonthIndex = new Date().getMonth();
+    const monthlyForecasts = [];
+
+    for (let i = 0; i < 7; i++) {
+      const targetMonthIndex = (currentMonthIndex + i) % 12;
+      const monthNumber = targetMonthIndex + 1;
+      const examArcana = toArcana(day + monthNumber);
+      const rawRiskSum = day + monthNumber + yearSum + 9 + 18;
+      const riskArcana = toArcana(rawRiskSum);
+
+      monthlyForecasts.push({
+        monthName: monthNames[targetMonthIndex],
+        exam: { arcanum: examArcana, text: (monthsData as any)[examArcana] || "Трактовка не найдена" },
+        risk: { arcanum: riskArcana, text: (riskData as any)[riskArcana] || "Трактовка не найдена" }
+      });
+    }
+
+    const forecastData = {
+      yearDoor: { arcanum: yearDoorArcana, text: (yearDoorData as any)[yearDoorArcana] || "Трактовка не найдена" },
+      events: { arcanum: eventsArcana, text: (eventsData as any)[eventsArcana] || "Трактовка не найдена" },
+      monthlyForecasts
+    };
+
+    generateForecastPdf(forecastData, stream, birthDate);
+  }
+
+  private generateFinancialCastData(birthDate: string, stream: Writable) {
+    const parts = birthDate.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parts[2];
+
+    const yearSum = year.split("").reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
+    const arcanRealization = toArcana(day) + month + splitNumberIntoDigits(yearSum)[0];
+    const arcanMainBlock = toArcana(day) + splitNumberIntoDigits(month)[0];
+    const moneyKnot = toArcana(arcanRealization + arcanMainBlock);
+    const archetypePoverty = toArcana(toArcana(day) + month);
+    const duty = toArcana(day + splitNumberIntoDigits(month)[0] + yearSum + 8);
+    const shadowWealth = toArcana(day + month + yearSum);
+
+    const financialCastData = {
+      moneyKnot: { arcanum: moneyKnot, text: (knotData as any)[moneyKnot] || "Трактовка не найдена" },
+      archetypePoverty: { arcanum: archetypePoverty, text: (archetypePovertyData as any)[archetypePoverty] || "Трактовка не найдена" },
+      duty: { arcanum: duty, text: (dutyData as any)[duty] || "Трактовка не найдена" },
+      shadowWealth: { arcanum: shadowWealth, text: (shadowBData as any)[shadowWealth] || "Трактовка не найдена" },
+      ritualsMap: Object.entries(ritualsData as any).map(([title, text]) => ({ title, text: text as string }))
+    };
+
+    generateFinancialCastPdf(financialCastData, stream, birthDate);
+  }
+
+  private generateMistakesIncarnationData(birthDate: string, stream: Writable) {
+    const parts = birthDate.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+
+    const lessonIncarnation = month;
+    const karmicLessons = Math.abs(toArcana(day) - toArcana(month));
+
+    const mistakesIncarnationData = {
+      lessonIncarnation: { arcanum: lessonIncarnation, text: (lessonIncarnationData as any)[lessonIncarnation] || "" },
+      karmicLessons: { arcanum: karmicLessons, text: (karmicLessonsData as any)[karmicLessons] || "" }
+    };
+
+    generateMistakesIncarnationPdf(mistakesIncarnationData, stream, birthDate);
+  }
+
+  private generateArcanumRealizationData(birthDate: string, stream: Writable, outputPath: string) {
+    const parts = birthDate.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parts[2];
+
+    const yearSum = year.split("").reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
+    const finalNumber = toArcana(day + month + yearSum);
+    
+    const arcanFilePath = getArcanFilePath(finalNumber, __dirname, ["..", "..", "src", "data", "arcanumRealization"]);
+    
+    // Копируем существующий PDF файл
+    const readStream = fs.createReadStream(arcanFilePath);
+    readStream.pipe(stream);
+  }
+
+  private generateAwakeningCodesData(birthDate: string, stream: Writable) {
+    const parts = birthDate.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parts[2];
+
+    const yearSum = year.split("").reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
+    const core = toArcana(day);
+    const fear = toArcana(day + month);
+    const implementation = toArcana(core + month + yearSum);
+
+    const awakeningCodesData = {
+      core: { arcanum: core, text: (coreData as any)[core] || "" },
+      fear: { arcanum: fear, text: (fearData as any)[fear] || "" },
+      implementation: { arcanum: implementation, text: (implementationData as any)[implementation] || "" }
+    };
+
+    generateAwakeningCodesPdf(awakeningCodesData, stream, birthDate);
+  }
+
+  private getProductAccompanimentText(productType: string): string {
+    const texts: { [key: string]: string } = {
+      forecast: "🔮 Ваш персональный Тароскоп готов! Узнайте, что ждёт вас в ближайшие месяцы.",
+      financialCast: "💰 Ваши денежные коды раскрыты! Используйте эти знания для привлечения изобилия.",
+      mistakesIncarnation: "🕰️ Узнайте об уроках вашего прошлого воплощения и кармических задачах.",
+      arcanumRealization: "✨ Ваш аркан самореализации раскрыт! Познайте свой истинный путь.",
+      awakeningCodes: "✨ Три кода пробуждения открыты! Узнайте свою суть, страх и реализацию."
+    };
+    return texts[productType] || "✨ Ваш персональный расчёт готов!";
   }
 
   async stop() {
