@@ -1,7 +1,8 @@
-import { Router } from 'express';
-import { getCustomerSettings, updateCustomerSettings } from '../controllers/customerSettings.controller';
+import { Router } from "express";
 
-const router = Router({ mergeParams: true });
+import { getCustomerSettings, updateCustomerSettings } from "../controllers/customerSettings.controller";
+
+const router: Router = Router({ mergeParams: true });
 
 router.get('/settings', getCustomerSettings);
 router.put('/settings', updateCustomerSettings);

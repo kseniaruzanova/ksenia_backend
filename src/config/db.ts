@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { initGridFS } from "../controllers/video.controller";
 
 dotenv.config();
 
@@ -16,7 +15,6 @@ const connectDB = async () => {
 
     await mongoose.connect(mongoURI, { dbName: dbName || 'myAppDB' });
 
-    // Ждём полной готовности connection
     await new Promise<void>((resolve) => {
       if (mongoose.connection.readyState === 1) {
         resolve();
@@ -24,10 +22,6 @@ const connectDB = async () => {
         mongoose.connection.once('open', resolve);
       }
     });
-
-    // Теперь точно safe инициализировать GridFS
-    initGridFS();
-    console.log('✅ GridFS initialized and ready');
 
     console.log('MongoDB connected successfully');
   } catch (error) {

@@ -1,9 +1,8 @@
 import { Request, RequestHandler, Response } from "express";
 import mongoose from "mongoose";
 import { Readable } from "stream";
-import Video, { IVideo } from "../models/video.model";
+import Video from "../models/video.model";
 
-// GridFS бакеты
 let videoBucket: mongoose.mongo.GridFSBucket;
 let thumbnailBucket: mongoose.mongo.GridFSBucket;
 
@@ -40,13 +39,7 @@ export const uploadProgressMiddleware: RequestHandler = (req, res, next) => {
     // Сохраняем прогресс в request object
     req.uploadProgress = progress;
     
-    // Можно отправлять прогресс через WebSocket или сохранять в сессии
     console.log(`Upload progress: ${progress.toFixed(2)}%`);
-    
-    // Для реального приложения можно добавить отправку через WebSocket:
-    // if (req.socket && progress % 5 === 0) { // Отправляем каждые 5%
-    //   req.socket.emit('upload-progress', { progress });
-    // }
   });
   
   req.on('end', () => {

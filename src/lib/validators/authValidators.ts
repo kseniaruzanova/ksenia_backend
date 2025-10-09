@@ -1,7 +1,6 @@
-// src/lib/validators/authValidators.ts
-import { z } from 'zod';
+import { z } from "zod";
 
-export const registerSchema = z.object({
+export const registerSchema: z.ZodObject = z.object({
     body: z.object({
         username: z.string().min(3, 'Username must be at least 3 characters long').max(30, 'Username must be at most 30 characters long'),
         email: z.string().email('Please enter a valid email address'),
@@ -9,26 +8,20 @@ export const registerSchema = z.object({
     })
 });
 
-export type RegisterInput = z.infer<typeof registerSchema>['body'];
-
-export const loginSchema = z.object({
+export const loginSchema: z.ZodObject = z.object({
     body: z.object({
         email: z.string().email('Please enter a valid email address'),
         password: z.string(),
     })
 });
 
-export type LoginInput = z.infer<typeof loginSchema>['body'];
-
-export const forgotPasswordSchema = z.object({
+export const forgotPasswordSchema: z.ZodObject = z.object({
     body: z.object({
         email: z.string().email('Please enter a valid email address'),
     }),
 });
 
-export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>['body'];
-
-export const resetPasswordSchema = z.object({
+export const resetPasswordSchema: z.ZodObject = z.object({
     params: z.object({
         token: z.string(),
     }),
@@ -38,3 +31,6 @@ export const resetPasswordSchema = z.object({
 });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>; 
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>['body'];
+export type RegisterInput = z.infer<typeof registerSchema>['body'];
+export type LoginInput = z.infer<typeof loginSchema>['body'];

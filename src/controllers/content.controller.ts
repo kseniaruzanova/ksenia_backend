@@ -1,56 +1,38 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
-import Content from '../models/content.model';
-import { catchAsync } from '../lib/catchAsync';
+import { Response } from "express";
 
-// ... (остальные функции без изменений)
+import Content from "../models/content.model";
+import { ContentQuery } from "../interfaces/content";
+import { AuthRequest } from "../interfaces/authRequest";
 
-// Получить активный контент для конкретного продукта
-export const getActiveContent = catchAsync(async (req: AuthRequest, res: Response) => {
+export const getActiveContent = async (req: AuthRequest, res: Response) => {
   const { productType, productId } = req.query;
 
-  console.log(`[Content] Поиск активного контента для productType: "${productType}", productId: "${productId}"`);
-
   if (!productType || !productId) {
-    console.log('[Content] Ошибка: productType или productId не предоставлены.');
-    return res.status(400).json({ success: false, message: 'productType и productId обязательны' });
+    return res.status(400).json({ success: false, message: "productType и productId обязательны" });
   }
-
-  const query = { 
+  const query: ContentQuery = { 
     productType: productType as string, 
     productId: productId as string,
     isActive: true 
-  };
-
-  console.log('[Content] Запрос к базе данных:', query);
-
-  const content = await Content.findOne(query)
-    .sort({ createdAt: -1 })
-    .lean();
+  }
+  const content = await Content.findOne(query).sort({ createdAt: -1 }).lean();
   
   if (!content) {
-    console.log('[Content] Контент не найден в базе данных.');
-    return res.status(404).json({ success: false, message: 'Активный контент для этого продукта не найден' });
+    return res.status(404).json({ success: false, message: "Активный контент для этого продукта не найден" });
   }
 
-  console.log('[Content] Контент успешно найден:', content._id);
   res.json({ success: true, data: content });
-});
+};
 
-// ... (остальные функции без изменений)
+export const getAllContent = async (req: AuthRequest, res: Response) => {
+  const page: number = parseInt(req.query.page as string) || 1;
+  const limit: number = parseInt(req.query.limit as string) || 10;
+  const skip: number = (page - 1) * limit;
 
-// Я оставлю остальные функции без изменений, так как они не затрагиваются напрямую
-// Но для полноты картины, вот их реализация с сохранением структуры файла
-
-export const getAllContent = catchAsync(async (req: AuthRequest, res: Response) => {
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 10;
-  const skip = (page - 1) * limit;
-
-  const filter: any = {};
+  const filter: ContentQuery = {};
   
   if (req.query.isActive !== undefined) {
-    filter.isActive = req.query.isActive === 'true';
+    filter.isActive = req.query.isActive === "true";
   }
   if (req.query.productType) {
     filter.productType = req.query.productType as string;
@@ -78,20 +60,20 @@ export const getAllContent = catchAsync(async (req: AuthRequest, res: Response) 
       pages: Math.ceil(total / limit)
     }
   });
-});
+};
 
-export const getContentById = catchAsync(async (req: AuthRequest, res: Response) => {
+export const getContentById = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const content = await Content.findById(id);
 
   if (!content) {
-    return res.status(404).json({ success: false, message: 'Контент не найден' });
+    return res.status(404).json({ success: false, message: "Контент не найден" });
   }
 
   res.json({ success: true, data: content });
-});
+};
 
-export const createContent = catchAsync(async (req: AuthRequest, res: Response) => {
+export const createContent = async (req: AuthRequest, res: Response) => {
   const { productType, productId, title, description, content, isActive } = req.body;
 
   const newContent = new Content({
@@ -107,12 +89,12 @@ export const createContent = catchAsync(async (req: AuthRequest, res: Response) 
 
   res.status(201).json({
     success: true,
-    message: 'Контент успешно создан',
+    message: "Контент успешно создан",
     data: newContent
   });
-});
+};
 
-export const updateContent = catchAsync(async (req: AuthRequest, res: Response) => {
+export const updateContent =async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const updateData = req.body;
 
@@ -123,37 +105,37 @@ export const updateContent = catchAsync(async (req: AuthRequest, res: Response) 
   );
 
   if (!content) {
-    return res.status(404).json({ success: false, message: 'Контент не найден' });
+    return res.status(404).json({ success: false, message: "Контент не найден" });
   }
 
   res.json({
     success: true,
-    message: 'Контент успешно обновлен',
+    message: "Контент успешно обновлен",
     data: content
   });
-});
+};
 
-export const deleteContent = catchAsync(async (req: AuthRequest, res: Response) => {
+export const deleteContent = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const content = await Content.findByIdAndDelete(id);
 
   if (!content) {
-    return res.status(404).json({ success: false, message: 'Контент не найден' });
+    return res.status(404).json({ success: false, message: "Контент не найден" });
   }
 
   res.json({
     success: true,
-    message: 'Контент успешно удален',
+    message: "Контент успешно удален",
     data: content
   });
-});
+};
 
-export const toggleContentActive = catchAsync(async (req: AuthRequest, res: Response) => {
+export const toggleContentActive = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const content = await Content.findById(id);
 
   if (!content) {
-    return res.status(404).json({ success: false, message: 'Контент не найден' });
+    return res.status(404).json({ success: false, message: "Контент не найден" });
   }
 
   content.isActive = !content.isActive;
@@ -161,7 +143,7 @@ export const toggleContentActive = catchAsync(async (req: AuthRequest, res: Resp
 
   res.json({
     success: true,
-    message: `Контент ${content.isActive ? 'активирован' : 'деактивирован'}`,
+    message: `Контент ${content.isActive ? "активирован" : "деактивирован"}`,
     data: content
   });
-});
+};

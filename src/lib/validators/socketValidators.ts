@@ -1,8 +1,6 @@
-// src/lib/validators/socketValidators.ts
-import { z } from 'zod';
-import mongoose from 'mongoose';
+import { z } from "zod";
 
-const isMongoId = (id: string) => mongoose.Types.ObjectId.isValid(id);
+import { isMongoId } from '../../utils/validators';
 
 export const sendMessageSocketSchema = z.object({
     chatId: z.string().refine(isMongoId, { message: 'Invalid chat ID' }),

@@ -1,29 +1,30 @@
-import { Router } from 'express';
-import { createCustomer, getCustomers, deleteCustomer, getMyProfile, updateMyProfile, getCustomerById, updateCustomerSubscription } from '../controllers/customers.controller';
+import { Router } from "express";
+
 import { authMiddleware } from '../middleware/auth.middleware';
-import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
-import customerSettingsRoutes from './customerSettings.routes';
 import { adminAuthMiddleware } from '../middleware/adminAuth.middleware';
+import { catchAsync } from "../lib/catchAsync";
+import { 
+  createCustomer, 
+  deleteCustomer, 
+  getCustomerById, 
+  getCustomers, 
+  getMyProfile, 
+  updateMyProfile
+} from "../controllers/customers.controller";
+import customerSettingsRoutes from "./customerSettings.routes";
 
-const router = Router();
+const router: Router = Router();
 
-// Роуты для n8n, защищенные API-ключом
-router.post('/get-by-id', apiKeyMiddleware, getCustomerById);
-
-// Роуты защищенные JWT
 router.use(authMiddleware);
 
-// Роуты для кастомеров (собственные данные)
-router.get('/my-profile', getMyProfile);      // Получить свой профиль
-router.put('/my-profile', updateMyProfile);   // Обновить свой профиль
+router.get('/my-profile', catchAsync(getMyProfile));
+router.put('/my-profile', catchAsync(updateMyProfile));
 
-// Админские роуты
-router.post('/', adminAuthMiddleware, createCustomer);
-router.get('/', adminAuthMiddleware, getCustomers);
-router.delete('/:id', adminAuthMiddleware, deleteCustomer);
-router.post('/:id/subscription', adminAuthMiddleware, updateCustomerSubscription); // Новый роут
+router.post('/get-by-id', adminAuthMiddleware, catchAsync(getCustomerById));
+router.post('/', adminAuthMiddleware, catchAsync(createCustomer));
+router.get('/', adminAuthMiddleware, catchAsync(getCustomers));
+router.delete('/:id', adminAuthMiddleware, catchAsync(deleteCustomer));
 
-// Вложенные роуты для настроек кастомера
 router.use('/:id', customerSettingsRoutes);
 
 export default router; 

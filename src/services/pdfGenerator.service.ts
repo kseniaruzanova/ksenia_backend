@@ -1,28 +1,16 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
-import { IContent } from "../models/content.model";
+import { AwakeningCodesData, FinancialCastData, ForecastData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
 
-interface ForecastData {
-  yearDoor: { arcanum: number; text: string };
-  events: { arcanum: number; text: string };
-  monthlyForecasts: Array<{
-    monthName: string;
-    exam: { arcanum: number; text: string };
-    risk: { arcanum: number; text: string };
-  }>;
-}
-
-interface PdfData {
-  forecast: ForecastData;
-  saleScript: IContent | null;
-}
+const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
+const fontBoldPath: string = "./src/assets/fonts/DejaVuSans-Bold.ttf";
 
 export function generateForecastPdf(
-  data: PdfData,
+  data: ForecastData,
   stream: Writable,
   birthDate: string
 ): void {
-  const doc = new PDFDocument({
+  const doc: PDFKit.PDFDocument = new PDFDocument({
     size: "A4",
     margins: { top: 50, bottom: 50, left: 72, right: 72 },
     bufferPages: true,
@@ -30,17 +18,14 @@ export function generateForecastPdf(
 
   doc.pipe(stream);
 
-  const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
-  const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
-
   doc.registerFont("DejaVu-Regular", fontPath);
   doc.registerFont("DejaVu-Bold", fontBoldPath);
 
   try {
-    const imageWidth = 200;
-    const imageHeight = 150;
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    const imageWidth: number = 200;
+    const imageHeight: number = 150;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
     doc.image('./src/assets/images/forecast.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
@@ -68,20 +53,20 @@ export function generateForecastPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.forecast.yearDoor.text, { align: "justify" });
+    .text(data.yearDoor.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.font("DejaVu-Bold").fontSize(14).text("СОБЫТИЙНЫЙ УДАР: Чего избегать");
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.forecast.events.text, { align: "justify" });
+    .text(data.events.text, { align: "justify" });
   doc.moveDown(3);
 
   doc.font("DejaVu-Bold").fontSize(18).text("Прогноз по месяцам");
   doc.moveDown();
 
-  data.forecast.monthlyForecasts.forEach((monthData) => {
+  data.monthlyForecasts.forEach((monthData: MonthlyForecast) => {
     if (doc.y > 650) {
       doc.addPage();
     }
@@ -107,49 +92,15 @@ export function generateForecastPdf(
     doc.moveDown(2);
   });
 
-  if (data.saleScript) {
-    doc.addPage();
-    doc
-      .font("DejaVu-Bold")
-      .fontSize(20)
-      .text(data.saleScript.title, { align: "center" });
-    doc.moveDown(2);
-
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(14)
-      .text(data.saleScript.description, { align: "center" });
-    doc.moveDown(2);
-    
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(11)
-      .text(data.saleScript.content, { align: "left" });
-  }
-
   doc.end();
 }
 
-
-interface FinancialCastData {
-  moneyKnot: { arcanum: number; text: string };
-  archetypePoverty: { arcanum: number; text: string };
-  duty: { arcanum: number; text: string };
-  shadowWealth: { arcanum: number; text: string };
-  rituals: Array<{ title: string; text: string }>;
-}
-
-interface FinancialCastPdfData {
-  financialCast: FinancialCastData;
-  saleScript: IContent | null;
-}
-
 export function generateFinancialCastPdf(
-  data: FinancialCastPdfData,
+  data: FinancialCastData,
   stream: Writable,
   birthDate: string
 ): void {
-  const doc = new PDFDocument({
+  const doc: PDFKit.PDFDocument = new PDFDocument({
     size: "A4",
     margins: { top: 50, bottom: 50, left: 72, right: 72 },
     bufferPages: true,
@@ -157,17 +108,14 @@ export function generateFinancialCastPdf(
 
   doc.pipe(stream);
 
-  const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
-  const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
-
   doc.registerFont("DejaVu-Regular", fontPath);
   doc.registerFont("DejaVu-Bold", fontBoldPath);
 
   try {
-    const imageWidth = 180;
-    const imageHeight = 230;
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
     doc.image('./src/assets/images/financialCast.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
@@ -192,38 +140,38 @@ export function generateFinancialCastPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.financialCast.moneyKnot.text, { align: "justify" });
+    .text(data.moneyKnot.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Архетип бедности");
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.financialCast.archetypePoverty.text, { align: "justify" });
+    .text(data.archetypePoverty.text, { align: "justify" });
   doc.moveDown(3);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Долг");
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.financialCast.duty.text, { align: "justify" });
+    .text(data.duty.text, { align: "justify" });
   doc.moveDown(3);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Тень богатства");
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.financialCast.shadowWealth.text, { align: "justify" });
+    .text(data.shadowWealth.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Ритуалы");
   doc.moveDown(1);
-  data.financialCast.rituals.forEach((ritual) => {
+  data.ritualsMap.forEach((ritual: RitualItem) => {
     try {
-      const imageWidth = 200;
-      const imageHeight = 150;
-      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+      const imageWidth: number = 200;
+      const imageHeight: number = 150;
+      const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
       
       doc.image('./src/assets/images/rituals.jpg', x, doc.y, {
         fit: [imageWidth, imageHeight]
@@ -243,46 +191,15 @@ export function generateFinancialCastPdf(
 
   doc.moveDown(3);
 
-  if (data.saleScript) {
-    doc.addPage();
-    doc
-      .font("DejaVu-Bold")
-      .fontSize(20)
-      .text(data.saleScript.title, { align: "center" });
-    doc.moveDown(2);
-
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(14)
-      .text(data.saleScript.description, { align: "center" });
-    doc.moveDown(2);
-    
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(11)
-      .text(data.saleScript.content, { align: "left" });
-  }
-
   doc.end();
 }
 
-
-interface MistakesIncarnationData {
-  lessonIncarnation: { arcanum: number; text: string };
-  karmicLessons: { arcanum: number; text: string };
-}
-
-interface MistakesIncarnationPdfData {
-  mistakesIncarnation: MistakesIncarnationData;
-  saleScript: IContent | null;
-}
-
 export function generateMistakesIncarnationPdf(
-  data: MistakesIncarnationPdfData,
+  data: MistakesIncarnationData,
   stream: Writable,
   birthDate: string
 ): void {
-  const doc = new PDFDocument({
+  const doc: PDFKit.PDFDocument = new PDFDocument({
     size: "A4",
     margins: { top: 50, bottom: 50, left: 72, right: 72 },
     bufferPages: true,
@@ -290,17 +207,14 @@ export function generateMistakesIncarnationPdf(
 
   doc.pipe(stream);
 
-  const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
-  const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
-
   doc.registerFont("DejaVu-Regular", fontPath);
   doc.registerFont("DejaVu-Bold", fontBoldPath);
 
   try {
-    const imageWidth = 180;
-    const imageHeight = 230;
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
     doc.image('./src/assets/images/mistakesIncarnation.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
@@ -327,7 +241,7 @@ export function generateMistakesIncarnationPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.mistakesIncarnation.lessonIncarnation.text, { align: "justify" });
+    .text(data.lessonIncarnation.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Кармические уроки, кармические ошибки и кармические черты характера (это нельзя повторять в этой жизни):");
@@ -335,50 +249,18 @@ export function generateMistakesIncarnationPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.mistakesIncarnation.karmicLessons.text, { align: "justify" });
+    .text(data.karmicLessons.text, { align: "justify" });
   doc.moveDown(2);
-
-  if (data.saleScript) {
-    doc.addPage();
-    doc
-      .font("DejaVu-Bold")
-      .fontSize(20)
-      .text(data.saleScript.title, { align: "center" });
-    doc.moveDown(2);
-
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(14)
-      .text(data.saleScript.description, { align: "center" });
-    doc.moveDown(2);
-    
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(11)
-      .text(data.saleScript.content, { align: "left" });
-  }
 
   doc.end();
 }
 
-
-interface AwakeningCodesData {
-  core: { arcanum: number; text: string };
-  fear: { arcanum: number; text: string };
-  implementation: { arcanum: number; text: string };
-}
-
-interface AwakeningCodesPdfData {
-  awakeningCodes: AwakeningCodesData;
-  saleScript: IContent | null;
-}
-
 export function generateAwakeningCodesPdf(
-  data: AwakeningCodesPdfData,
+  data: AwakeningCodesData,
   stream: Writable,
   birthDate: string
 ): void {
-  const doc = new PDFDocument({
+  const doc: PDFKit.PDFDocument = new PDFDocument({
     size: "A4",
     margins: { top: 50, bottom: 50, left: 72, right: 72 },
     bufferPages: true,
@@ -386,17 +268,14 @@ export function generateAwakeningCodesPdf(
 
   doc.pipe(stream);
 
-  const fontPath = "./src/assets/fonts/DejaVuSans.ttf";
-  const fontBoldPath = "./src/assets/fonts/DejaVuSans-Bold.ttf";
-
   doc.registerFont("DejaVu-Regular", fontPath);
   doc.registerFont("DejaVu-Bold", fontBoldPath);
 
   try {
-    const imageWidth = 180;
-    const imageHeight = 230;
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const x = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
     doc.image('./src/assets/images/awakeningCodes.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
@@ -422,7 +301,7 @@ export function generateAwakeningCodesPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.awakeningCodes.core.text, { align: "justify" });
+    .text(data.core.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Трактовка 2: Страх");
@@ -430,7 +309,7 @@ export function generateAwakeningCodesPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.awakeningCodes.fear.text, { align: "justify" });
+    .text(data.fear.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.font("DejaVu-Bold").fontSize(16).text("Трактовка 3: Реализация");
@@ -438,28 +317,8 @@ export function generateAwakeningCodesPdf(
   doc
     .font("DejaVu-Regular")
     .fontSize(11)
-    .text(data.awakeningCodes.implementation.text, { align: "justify" });
+    .text(data.implementation.text, { align: "justify" });
   doc.moveDown(2);
-
-  if (data.saleScript) {
-    doc.addPage();
-    doc
-      .font("DejaVu-Bold")
-      .fontSize(20)
-      .text(data.saleScript.title, { align: "center" });
-    doc.moveDown(2);
-
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(14)
-      .text(data.saleScript.description, { align: "center" });
-    doc.moveDown(2);
-    
-    doc
-      .font("DejaVu-Regular")
-      .fontSize(11)
-      .text(data.saleScript.content, { align: "left" });
-  }
 
   doc.end();
 }

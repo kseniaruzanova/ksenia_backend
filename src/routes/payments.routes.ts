@@ -1,18 +1,13 @@
-import { Router } from 'express';
-import { createPayment, getPaymentsPaginated, getPaymentsByUsernamePaginated } from '../controllers/payment.controller';
-import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
-import { adminAuthMiddleware } from '../middleware/adminAuth.middleware';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { Router } from "express";
 
-const router = Router();
+import { catchAsync } from "../lib/catchAsync";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { getPaymentsByUsernamePaginated, getPaymentsPaginated } from "../controllers/payment.controller";
 
-// Создать платеж (защищено API-ключом)
-router.post('/create', apiKeyMiddleware, createPayment);
+const router: Router = Router();
 
-// Получить все платежи с пагинацией (только для админа)
-router.get('/', authMiddleware, getPaymentsPaginated);
+router.get('/', authMiddleware, catchAsync(getPaymentsPaginated));
 
-// Получить платежи по username с пагинацией (только для админа)
-router.get('/payments/by-username/:username', authMiddleware, getPaymentsByUsernamePaginated);
+router.get('/payments/by-username/:username', authMiddleware, catchAsync(getPaymentsByUsernamePaginated));
 
 export default router;

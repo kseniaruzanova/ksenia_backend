@@ -1,13 +1,8 @@
-import { norm360 } from "./angles";
+import { norm360 } from "../utils/angles";
 
-export interface ZodiacSign {
-  sign: string;
-  degree: number;
-  minute: number;
-  second: number;
-}
+import { ZodiacSign } from "../interfaces/zodiacSign";
 
-export const ZODIAC_SIGNS = [
+export const ZODIAC_SIGNS: string[] = [
   'Aries', 'Taurus', 'Gemini', 'Cancer', 
   'Leo', 'Virgo', 'Libra', 'Scorpio', 
   'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'

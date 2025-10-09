@@ -1,19 +1,25 @@
-import express from 'express';
-import { authMiddleware } from '../middleware/auth.middleware';
-import { catchAsync } from '../lib/catchAsync';
-import { getLinkProdamusBasic, getLinkProdamusPro, updateProdamus } from '../controllers/prodamus.controller';
-import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
+import { Router } from 'express';
 
-const router = express.Router();
+import { catchAsync } from "../lib/catchAsync";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { 
+  getLinkProdamusBasic, 
+  getLinkProdamusPro,
+  updateProdamusSubscription,
+  handleTarotPaymentWebhook
+} from "../controllers/prodamus.controller";
 
-router.post('/update', apiKeyMiddleware, catchAsync(updateProdamus));
+const router: Router = Router();
 
+// Публичные роуты (для webhooks от Prodamus)
+router.post('/webhook/subscription', catchAsync(updateProdamusSubscription));
+router.post('/webhook/tarot-payment', catchAsync(handleTarotPaymentWebhook));
+
+// Защищенные роуты (требуют авторизации)
 router.use(authMiddleware);
 
 router.get('/create/link/basic', catchAsync(getLinkProdamusBasic));
 
 router.get('/create/link/pro', catchAsync(getLinkProdamusPro));
-
-
 
 export default router;

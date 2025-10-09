@@ -1,21 +1,36 @@
 import { Router } from 'express';
-import { getUsers, getUserById, upsertUser, checkUserExists, debugData, fixIndexes, updateUserFields, getAllUsers, checkUserData } from '../controllers/users.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
-import { apiKeyMiddleware } from '../middleware/apiKey.middleware';
+import {
+  getAllUsers,
+  getUserByChatId,
+  getUsers,
+  upsertUser,
+  updateUserFields,
+  deleteUser
+} from '../controllers/users.controller';
 
 const router = Router();
 
-// Маршруты для n8n, защищенные API-ключом
-router.post('/upsert', apiKeyMiddleware, upsertUser);
-router.post('/check', apiKeyMiddleware, checkUserExists);
-router.post('/check-data', apiKeyMiddleware, checkUserData);
-router.put('/update-fields', apiKeyMiddleware, updateUserFields);
+// Все роуты защищены middleware авторизации
+router.use(authMiddleware);
 
-// Маршруты для клиентов, защищенные JWT
-router.get('/', authMiddleware, getUsers);
-router.get('/all', authMiddleware, getAllUsers);
-router.get('/debug', authMiddleware, debugData);
-router.post('/fix-indexes', authMiddleware, fixIndexes);
-router.get('/by-chat-id/:id', authMiddleware, getUserById);
+// GET /api/users/all - получить всех пользователей (без пагинации)
+router.get('/all', getAllUsers);
 
-export default router; 
+// GET /api/users/by-chat-id/:chatId - получить пользователя по chat_id
+router.get('/by-chat-id/:chatId', getUserByChatId);
+
+// GET /api/users - получить пользователей с пагинацией
+router.get('/', getUsers);
+
+// POST /api/users/upsert - создать или обновить пользователя
+router.post('/upsert', upsertUser);
+
+// PATCH /api/users/:chatId - обновить поля пользователя
+router.patch('/:chatId', updateUserFields);
+
+// DELETE /api/users/:chatId - удалить пользователя
+router.delete('/:chatId', deleteUser);
+
+export default router;
+

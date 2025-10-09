@@ -1,15 +1,13 @@
-import { Router } from 'express';
-import { searchCities, getTimezone, getFirstCity } from '../controllers/geocoding.controller';
+import { Router } from "express";
+import { catchAsync } from "../lib/catchAsync";
+import { getTimezone, searchCities } from "../controllers/geocoding.controller";
 
-const router = Router();
+const router: Router = Router();
 
 // GET /api/geocoding/search?q=москва&limit=10
-router.get('/search', searchCities);
+router.get('/search', catchAsync(searchCities));
 
 // GET /api/geocoding/timezone?lat=55.7558&lon=37.6173
-router.get('/timezone', getTimezone);
-
-// GET /api/geocoding/first?q=москва - получить первый попавший город
-router.get('/first', getFirstCity);
+router.get('/timezone', catchAsync(getTimezone));
 
 export default router;

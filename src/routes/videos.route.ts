@@ -1,5 +1,5 @@
-import express from 'express';
-import multer from 'multer';
+import { Router } from "express";
+import multer from "multer";
 import {
   getVideos,
   createVideo,
@@ -8,14 +8,13 @@ import {
   getFile,
   getThumbnail,
   uploadProgressMiddleware
-} from '../controllers/video.controller';
+} from "../controllers/video.controller";
 
-const router = express.Router();
+const router: Router = Router();
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const storage: multer.StorageEngine = multer.memoryStorage();
+const upload: multer.Multer = multer({ storage });
 
-// Добавляем middleware для отслеживания прогресса
 router.post(
   '/',
   uploadProgressMiddleware,
@@ -36,7 +35,6 @@ router.put(
   updateVideo
 );
 
-// Остальные маршруты без изменений
 router.get('/', getVideos);
 router.delete('/:id', deleteVideo);
 router.get('/file/:id', getFile);

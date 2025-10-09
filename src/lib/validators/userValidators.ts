@@ -1,38 +1,34 @@
-import { object, string } from 'zod';
-import { Types } from 'mongoose';
+import { z } from 'zod';
 
-const isMongoId = (id: string) => Types.ObjectId.isValid(id);
+import { isMongoId } from '../../utils/validators';
 
-// GET /users/search
-export const searchUsersSchema = object({
-    query: object({
-        q: string().min(1, 'Query cannot be empty'),
+export const searchUsersSchema: z.ZodObject = z.object({
+    query: z.object({
+        q: z.string().min(1, 'Query cannot be empty'),
     }),
 });
 
-// POST /users/contacts
-export const addContactSchema = object({
-    body: object({
-        contactId: string().refine(isMongoId, { message: 'Invalid contact ID' }),
+export const addContactSchema: z.ZodObject = z.object({
+    body: z.object({
+        contactId: z.string().refine(isMongoId, { message: 'Invalid contact ID' }),
     }),
 });
 
-// DELETE /users/contacts/:id
-export const removeContactSchema = object({
-    params: object({
-        id: string().refine(isMongoId, { message: 'Invalid contact ID' }),
+export const removeContactSchema: z.ZodObject = z.object({
+    params: z.object({
+        id: z.string().refine(isMongoId, { message: 'Invalid contact ID' }),
     }),
 });
 
-export const updatePrivacySettingsSchema = object({
-    body: object({
-        allowSearch: string().optional().refine(val => !val || ['everyone', 'contacts', 'nobody'].includes(val), {
+export const updatePrivacySettingsSchema: z.ZodObject = z.object({
+    body: z.object({
+        allowSearch: z.string().optional().refine(val => !val || ['everyone', 'contacts', 'nobody'].includes(val), {
             message: "Invalid value for allowSearch. Must be one of 'everyone', 'contacts', 'nobody'."
         }),
-        allowMessages: string().optional().refine(val => !val || ['everyone', 'contacts'].includes(val), {
+        allowMessages: z.string().optional().refine(val => !val || ['everyone', 'contacts'].includes(val), {
             message: "Invalid value for allowMessages. Must be one of 'everyone', 'contacts'."
         }),
-        birthDateVisibility: string().optional().refine(val => !val || ['everyone', 'contacts', 'nobody'].includes(val), {
+        birthDateVisibility: z.string().optional().refine(val => !val || ['everyone', 'contacts', 'nobody'].includes(val), {
             message: "Invalid value for birthDateVisibility. Must be one of 'everyone', 'contacts', 'nobody'."
         }),
     }).refine(data => Object.keys(data).length > 0, {
@@ -40,39 +36,39 @@ export const updatePrivacySettingsSchema = object({
     })
 });
 
-export const addToBlacklistSchema = object({
-    body: object({
-        userId: string().refine((val) => Types.ObjectId.isValid(val), {
+export const addToBlacklistSchema: z.ZodObject = z.object({
+    body: z.object({
+        userId: z.string().refine((val: string) => isMongoId(val), {
             message: 'Invalid user ID',
         }),
     }),
 });
 
-export const removeFromBlacklistSchema = object({
-    params: object({
-        id: string().refine((val) => Types.ObjectId.isValid(val), {
+export const removeFromBlacklistSchema: z.ZodObject = z.object({
+    params: z.object({
+        id: z.string().refine((val: string) => isMongoId(val), {
             message: 'Invalid user ID',
         }),
     }),
 });
 
-export const getUserByIdSchema = object({
-    params: object({
-        id: string().refine((val) => Types.ObjectId.isValid(val), {
+export const getUserByIdSchema: z.ZodObject = z.object({
+    params: z.object({
+        id: z.string().refine((val: string) => isMongoId(val), {
             message: 'Invalid user ID',
         }),
     }),
 });
 
-export const updateUserProfileSchema = object({
-    body: object({
-        about: string()
+export const updateUserProfileSchema: z.ZodObject = z.object({
+    body: z.object({
+        about: z.string()
             .max(500, 'About text cannot be more than 500 characters')
             .optional(),
-        website: string()
+        website: z.string()
             .url({ message: "Invalid URL format" })
             .optional(),
-        birthDate: string()
+        birthDate: z.string()
             .refine((date) => !date || !isNaN(Date.parse(date)), {
                 message: "Invalid date format",
             })

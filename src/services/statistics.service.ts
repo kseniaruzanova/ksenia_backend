@@ -1,23 +1,19 @@
-import { log } from 'console';
-import Payment, { IPayment } from '../models/payment.model';
-import User from '../models/user.model';
-import { AuthRequest } from '../middleware/auth.middleware';
-import { Response } from 'express';
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
+
+import Payment from "../models/payment.model";
+import User from "../models/user.model";
+import Customer from "../models/customer.model";
 
 export class StatisticsService {
   async getGeneralStatsPerUser(username: string) {
-
-   // const usersCount = await User.countDocuments();
-    const paymentsCount = await Payment.countDocuments({
-      username: username
-    });
-    const paymentsSum = await Payment.aggregate([
-      { $match: { username } },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
+    // Параллельное выполнение запросов
+    const [paymentsCount, paymentsSum] = await Promise.all([
+      Payment.countDocuments({ username }),
+      Payment.aggregate([
+        { $match: { username } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ])
     ]);
-
-
 
     return {
       paymentsCount,
@@ -26,113 +22,185 @@ export class StatisticsService {
   }
 
   async getGeneralStatsForAdmin() {
-  //  const usersCount = await User.countDocuments();
-    const paymentsCount = await Payment.countDocuments();
-    const paymentsSum = await Payment.aggregate([
-      { $group: { _id: null, total: { $sum: '$amount' } } }
+    // Параллельное выполнение запросов
+    const [paymentsCount, paymentsSum] = await Promise.all([
+      Payment.countDocuments(),
+      Payment.aggregate([
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ])
     ]);
 
     return {
-    //  usersCount,
       paymentsCount,
       paymentsSum: paymentsSum[0]?.total || 0
     };
   }
 
   async getStatUsers(customerIdOrAdmin: string | number) {
-
     if (!customerIdOrAdmin) {
-      throw new Error( 'Forbidden: This action is only for customers and admins.');
+      throw new Error('Forbidden: This action is only for customers and admins.');
     }
 
     try {
+      const isAdmin = customerIdOrAdmin === 'admin';
       const query: any = {};
-      // Основная фильтрация по customerId - ВСЕГДА для кастомеров
-      if (customerIdOrAdmin !== 'admin') {
-         query.customerId = new mongoose.Types.ObjectId(customerIdOrAdmin);;
-        console.log(`Customer ${customerIdOrAdmin} requesting all their users`);
-      } else {
-        console.log('Admin requesting all users from all customers');
+      
+      // Основная фильтрация по customerId
+      if (!isAdmin) {
+        query.customerId = new mongoose.Types.ObjectId(customerIdOrAdmin as string);
       }
 
-      // Получаем всех пользователей без пагинации
+      // Оптимизированный запрос с проекцией только нужных полей
       const users = await User.find(query)
-        .sort({ createdAt: -1 }) // Сортировка по дате создания (новые первыми)
+        .select('chat_id state customerId createdAt') // Только необходимые поля
+        .sort({ createdAt: -1 })
+        .lean() // Используем lean для лучшей производительности
         .exec();
 
-      console.log(`Found ${users.length} users for ${customerIdOrAdmin === 'admin' ? 'admin' : 'customer ' + customerIdOrAdmin}`);
-
-      // Если админ, группируем пользователей по кастомерам для удобства
-      if (customerIdOrAdmin === 'admin') {
-        // Получаем информацию о кастомерах
-        const Customer = require('../models/customer.model').default;
-        const customers = await Customer.find({}, 'username _id');
-
-        console.log(`Found ${customers.length} customers in database`);
-
-        // Создаем мапу кастомеров
-        const customerMap = new Map();
-        customers.forEach((customer: any) => {
-          customerMap.set(customer._id.toString(), customer.username);
-        });
-
-        // Группируем пользователей по кастомерам
-        const usersByCustomer: any = {};
-        const usersWithoutCustomer: any[] = [];
-
-        users.forEach((user, index) => {
-          // Проверяем что customerId существует
-          if (!user.customerId) {
-            console.warn(`User ${user.chat_id || `at index ${index}`} has no customerId. User data:`, {
-              chat_id: user.chat_id,
-              state: user.state,
-              customerId: user.customerId,
-              _id: user._id
-            });
-            usersWithoutCustomer.push(user);
-            return;
-          }
-
-          const customerId = user.customerId.toString();
-          const customerName = customerMap.get(customerId) || 'Unknown Customer';
-
-          if (!usersByCustomer[customerId]) {
-            usersByCustomer[customerId] = {
-              customerId,
-              customerName,
-              users: []
-            };
-          }
-          usersByCustomer[customerId].users.push(user);
-        });
-
-        console.log(`Grouped users: ${Object.keys(usersByCustomer).length} customers, ${usersWithoutCustomer.length} users without customerId`);
-
-        return {
-          message: 'All users data for admin',
-          isAdmin: true,
-          totalUsers: users.length,
-          totalCustomers: Object.keys(usersByCustomer).length,
-          usersWithoutCustomer: usersWithoutCustomer.length > 0 ? usersWithoutCustomer : undefined,
-          usersByCustomer,
-          users,
-          allUsers: users // Также возвращаем плоский список
-        }
+      // Для админа получаем дополнительную информацию
+      if (isAdmin) {
+        return await this.getAdminUserStats(users);
       } else {
-        // Для кастомера просто возвращаем его пользователей
-        return  {
+        return {
           message: 'All users data for customer',
           isAdmin: false,
           customerId: customerIdOrAdmin,
           totalUsers: users.length,
           users
-        }
+        };
       }
     } catch (error) {
       console.error('Error in getAllUsers:', error);
       throw new Error('Error in getAllUsers:');
     }
-}
+  }
+
+  private async getAdminUserStats(users: any[]) {
+    // Параллельное получение данных о кастомерах
+    const [Customer, usersWithoutCustomer, usersByCustomer] = await Promise.all([
+      this.getCustomersData(),
+      this.findUsersWithoutCustomer(users),
+      this.groupUsersByCustomer(users)
+    ]);
+
+    return {
+      message: 'All users data for admin',
+      isAdmin: true,
+      totalUsers: users.length,
+      totalCustomers: Object.keys(usersByCustomer).length,
+      usersWithoutCustomer: usersWithoutCustomer.length > 0 ? usersWithoutCustomer : undefined,
+      usersByCustomer,
+      users,
+      allUsers: users
+    };
+  }
+
+  private async getCustomersData() {
+    try {
+      return await Customer.find({}, 'username _id').lean().exec();
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      return [];
+    }
+  }
+
+  private async findUsersWithoutCustomer(users: any[]) {
+    return users.filter(user => !user.customerId);
+  }
+
+  private async groupUsersByCustomer(users: any[]) {
+    const customers = await Customer.find({}, 'username _id').lean().exec();
+    
+    // Создаем Map для быстрого поиска
+    const customerMap = new Map(
+      customers.map(customer => [customer._id.toString(), customer.username])
+    );
+
+    const usersByCustomer: any = {};
+
+    users.forEach(user => {
+      if (!user.customerId) return;
+
+      const customerId = user.customerId.toString();
+      const customerName = customerMap.get(customerId) || 'Unknown Customer';
+
+      if (!usersByCustomer[customerId]) {
+        usersByCustomer[customerId] = {
+          customerId,
+          customerName,
+          users: []
+        };
+      }
+      usersByCustomer[customerId].users.push(user);
+    });
+
+    return usersByCustomer;
+  }
+
+  // Дополнительные оптимизации для больших наборов данных
+  async getStatUsersPaginated(
+    customerIdOrAdmin: string | number, 
+    page: number = 1, 
+    limit: number = 50
+  ) {
+    if (!customerIdOrAdmin) {
+      throw new Error('Forbidden: This action is only for customers and admins.');
+    }
+
+    const isAdmin = customerIdOrAdmin === 'admin';
+    const query: any = {};
+    
+    if (!isAdmin) {
+      query.customerId = new mongoose.Types.ObjectId(customerIdOrAdmin as string);
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Параллельное выполнение запросов для пагинации
+    const [users, totalUsers] = await Promise.all([
+      User.find(query)
+        .select('chat_id state customerId createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      User.countDocuments(query)
+    ]);
+
+    if (isAdmin) {
+      const usersByCustomer = await this.groupUsersByCustomer(users);
+      
+      return {
+        message: 'Paginated users data for admin',
+        isAdmin: true,
+        users,
+        usersByCustomer,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalUsers / limit),
+          totalUsers,
+          hasNext: page < Math.ceil(totalUsers / limit),
+          hasPrev: page > 1
+        }
+      };
+    } else {
+      return {
+        message: 'Paginated users data for customer',
+        isAdmin: false,
+        customerId: customerIdOrAdmin,
+        users,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalUsers / limit),
+          totalUsers,
+          hasNext: page < Math.ceil(totalUsers / limit),
+          hasPrev: page > 1
+        }
+      };
+    }
+  }
 }
 
-export default new StatisticsService();
+const statisticsService = new StatisticsService();
+export default statisticsService;

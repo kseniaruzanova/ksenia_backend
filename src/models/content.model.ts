@@ -5,7 +5,7 @@ export interface IContent extends Document {
   productId: string;
   title: string;
   description: string;
-  content: string; // Markdown content
+  content: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -49,7 +49,6 @@ const contentSchema = new Schema<IContent>({
   timestamps: true,
 });
 
-// Индекс для быстрого поиска активного контента для конкретного продукта
 contentSchema.index({ productType: 1, productId: 1, isActive: 1 });
 
 const Content = model<IContent>('Content', contentSchema);

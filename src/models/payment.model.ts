@@ -4,7 +4,7 @@ export interface IPayment extends Document {
   amount: number;
   bot_name: string;
   username: string;
-  type: string; // например, "Продамус"
+  type: string;
   createdAt: Date;
 }
 

@@ -26,13 +26,12 @@ export interface IMessageContent {
   caption?: string;
   fileId?: string;
   fileIds?: string[];
-  // Другие специфичные поля для разных типов
 }
 
 export interface IMessage extends Document {
-  chatId: Types.ObjectId;     // Ссылка на чат
-  customerId: Types.ObjectId; // Дублируем для быстрого поиска
-  messageId: string;          // Telegram message ID
+  chatId: Types.ObjectId;
+  customerId: Types.ObjectId;
+  messageId: string;
   type: MessageType;
   direction: 'in' | 'out';
   content: IMessageContent;
@@ -45,7 +44,7 @@ const MessageContentSchema = new Schema<IMessageContent>({
   caption: { type: String },
   fileId: { type: String },
   fileIds: { type: [String] }
-}, { _id: false, strict: false }); // strict: false позволяет добавлять другие поля динамически
+}, { _id: false, strict: false });
 
 const MessageSchema = new Schema<IMessage>({
   chatId: { 
@@ -93,7 +92,6 @@ const MessageSchema = new Schema<IMessage>({
   collection: 'Messages'
 });
 
-// Индексы для быстрого поиска сообщений
 MessageSchema.index({ chatId: 1, timestamp: 1 });
 MessageSchema.index({ customerId: 1, timestamp: 1 });
 MessageSchema.index({ messageId: 1 });

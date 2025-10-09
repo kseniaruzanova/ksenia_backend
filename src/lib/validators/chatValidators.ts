@@ -1,16 +1,14 @@
-// src/lib/validators/chatValidators.ts
-import { z } from 'zod';
-import mongoose from 'mongoose';
+import { z } from "zod";
 
-const isMongoId = (id: string) => mongoose.Types.ObjectId.isValid(id);
+import { isMongoId } from "../../utils/validators";
 
-export const createPrivateChatSchema = z.object({
+export const createPrivateChatSchema: z.ZodObject = z.object({
     body: z.object({
         participantId: z.string().refine(isMongoId, { message: 'Invalid participant ID' }),
     })
 });
 
-export const getChatMessagesSchema = z.object({
+export const getChatMessagesSchema: z.ZodObject = z.object({
     params: z.object({
         id: z.string().refine(isMongoId, { message: 'Invalid chat ID' }),
     }),
@@ -24,4 +22,4 @@ export const getChatMessagesSchema = z.object({
             z.number().min(1).max(100).optional().default(50)
         ),
     })
-}); 
+});

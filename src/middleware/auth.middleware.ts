@@ -1,43 +1,36 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
+import { Response, NextFunction } from "express";
 
-export interface AuthRequest extends Request {
-  user?: {
-    username: string;
-    role: 'admin' | 'customer';
-    customerId?: string;
-    botToken?: string;
-  } & jwt.JwtPayload;
-}
+import { AuthRequest } from "../interfaces/authRequest";
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
+  const authHeader: string | undefined = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ message: 'Unauthorized: No token provided' });
     return;
   }
 
-  const token = authHeader.split(' ')[1];
-  const secret = process.env.JWT_SECRET;
+  const token: string = authHeader.split(' ')[1];
+  const secret: string = process.env.JWT_SECRET || "";
 
   if (!secret) {
     throw new Error('JWT_SECRET is not defined');
   }
 
   try {
-    const decoded = jwt.verify(token, secret);
+    const decoded: jwt.JwtPayload | string = jwt.verify(token, secret);
     req.user = decoded as AuthRequest['user'];
     
-    const isCustomerRoute = req.originalUrl.includes('/api/messages');
+    const isCustomerRoute: boolean = req.originalUrl.includes('/api/messages');
     if (req.user?.role === 'admin' && isCustomerRoute) {
-        const allowedForAdmin = ['/api/customers', '/api/auth/login'];
-        const isAdminSpecificRoute = allowedForAdmin.some(route => req.originalUrl.startsWith(route));
-        
-        if (!isAdminSpecificRoute) {
-             res.status(403).json({ message: 'Forbidden: Admins cannot access customer-specific routes' });
-             return;
-        }
+      const allowedForAdmin = ['/api/customers', '/api/auth/login'];
+      const isAdminSpecificRoute = allowedForAdmin.some(route => req.originalUrl.startsWith(route));
+      
+      if (!isAdminSpecificRoute) {
+        res.status(403).json({ message: 'Forbidden: Admins cannot access customer-specific routes' });
+        return;
+      }
     }
 
     next();

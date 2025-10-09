@@ -1,8 +1,10 @@
 import { Router } from "express";
+
+import { catchAsync } from "../lib/catchAsync";
 import { getTarotReading } from "../controllers/tarot.controller";
 
-const router = Router();
+const router: Router = Router();
 
-router.post("/", getTarotReading);
+router.post("/", catchAsync(getTarotReading));
 
 export default router;

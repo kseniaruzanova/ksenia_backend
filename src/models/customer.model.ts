@@ -1,15 +1,12 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document } from "mongoose";
 
 export interface ICustomer extends Document {
   username: string;
   password?: string;
   botToken: string;
-  
-  // Новые поля для подписки
-  tariff?: 'basic' | 'pro';
+  tariff?: 'none' | 'basic' | 'pro';
   subscriptionStatus?: 'active' | 'inactive' | 'expired';
   subscriptionEndsAt?: Date;
-
   currentPrice?: number;
   basePrice?: number;
   cardNumber?: string;
@@ -26,7 +23,6 @@ const customerSchema = new Schema<ICustomer>({
   password: { type: String, required: true },
   botToken: { type: String, required: true },
 
-  // Схема для новых полей
   tariff: { type: String, enum: ['basic', 'pro'], default: "none" },
   subscriptionStatus: { type: String, enum: ['active', 'inactive', 'expired'], default: 'inactive' },
   subscriptionEndsAt: { type: Date, default: null },
@@ -40,51 +36,6 @@ const customerSchema = new Schema<ICustomer>({
   paymentInstructions: { type: String },
 }, {
   timestamps: true,
-});
-
-// Middleware для отслеживания изменений ботов
-customerSchema.post('save', async function(doc: ICustomer) {
-  try {
-    // Импорт BotManager только при необходимости, чтобы избежать циклических зависимостей
-    const { botManager } = await import('../services/botManager.service');
-    
-    console.log(`📝 Customer saved: ${doc.username}`);
-    
-    // Уведомляем BotManager о сохранении
-    await botManager.handleCustomerChange('save', doc);
-  } catch (error) {
-    console.error('❌ Error in customer save middleware:', error);
-  }
-});
-
-customerSchema.post('findOneAndUpdate', async function(doc: ICustomer) {
-  try {
-    if (doc) {
-      const { botManager } = await import('../services/botManager.service');
-      
-      console.log(`📝 Customer updated: ${doc.username}`);
-      
-      // Уведомляем BotManager об обновлении
-      await botManager.handleCustomerChange('update', doc);
-    }
-  } catch (error) {
-    console.error('❌ Error in customer update middleware:', error);
-  }
-});
-
-customerSchema.post('findOneAndDelete', async function(doc: ICustomer) {
-  try {
-    if (doc) {
-      const { botManager } = await import('../services/botManager.service');
-      
-      console.log(`🗑️ Customer deleted: ${doc.username}`);
-      
-      // Уведомляем BotManager об удалении
-      await botManager.handleCustomerChange('delete', doc);
-    }
-  } catch (error) {
-    console.error('❌ Error in customer delete middleware:', error);
-  }
 });
 
 const Customer = model<ICustomer>('Customer', customerSchema);

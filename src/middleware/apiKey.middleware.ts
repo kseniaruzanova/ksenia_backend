@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 
 export const apiKeyMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  const apiKey = req.headers['x-api-key'];
-  const serverApiKey = process.env.N8N_API_KEY;
+  const apiKey: string = req.headers['x-api-key'] as string;
+  const serverApiKey: string = process.env.N8N_API_KEY || "";
 
   if (!serverApiKey) {
     console.error('N8N_API_KEY is not defined in the environment.');

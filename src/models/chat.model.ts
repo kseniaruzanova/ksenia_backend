@@ -6,13 +6,12 @@ export interface IChatMeta {
   username?: string;
   lastMessageAt?: Date;
   unreadCount?: number;
-  // Дополнительные мета-поля по необходимости
 }
 
 export interface IChat extends Document {
-  customerId: Types.ObjectId; // Ссылка на владельца бота
-  chatId: string;             // Telegram chat ID
-  userId: string;             // Telegram user ID
+  customerId: Types.ObjectId;
+  chatId: string;
+  userId: string;
   status: 'active' | 'archived' | 'blocked';
   meta: IChatMeta;
   createdAt: Date;
@@ -55,9 +54,7 @@ const ChatSchema = new Schema<IChat>({
   collection: 'Chats'
 });
 
-// Составной индекс для быстрого поиска чатов
 ChatSchema.index({ customerId: 1, chatId: 1 }, { unique: true });
-// Индекс для сортировки чатов по последнему сообщению
 ChatSchema.index({ customerId: 1, 'meta.lastMessageAt': -1 });
 
 export const Chat = model<IChat>('Chat', ChatSchema);

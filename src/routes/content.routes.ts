@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from "express";
 import { 
   getAllContent, 
   getContentById, 
@@ -7,34 +7,32 @@ import {
   updateContent, 
   deleteContent,
   toggleContentActive
-} from '../controllers/content.controller';
-import { authMiddleware } from '../middleware/auth.middleware';
-import { adminAuthMiddleware } from '../middleware/adminAuth.middleware';
-import { validate } from '../middleware/validate';
+} from "../controllers/content.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { adminAuthMiddleware } from "../middleware/adminAuth.middleware";
 import { 
   createContentSchema, 
   updateContentSchema, 
   getContentSchema,
   getActiveContentSchema,
   deleteContentSchema 
-} from '../lib/validators/contentValidators';
+} from "../lib/validators/contentValidators";
 
-const router = Router();
+import { validate } from "../lib/validate";
+import { catchAsync } from "../lib/catchAsync";
 
-// Публичные роуты (без аутентификации)
-router.get('/active', validate(getActiveContentSchema), getActiveContent);
+const router: Router = Router();
 
-// Защищенные роуты для супер администратора
+router.get('/active', validate(getActiveContentSchema), catchAsync(getActiveContent));
+
 router.use(authMiddleware, adminAuthMiddleware);
 
-// CRUD операции
 router.get('/', getAllContent);
-router.get('/:id', validate(getContentSchema), getContentById);
-router.post('/', validate(createContentSchema), createContent);
-router.put('/:id', validate(updateContentSchema), updateContent);
-router.delete('/:id', validate(deleteContentSchema), deleteContent);
+router.get('/:id', validate(getContentSchema), catchAsync(getContentById));
+router.post('/', validate(createContentSchema), catchAsync(createContent));
+router.put('/:id', validate(updateContentSchema), catchAsync(updateContent));
+router.delete('/:id', validate(deleteContentSchema), catchAsync(deleteContent));
 
-// Дополнительные операции
-router.patch('/:id/toggle', validate(getContentSchema), toggleContentActive);
+router.patch('/:id/toggle', validate(getContentSchema), catchAsync(toggleContentActive));
 
 export default router;

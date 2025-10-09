@@ -1,29 +1,37 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
-import StatisticsService from '../services/statistics.service';
-import { getCustomerId } from './users.controller';
+import { Response } from "express";
 
+import { getCustomerId } from "../utils/customers";
+import { AuthRequest } from "../interfaces/authRequest";
+import StatisticsService from "../services/statistics.service";
 
 export const getGeneralStats = async (req: AuthRequest, res: Response) => {
   const customerIdOrAdmin = getCustomerId(req);
   const user = req.user;
+  
   if (!customerIdOrAdmin) {
-    res.status(403).json({ message: 'Forbidden: This action is only for customers and admins.' });
-    return;
+    return res.status(403).json({ 
+      message: 'Forbidden: This action is only for customers and admins.' 
+    });
   }
+
   try {
-    let stats = {};
-    if (customerIdOrAdmin === 'admin') {
-      stats = await StatisticsService.getGeneralStatsForAdmin();
-    } else {
-      stats = await StatisticsService.getGeneralStatsPerUser(user?.username ?? '');
-    }
-    const userStats = await StatisticsService.getStatUsers(customerIdOrAdmin);
-    res.status(201).json({
+    const [stats, userStats] = await Promise.all([
+      customerIdOrAdmin === 'admin' 
+        ? StatisticsService.getGeneralStatsForAdmin()
+        : StatisticsService.getGeneralStatsPerUser(user?.username ?? ''),
+      StatisticsService.getStatUsers(customerIdOrAdmin)
+    ]);
+
+    return res.status(200).json({
       ...stats,
       ...userStats
     });
+
   } catch (error) {
-    res.status(400).json({error: 'Ошибка создания платежа', details: error});
+    console.error('Error in getGeneralStats:', error);
+    return res.status(400).json({
+      error: 'Ошибка получения статистики',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };

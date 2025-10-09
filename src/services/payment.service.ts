@@ -1,5 +1,4 @@
-import { log } from 'console';
-import Payment, { IPayment } from '../models/payment.model';
+import Payment, { IPayment } from "../models/payment.model";
 
 export class PaymentService {
   async create(data: Partial<IPayment>): Promise<IPayment> {
@@ -14,14 +13,20 @@ export class PaymentService {
   async findAllPaginated(
     page = 1,
     limit = 10,
-    filters: Record<string, unknown> = {}
+    filters: Record<string, unknown> = {},
+    user?: { username: string; role: 'admin' | 'customer' }
   ): Promise<{ payments: IPayment[]; total: number; totalPages: number; currentPage: number }> {
     const skip = (Number(page) - 1) * Number(limit);
 
     const query: Record<string, any> = {};
 
-    for (const [key, value] of Object.entries(filters)) {
+    // Если пользователь не админ, показываем только его платежи
+    if (user && user.role !== 'admin') {
+      query.username = user.username;
+    }
 
+    // Применяем дополнительные фильтры
+    for (const [key, value] of Object.entries(filters)) {
       const field = key;
 
       if (field === 'fromDate' || field === 'toDate') {
@@ -34,11 +39,12 @@ export class PaymentService {
         if (field === 'toDate') {
           query.createdAt.$lte = new Date(value as string);
         }
-      } else {
+      } else if (value !== undefined && value !== null && value !== '') {
+        // Добавляем только если значение не пустое
         query[field] = value;
       }
     }
-    
+
     const payments = await Payment.find(query)
       .sort({ createdAt: -1 })
       .limit(Number(limit))
@@ -54,7 +60,18 @@ export class PaymentService {
     };
   }
 
-  async findByUsernamePaginated(username: string, page = 1, limit = 10): Promise<{ payments: IPayment[]; total: number; totalPages: number; currentPage: number }> {
+  async findByUsernamePaginated(
+    username: string, 
+    page = 1, 
+    limit = 10,
+    user?: { username: string; role: 'admin' | 'customer' }
+  ): Promise<{ payments: IPayment[]; total: number; totalPages: number; currentPage: number }> {
+    
+    // Проверяем права доступа
+    if (user && user.role !== 'admin' && user.username !== username) {
+      throw new Error('Access denied');
+    }
+
     const skip = (Number(page) - 1) * Number(limit);
     const payments = await Payment.find({ username })
       .sort({ createdAt: -1 })
@@ -78,7 +95,15 @@ export class PaymentService {
     return Payment.findByIdAndDelete(id).exec();
   }
 
-  async findByUsername(username: string): Promise<IPayment[]> {
+  async findByUsername(
+    username: string,
+    user?: { username: string; role: 'admin' | 'customer' }
+  ): Promise<IPayment[]> {
+    // Проверяем права доступа
+    if (user && user.role !== 'admin' && user.username !== username) {
+      throw new Error('Access denied');
+    }
+
     return Payment.find({ username }).exec();
   }
 }

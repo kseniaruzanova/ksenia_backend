@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const createContentSchema = z.object({
+export const createContentSchema: z.ZodObject = z.object({
     body: z.object({
         productType: z.string().min(1, 'Тип продукта обязателен'),
         productId: z.string().min(1, 'ID продукта обязателен'),
@@ -19,7 +19,7 @@ export const createContentSchema = z.object({
     })
 });
 
-export const updateContentSchema = z.object({
+export const updateContentSchema: z.ZodObject = z.object({
     params: z.object({
         id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Неверный формат ID')
     }),
@@ -44,20 +44,20 @@ export const updateContentSchema = z.object({
     })
 });
 
-export const getContentSchema = z.object({
+export const getContentSchema: z.ZodObject = z.object({
     params: z.object({
         id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Неверный формат ID')
     })
 });
 
-export const getActiveContentSchema = z.object({
+export const getActiveContentSchema: z.ZodObject = z.object({
     query: z.object({
         productType: z.string().min(1, 'productType is required'),
         productId: z.string().min(1, 'productId is required'),
     })
 });
 
-export const deleteContentSchema = z.object({
+export const deleteContentSchema: z.ZodObject = z.object({
     params: z.object({
         id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Неверный формат ID')
     })

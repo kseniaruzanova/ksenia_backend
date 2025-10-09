@@ -1,10 +1,12 @@
-import { Router } from 'express';
-import { login, verifyToken, refreshToken } from '../controllers/auth.controller';
+import { Router } from "express";
 
-const router = Router();
+import { catchAsync } from "../lib/catchAsync";
+import { userLogin, refreshToken, verifyToken } from "../controllers/auth.controller";
 
-router.post('/login', login);
-router.get('/verify', verifyToken);
-router.post('/refresh', refreshToken);
+const router: Router = Router();
+
+router.post('/login', catchAsync(userLogin));
+router.get('/verify', catchAsync(verifyToken));
+router.post('/refresh', catchAsync(refreshToken));
 
 export default router; 
