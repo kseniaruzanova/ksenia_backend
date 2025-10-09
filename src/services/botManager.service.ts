@@ -2124,8 +2124,8 @@ class BotManager extends EventEmitter {
       )   
 
       if (message) {
-        message = message.includes("Какой путь выбираешь?") ? message : message + " Какой путь выбираешь?";
-        
+        message = message.includes("Какой путь выбираешь?") ? message : message + "\n\nКакой путь выбираешь?";
+
         await this.sendMessage(
           customerId,
           chatId,
@@ -2161,7 +2161,7 @@ class BotManager extends EventEmitter {
       
       Отвечай строго одним словом: только "true" или "false". Без пояснений, без кавычек, без пробелов, без текста.`,
         messageHistory,
-        "gpt-4o-mini",
+        "gpt-3.5-turbo",
         0.3,
         "openai"
       );      
