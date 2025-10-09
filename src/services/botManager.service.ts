@@ -1950,7 +1950,7 @@ class BotManager extends EventEmitter {
           undefined,
         );
 
-        const systemPromptFirst = readSystemPromptFromFile('../prompts/systemPromptFirst.txt');
+        const systemPromptFirst = readSystemPromptFromFile('../assets/prompts/systemPromptFirst.txt');
         const messageFirst: string | null = await this.generateAIResponse(
           systemPromptFirst,
           text,
