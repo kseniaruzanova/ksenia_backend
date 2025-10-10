@@ -922,8 +922,6 @@ class BotManager extends EventEmitter {
     });
 
     bot.command('instruction', async (ctx) => {
-      await this.handleIncomingMessage(customerId, ctx);
-
       const chatId = ctx.chat.id.toString();
       const firstName = ctx.from?.first_name || '';
       const lastName = ctx.from?.last_name || '';
