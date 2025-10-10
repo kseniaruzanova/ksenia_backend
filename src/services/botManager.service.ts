@@ -879,33 +879,45 @@ class BotManager extends EventEmitter {
     bot.command('matrica', async (ctx) => {
       await this.handleIncomingMessage(customerId, ctx);
 
-      const chatId = ctx.chat.id.toString();
+      const chatId = ctx.chat?.id.toString();
       const firstName = ctx.from?.first_name || '';
       const lastName = ctx.from?.last_name || '';
       const telegramUsername = ctx.from?.username || '';
 
-      console.log(`🃏 /matrica command from ${firstName} ${lastName} (@${telegramUsername}) in chat ${chatId} for customer ${username}`);
+      if (!chatId) return;
+
+      console.log(`🃏 Menu: Таронумеролог from ${firstName} ${lastName} (@${telegramUsername}) in chat ${chatId} for customer ${username}`);
 
       try {
+        await ctx.answerCbQuery();
+
         await this.sendMessage(
           customerId,
           chatId,
-          "🃏 *Таронумеролог*\n\nДанная функция находится в разработке и скоро будет доступна!",
+          "🃏 *Таронумеролог*\n\nВыберите нужный расчет для генерации персонального результата:",
           false,
           false,
           false,
-          "Markdown"
+          "Markdown",
+          [
+            "🔮 Тароскоп на любые месяцы",
+            "💰 Расчет 4 кода денег",
+            "🕰️ Ошибки прошлого воплощения",
+            "✨ Аркан самореализации",
+            "✨ Три кода пробуждения"
+          ],
+          true
         );
 
         this.emit('message:received', {
           customerId,
           chatId,
-          type: 'command',
-          command: 'matrica',
+          type: 'callback',
+          command: 'menu_tarot',
           from: { firstName, lastName, username: telegramUsername }
         });
       } catch (error) {
-        console.error(`❌ Error handling /matrica for customer ${username}:`, error);
+        console.error(`❌ Error handling menu_tarot for customer ${username}:`, error);
       }
     });
 
