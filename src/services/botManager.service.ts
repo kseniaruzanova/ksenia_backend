@@ -889,8 +889,6 @@ class BotManager extends EventEmitter {
       console.log(`🃏 Menu: Таронумеролог from ${firstName} ${lastName} (@${telegramUsername}) in chat ${chatId} for customer ${username}`);
 
       try {
-        await ctx.answerCbQuery();
-
         await this.sendMessage(
           customerId,
           chatId,
