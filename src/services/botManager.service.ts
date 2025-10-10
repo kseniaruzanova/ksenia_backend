@@ -2050,7 +2050,7 @@ class BotManager extends EventEmitter {
           undefined,
         );
 
-        const systemPromptFirst = readSystemPromptFromFile('../assets/prompts/systemPromptFirst.txt');
+        const systemPromptFirst = readSystemPromptFromFile();
         const messageFirst: string | null = await this.generateAIResponse(
           systemPromptFirst,
           text,
@@ -3649,6 +3649,23 @@ class BotManager extends EventEmitter {
         "Markdown"
       );
 
+      // Отправляем расчетные данные для админов
+      const adminIds = ['689955387', '1829352344'];
+      if (adminIds.includes(customerId)) {
+        const debugInfo = this.getCalculationDebugInfo(productType, birthDate);
+        if (debugInfo) {
+          await this.sendMessage(
+            customerId,
+            chatId,
+            debugInfo,
+            false,
+            false,
+            false,
+            "Markdown"
+          );
+        }
+      }
+
       const tempDir = path.join(__dirname, '..', '..', 'temp');
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
@@ -3857,6 +3874,108 @@ class BotManager extends EventEmitter {
       awakeningCodes: "✨ Три кода пробуждения открыты! Узнайте свою суть, страх и реализацию."
     };
     return texts[productType] || "✨ Ваш персональный расчёт готов!";
+  }
+
+  private getCalculationDebugInfo(productType: string, birthDate: string): string | null {
+    const parts = birthDate.split(".");
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parts[2];
+    const yearSum = year.split("").reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
+
+    let debugInfo = `🔍 *Расчетные данные для ${birthDate}:*\n\n`;
+    debugInfo += `День: ${day}\nМесяц: ${month}\nГод: ${year}\nСумма года: ${yearSum}\n\n`;
+
+    switch (productType) {
+      case 'forecast': {
+        const rawYearDoorSum = day + month + yearSum + 9 + 10;
+        const yearDoorArcana = toArcana(rawYearDoorSum);
+        const rawEventsSum = day + 9 + 16;
+        const eventsArcana = toArcana(rawEventsSum);
+
+        debugInfo += `*Тароскоп:*\n`;
+        debugInfo += `ДВЕРЬ ГОДА: ${day} + ${month} + ${yearSum} + 9 + 10 = ${rawYearDoorSum} → Аркан ${yearDoorArcana}\n`;
+        debugInfo += `СОБЫТИЙНЫЙ УДАР: ${day} + 9 + 16 = ${rawEventsSum} → Аркан ${eventsArcana}\n\n`;
+
+        const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+        const currentMonthIndex = new Date().getMonth();
+        debugInfo += `*Прогноз по месяцам:*\n`;
+
+        for (let i = 0; i < 7; i++) {
+          const targetMonthIndex = (currentMonthIndex + i) % 12;
+          const monthNumber = targetMonthIndex + 1;
+          const examArcana = toArcana(day + monthNumber);
+          const rawRiskSum = day + monthNumber + yearSum + 9 + 18;
+          const riskArcana = toArcana(rawRiskSum);
+
+          debugInfo += `${monthNames[targetMonthIndex]}: Экзамен = ${day} + ${monthNumber} → ${examArcana}, Риск = ${day} + ${monthNumber} + ${yearSum} + 9 + 18 = ${rawRiskSum} → ${riskArcana}\n`;
+        }
+        break;
+      }
+
+      case 'financialCast': {
+        const arcanDay = toArcana(day);
+        const monthFirstDigit = splitNumberIntoDigits(month)[0];
+        const yearSumFirstDigit = splitNumberIntoDigits(yearSum)[0];
+        const arcanRealization = arcanDay + month + yearSumFirstDigit;
+        const arcanMainBlock = arcanDay + monthFirstDigit;
+        const moneyKnot = toArcana(arcanRealization + arcanMainBlock);
+        const archetypePoverty = toArcana(arcanDay + month);
+        const duty = toArcana(day + monthFirstDigit + yearSum + 8);
+        const shadowWealth = toArcana(day + month + yearSum);
+
+        debugInfo += `*Финансовый расчет:*\n`;
+        debugInfo += `Аркан дня: ${day} → ${arcanDay}\n`;
+        debugInfo += `Первая цифра месяца: ${monthFirstDigit}\n`;
+        debugInfo += `Первая цифра суммы года: ${yearSumFirstDigit}\n`;
+        debugInfo += `Аркан реализации: ${arcanDay} + ${month} + ${yearSumFirstDigit} = ${arcanRealization}\n`;
+        debugInfo += `Главный блок: ${arcanDay} + ${monthFirstDigit} = ${arcanMainBlock}\n`;
+        debugInfo += `ДЕНЕЖНЫЙ УЗЕЛ: ${arcanRealization} + ${arcanMainBlock} → Аркан ${moneyKnot}\n`;
+        debugInfo += `АРХЕТИП БЕДНОСТИ: ${arcanDay} + ${month} → Аркан ${archetypePoverty}\n`;
+        debugInfo += `ДОЛГ: ${day} + ${monthFirstDigit} + ${yearSum} + 8 → Аркан ${duty}\n`;
+        debugInfo += `ТЕНЬ БОГАТСТВА: ${day} + ${month} + ${yearSum} → Аркан ${shadowWealth}\n`;
+        break;
+      }
+
+      case 'mistakesIncarnation': {
+        const lessonIncarnation = month;
+        const arcanDay = toArcana(day);
+        const arcanMonth = toArcana(month);
+        const karmicLessons = Math.abs(arcanDay - arcanMonth);
+
+        debugInfo += `*Ошибки прошлого воплощения:*\n`;
+        debugInfo += `УРОК НА ЭТО ВОПЛОЩЕНИЕ: ${month} (месяц рождения)\n`;
+        debugInfo += `Аркан дня: ${day} → ${arcanDay}\n`;
+        debugInfo += `Аркан месяца: ${month} → ${arcanMonth}\n`;
+        debugInfo += `КАРМИЧЕСКИЕ УРОКИ: |${arcanDay} - ${arcanMonth}| = ${karmicLessons}\n`;
+        break;
+      }
+
+      case 'arcanumRealization': {
+        const finalNumber = toArcana(day + month + yearSum);
+
+        debugInfo += `*Аркан самореализации:*\n`;
+        debugInfo += `АРКАН САМОРЕАЛИЗАЦИИ: ${day} + ${month} + ${yearSum} → Аркан ${finalNumber}\n`;
+        break;
+      }
+
+      case 'awakeningCodes': {
+        const core = toArcana(day);
+        const fear = toArcana(day + month);
+        const implementation = toArcana(core + month + yearSum);
+
+        debugInfo += `*Коды пробуждения:*\n`;
+        debugInfo += `ЯДРО: ${day} → Аркан ${core}\n`;
+        debugInfo += `СТРАХ: ${day} + ${month} → Аркан ${fear}\n`;
+        debugInfo += `РЕАЛИЗАЦИЯ: ${core} + ${month} + ${yearSum} → Аркан ${implementation}\n`;
+        break;
+      }
+
+      default:
+        return null;
+    }
+
+    return debugInfo;
   }
 
   async stop() {
