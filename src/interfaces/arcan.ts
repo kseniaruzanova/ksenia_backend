@@ -5,7 +5,7 @@ export interface AwakeningCodes {
 };
 
 interface ArcanumCode {
-  arcanum: number;
+  arcanum: number | string;
   text: string;
 };
 
@@ -21,7 +21,7 @@ export interface MistakesIncarnationData {
 };
 
 interface ArcanumItem {
-  arcanum: number;
+  arcanum: number | string;
   text: string;
 }
 
@@ -58,8 +58,24 @@ export interface MatrixLifeData {
   
 };
 
+export interface KarmicTail {
+  personalPurpose: string;
+  socialPurpose: string;
+  spiritualPurpose: string;
+  planetaryPurpose: string;
+  kamaciTail: string;
+  lessonSoul: string;
+  karmaPast: string;
+  financeCenter: string;
+};
+
 export interface KarmicTailData {
-  karmicTail: ArcanumCode;
-  destiny: ArcanumCode;
-  moneyKarma: ArcanumCode;
+  personalPurpose: ArcanumCode;
+  socialPurpose: ArcanumCode;
+  spiritualPurpose: ArcanumCode;
+  planetaryPurpose: ArcanumCode;
+  kamaciTail: ArcanumCode;
+  lessonSoul: ArcanumCode;
+  karmaPast: ArcanumCode;
+  financeCenter: ArcanumCode;
 };

@@ -410,47 +410,69 @@ export function generateKarmicTailPdf(
     .text(`по дате рождения: ${birthDate}`, { align: "center" });
   doc.moveDown(3);
 
-  doc
-    .font("DejaVu-Bold")
-    .fontSize(16)
-    .fillColor("#8B4513")
-    .text(`Кармический хвост (Аркан ${data.karmicTail.arcanum})`, { underline: true });
+  doc.font("DejaVu-Bold").fontSize(16).text("Личное предназначение:");
   doc.moveDown(1);
-
   doc
     .font("DejaVu-Regular")
-    .fontSize(12)
-    .fillColor("#000000")
-    .text(data.karmicTail.text, { align: "justify" });
+    .fontSize(11)
+    .text(data.personalPurpose.text, { align: "justify" });
   doc.moveDown(2);
-
-  doc
-    .font("DejaVu-Bold")
-    .fontSize(16)
-    .fillColor("#4169E1")
-    .text(`Ваше предназначение (Аркан ${data.destiny.arcanum})`, { underline: true });
+  
+  doc.font("DejaVu-Bold").fontSize(16).text("Социальное предназначение");
   doc.moveDown(1);
-
   doc
     .font("DejaVu-Regular")
-    .fontSize(12)
-    .fillColor("#000000")
-    .text(data.destiny.text, { align: "justify" });
+    .fontSize(11)
+    .text(data.socialPurpose.text, { align: "justify" });
   doc.moveDown(2);
-
-  doc
-    .font("DejaVu-Bold")
-    .fontSize(16)
-    .fillColor("#228B22")
-    .text(`Карма денег (Аркан ${data.moneyKarma.arcanum})`, { underline: true });
+  
+  doc.font("DejaVu-Bold").fontSize(16).text("Духовное предназначение");
   doc.moveDown(1);
-
   doc
     .font("DejaVu-Regular")
-    .fontSize(12)
-    .fillColor("#000000")
-    .text(data.moneyKarma.text, { align: "justify" });
+    .fontSize(11)
+    .text(data.spiritualPurpose.text, { align: "justify" });
+  doc.moveDown(2);
+  
+  doc.font("DejaVu-Bold").fontSize(16).text("Планетарное предназначение");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.planetaryPurpose.text, { align: "justify" });
+  doc.moveDown(2);
+  
+  doc.font("DejaVu-Bold").fontSize(16).text("Кармический хвост");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.kamaciTail.text, { align: "justify" });
+  doc.moveDown(2);
+  
+  doc.font("DejaVu-Bold").fontSize(16).text("Главный кармический урок души");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.lessonSoul.text, { align: "justify" });
+  doc.moveDown(2);
+  
+  doc.font("DejaVu-Bold").fontSize(16).text("Материальная карма прошлого");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.karmaPast.text, { align: "justify" });
   doc.moveDown(2);
 
+  doc.font("DejaVu-Bold").fontSize(16).text("Центр финансов");
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.financeCenter.text, { align: "justify" });
+  doc.moveDown(2);
+  
   doc.end();
 }

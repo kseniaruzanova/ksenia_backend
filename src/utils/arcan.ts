@@ -29,3 +29,11 @@ export function splitNumberIntoDigits(num: number): number[] {
     return digits.slice(0, 2);
   }
 }
+
+export const normalizeToArcana = (value: number): number => {
+  if (value > 22) {
+    const digits = splitNumberIntoDigits(value);
+    return digits[0] + digits[1];
+  }
+  return value;
+};
