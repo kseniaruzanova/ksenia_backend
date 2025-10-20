@@ -59,15 +59,49 @@ export const getLinkProdamusPro = async (req: AuthRequest, res: Response): Promi
 };
 
 /**
- * Webhook для обработки подписок (для существующей функциональности)
+ * Универсальный webhook для обработки всех типов платежей от Prodamus
+ * Определяет тип платежа и вызывает соответствующую логику
  */
-export const updateProdamusSubscription = async (req: Request, res: Response) => {
+export const handleProdamusWebhook = async (req: Request, res: Response) => {
   try {
     const data = req.body;
-    console.log("📩 Prodamus subscription webhook:", JSON.stringify(data, null, 2));
+    console.log("📩 Prodamus webhook received:", JSON.stringify(data, null, 2));
+
+    // Определяем тип платежа по наличию специфических полей
+    const isSubscription = data["subscription[id]"] !== undefined;
+    const isTarotPayment = data._param_user !== undefined && data._param_customer_id !== undefined;
+
+    console.log(`🔍 Payment type detection: subscription=${isSubscription}, tarot=${isTarotPayment}`);
+
+    if (isSubscription) {
+      console.log("🔄 Processing as subscription payment");
+      return await processSubscriptionPayment(data, res);
+    } else if (isTarotPayment) {
+      console.log("🔮 Processing as tarot reading payment");
+      return await processTarotPayment(data, res);
+    } else {
+      console.error("❌ Unknown payment type:", data);
+      return res.status(400).json({ error: "Unknown payment type" });
+    }
+  } catch (error) {
+    console.error("❌ Error in handleProdamusWebhook:", error);
+    return res.status(500).json({ 
+      error: "Ошибка обработки платежа", 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+};
+
+/**
+ * Обработка платежа подписки
+ */
+const processSubscriptionPayment = async (data: any, res: Response) => {
+  try {
+    console.log("📩 Processing subscription payment");
 
     const customerId = data.customer_extra;
-    console.log(customerId)
+    console.log(`Customer ID: ${customerId}`);
+    
     if (!customerId) {
       return res.status(400).json({ error: "customer_extra is required" });
     }
@@ -77,7 +111,7 @@ export const updateProdamusSubscription = async (req: Request, res: Response) =>
     if (String(data["subscription[id]"]) === "2473695") tariff = "basic";
     if (String(data["subscription[id]"]) === "2474522") tariff = "pro";
 
-    console.log(tariff)
+    console.log(`Tariff: ${tariff}`);
 
     // Определяем статус
     const status =
@@ -85,14 +119,14 @@ export const updateProdamusSubscription = async (req: Request, res: Response) =>
         ? "active"
         : "inactive";
 
-    console.log(status)
+    console.log(`Status: ${status}`);
 
     // Дата окончания подписки
     const subscriptionEndsAt = data["subscription[date_next_payment]"]
       ? new Date(data["subscription[date_next_payment]"])
       : null;
 
-    console.log(subscriptionEndsAt)
+    console.log(`Subscription ends at: ${subscriptionEndsAt}`);
 
     // Обновляем пользователя
     const customer = await Customer.findByIdAndUpdate(
@@ -115,29 +149,25 @@ export const updateProdamusSubscription = async (req: Request, res: Response) =>
 
     return res.status(200).json({ success: true, customer });
   } catch (error) {
-    console.error("❌ Error in updateProdamusSubscription:", error);
-    return res
-      .status(400)
-      .json({ error: "Ошибка обновления подписки", details: error });
+    console.error("❌ Error in processSubscriptionPayment:", error);
+    return res.status(400).json({ error: "Ошибка обновления подписки", details: error });
   }
 };
 
 /**
- * Webhook для обработки оплаты расклада Таро
+ * Обработка платежа за расклад Таро
  */
-export const handleTarotPaymentWebhook = async (req: Request, res: Response) => {
+const processTarotPayment = async (data: any, res: Response) => {
   try {
-    const data = req.body;
-    console.log("💳 Prodamus tarot payment webhook:", JSON.stringify(data, null, 2));
+    console.log("💳 Processing tarot payment");
 
     const chatId = data._param_user;
     const customerId = data._param_customer_id;
     const botParam = data._param_bot;
+    const username = data._param_username;
     const paymentStatus = data.payment_status;
     const orderId = data.order_num;
     const amount = data.sum;
-    const customerEmail = data.customer_email;
-    const customerPhone = data.customer_phone;
 
     console.log(`📝 Payment details: chatId=${chatId}, customerId=${customerId}, status=${paymentStatus}, amount=${amount}, order=${orderId}`);
 
@@ -174,8 +204,8 @@ export const handleTarotPaymentWebhook = async (req: Request, res: Response) => 
     try {
       await Payment.create({
         amount: parseFloat(amount) || 0,
-        bot_name: customer.username || 'unknown',
-        username: user.chat_id || 'unknown',
+        bot_name: botParam || 'unknown',
+        username: username || 'unknown',
         type: 'tarot_reading',
       });
       console.log(`💾 Tarot payment saved to database: ${amount} RUB for chat ${chatId}`);
@@ -237,12 +267,12 @@ export const handleTarotPaymentWebhook = async (req: Request, res: Response) => 
     });
 
   } catch (error) {
-    console.error("❌ Error in handleTarotPaymentWebhook:", error);
+    console.error("❌ Error in processTarotPayment:", error);
     
     // Пытаемся уведомить пользователя об ошибке, если возможно
     try {
-      const chatId = req.body._param_user;
-      const customerId = req.body._param_customer_id;
+      const chatId = data._param_user;
+      const customerId = data._param_customer_id;
       
       if (chatId && customerId && botManager) {
         const bot = botManager.getBot(customerId);
@@ -266,3 +296,15 @@ export const handleTarotPaymentWebhook = async (req: Request, res: Response) => 
       });
   }
 };
+
+/**
+ * @deprecated Используйте handleProdamusWebhook
+ * Оставлено для обратной совместимости
+ */
+export const updateProdamusSubscription = handleProdamusWebhook;
+
+/**
+ * @deprecated Используйте handleProdamusWebhook
+ * Оставлено для обратной совместимости
+ */
+export const handleTarotPaymentWebhook = handleProdamusWebhook;

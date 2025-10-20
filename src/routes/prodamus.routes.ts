@@ -5,15 +5,13 @@ import { authMiddleware } from "../middleware/auth.middleware";
 import { 
   getLinkProdamusBasic, 
   getLinkProdamusPro,
-  updateProdamusSubscription,
-  handleTarotPaymentWebhook
+  handleProdamusWebhook
 } from "../controllers/prodamus.controller";
 
 const router: Router = Router();
 
-// Публичные роуты (для webhooks от Prodamus)
-router.post('/webhook/subscription', catchAsync(updateProdamusSubscription));
-router.post('/webhook/tarot-payment', catchAsync(handleTarotPaymentWebhook));
+// Универсальный webhook для всех типов платежей
+router.post('/webhook/tarot-payment', catchAsync(handleProdamusWebhook));
 
 // Защищенные роуты (требуют авторизации)
 router.use(authMiddleware);
