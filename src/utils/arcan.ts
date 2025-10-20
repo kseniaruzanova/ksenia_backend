@@ -37,3 +37,10 @@ export const normalizeToArcana = (value: number): number => {
   }
   return value;
 };
+
+export function getBirthDateSum(birthDate: string): number {
+  const parts = birthDate.split(".");
+  if (parts.length !== 3) return 0;
+  const allDigits = parts.join("").split("");
+  return allDigits.reduce((sum, d) => sum + parseInt(d, 10), 0);
+}

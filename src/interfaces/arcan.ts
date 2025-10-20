@@ -50,12 +50,27 @@ export interface ForecastData {
   monthlyForecasts: MonthlyForecast[];
 }
 
+export interface MatrixCodes {
+  richCodes: string[];
+  marriageCodes: string[];
+  profitableMarriageCodes: string[];
+  childIssueCodes: string[];
+  oncologyCodes: string[];
+  accidentCodes: string[];
+  foreignMarriageCodes: string[];
+  instabilityCodes: string[];
+  psychProblemsCodes: string[];
+  lonelinessCodes: string[];
+}
+
 export interface MatrixLife {
-  
+  matrix: number[][];
+  codes: MatrixCodes;
 };
 
 export interface MatrixLifeData {
-  
+  matrix: number[][];
+  codes: MatrixCodes;
 };
 
 export interface KarmicTail {

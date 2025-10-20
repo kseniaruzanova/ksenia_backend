@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
 
-import { toArcana } from "../../utils/arcan";
+import { getBirthDateSum, toArcana } from "../../utils/arcan";
 import { ArcanasData } from "../../types/arcan";
 import { AppError } from "../../interfaces/appError";
 import { MatrixLife, MatrixLifeData } from "../../interfaces/arcan";
 import { generateMatrixLifePdf } from "../../services/pdfGenerator.service";
 import { trackProductRequest } from "../productStatistics.controller";
 import { AuthRequest } from "../../interfaces/authRequest";
+import { analyzeMatrixCodes } from "../../utils/matrixCodes";
 
 
 export const getMatrixLife = async (req: AuthRequest, res: Response) => {
@@ -28,9 +29,30 @@ export const getMatrixLife = async (req: AuthRequest, res: Response) => {
   const yearSum: number = year
     .split("")
     .reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
+  
+  const a = toArcana(toArcana(day)+month);
+  const b = toArcana(toArcana(yearSum)+toArcana(day));
+
+  const c = toArcana(a+b);
+  const d = toArcana(month+yearSum);
+
+  const secondA = Math.abs(day-month);
+  const secondB = Math.abs(day-yearSum);
+  const secondC = Math.abs(secondA-secondB);
+  const secondD = Math.abs(month-yearSum);
+
+  const matrix: number[][] = [
+    [toArcana(day), toArcana(month), toArcana(yearSum), toArcana(getBirthDateSum(birthDate)), toArcana(day+month+yearSum)],
+    [a, b, c, d, toArcana(a+b+c+d)],
+    [secondA, secondB, secondC, secondD, secondA+secondB+secondC+secondD]
+  ];
+
+  // Анализируем коды матрицы
+  const codes = analyzeMatrixCodes(matrix);
 
   const result: MatrixLife = {
-
+    matrix,
+    codes
   };
 
   // Трекинг запроса
@@ -60,8 +82,33 @@ export const getMatrixLifeAsPdf = async (req: AuthRequest, res: Response) => {
     throw new AppError("Invalid day or month in date", 400); 
   }
 
-  const matrixLife: MatrixLifeData = {
+  const yearSum: number = year
+    .split("")
+    .reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
 
+  const a = toArcana(toArcana(day)+month);
+  const b = toArcana(toArcana(yearSum)+toArcana(day));
+
+  const c = toArcana(a+b);
+  const d = toArcana(month+yearSum);
+
+  const secondA = Math.abs(day-month);
+  const secondB = Math.abs(day-yearSum);
+  const secondC = Math.abs(secondA-secondB);
+  const secondD = Math.abs(month-yearSum);
+
+  const matrix: number[][] = [
+    [toArcana(day), toArcana(month), toArcana(yearSum), toArcana(getBirthDateSum(birthDate)), toArcana(day+month+yearSum)],
+    [a, b, c, d, toArcana(a+b+c+d)],
+    [secondA, secondB, secondC, secondD, secondA+secondB+secondC+secondD]
+  ];
+
+  // Анализируем коды матрицы
+  const codes = analyzeMatrixCodes(matrix);
+
+  const matrixLife: MatrixLifeData = {
+    matrix,
+    codes
   };
   
   // Трекинг запроса

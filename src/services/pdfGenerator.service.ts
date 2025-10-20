@@ -344,27 +344,115 @@ export function generateMatrixLifePdf(
     const imageHeight: number = 230;
     const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
-    
-    doc.image('./src/assets/images/awakeningCodes.jpg', x, doc.y, {
+
+    doc.image('./src/assets/images/matrixLife.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
     });
-    
+
     doc.y = doc.y + imageHeight + 5;
   } catch (error) {
     console.log('Изображение не найдено:', error);
   }
-  
+
   doc
     .font("DejaVu-Bold")
     .fontSize(24)
-    .text("Расчет «Три кода пробуждения: твоя суть, твой страх и твоя реализация»", { align: "center" });
+    .text("Расчет «Матрица Жизни и коды жизни»", { align: "center" });
   doc
     .font("DejaVu-Regular")
     .fontSize(14)
     .text(`по дате рождения: ${birthDate}`, { align: "center" });
   doc.moveDown(3);
 
-  
+  // Вывод матрицы из data.matrix
+  if (data.matrix && Array.isArray(data.matrix)) {
+    doc.font("DejaVu-Bold").fontSize(16).text("Матрица:", { align: "left" });
+    doc.moveDown(1);
+
+    const colWidth = 80;
+    const rowHeight = 40;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const tableWidth = colWidth * 5;
+    const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
+    const startY = doc.y;
+
+    doc.font("DejaVu-Regular").fontSize(14);
+
+    // Отрисовка строк матрицы
+    for (let i = 0; i < data.matrix.length; i++) {
+      const row = data.matrix[i];
+      const currentY = startY + i * rowHeight;
+      
+      for (let j = 0; j < row.length; j++) {
+        const cellX = startX + j * colWidth;
+        
+        // Рисуем границы ячейки
+        doc.rect(cellX, currentY, colWidth, rowHeight).stroke();
+        
+        // Рисуем текст в центре ячейки
+        doc.text(String(row[j]), cellX, currentY + (rowHeight / 2) - 7, { 
+          width: colWidth, 
+          align: "center",
+          lineBreak: false
+        });
+      }
+    }
+    
+    // Обновляем позицию Y после таблицы
+    doc.y = startY + data.matrix.length * rowHeight;
+
+    doc.moveDown(1);
+  }
+
+  // Вывод кодов
+  if (data.codes) {
+    // Сбрасываем позицию X на начальный отступ
+    doc.x = doc.page.margins.left;
+    doc.moveDown(2);
+    
+    // Добавляем текст-переход
+    doc.font("DejaVu-Regular").fontSize(13).text(
+      "В вашей матрице обнаружены следующие коды жизни, которые указывают на особые характеристики и жизненные тенденции:",
+      { align: "center" }
+    );
+    
+    doc.addPage();
+    
+    doc.font("DejaVu-Bold").fontSize(18).text("Коды жизни:", { align: "center" });
+    doc.moveDown(2);
+
+    const renderCodeSection = (title: string, codes: string[]) => {
+      // Проверяем, нужно ли добавить новую страницу
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 100) {
+        doc.addPage();
+      }
+
+      doc.font("DejaVu-Bold").fontSize(14).text(title, { align: "left" });
+      doc.moveDown(0.5);
+      
+      if (codes.length > 0) {
+        doc.font("DejaVu-Regular").fontSize(12).text(codes.join("; "), { 
+          align: "left",
+          width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+        });
+      } else {
+        doc.font("DejaVu-Regular").fontSize(12).fillColor("#999999").text("Не обнаружено", { align: "left" });
+        doc.fillColor("#000000");
+      }
+      doc.moveDown(1.5);
+    };
+
+    renderCodeSection("Коды богатства:", data.codes.richCodes);
+    renderCodeSection("Коды брака:", data.codes.marriageCodes);
+    renderCodeSection("Коды выгодного брака:", data.codes.profitableMarriageCodes);
+    renderCodeSection("Коды проблем с детьми:", data.codes.childIssueCodes);
+    renderCodeSection("Коды онкологии:", data.codes.oncologyCodes);
+    renderCodeSection("Коды аварий/травм:", data.codes.accidentCodes);
+    renderCodeSection("Коды иностранного брака:", data.codes.foreignMarriageCodes);
+    renderCodeSection("Коды нестабильности:", data.codes.instabilityCodes);
+    renderCodeSection("Коды психологических проблем:", data.codes.psychProblemsCodes);
+    renderCodeSection("Коды одиночества:", data.codes.lonelinessCodes);
+  }
 
   doc.end();
 }
