@@ -5,6 +5,8 @@ import { AppError } from "../../interfaces/appError";
 import { FinancialCastData } from "../../interfaces/arcan";
 import { splitNumberIntoDigits, toArcana } from "../../utils/arcan";
 import { generateFinancialCastPdf } from "../../services/pdfGenerator.service";
+import { trackProductRequest } from "../productStatistics.controller";
+import { AuthRequest } from "../../interfaces/authRequest";
 
 import archetypePovertyData from "../../data/financialCast/archetypePoverty.json";
 import dutyData from "../../data/financialCast/duty.json";
@@ -18,10 +20,15 @@ const knotMap: ArcanasData = knotData;
 const shadowBMap: ArcanasData = shadowBData;
 const ritualsMap: ArcanasData = ritualsData;
 
-export const getFinancialCast = async (req: Request, res: Response) => {
+export const getFinancialCast = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const financialCastData: FinancialCastData = getFinancialCastData(birthDate);
+
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('financialCast', req.user.customerId.toString(), birthDate, 'json');
+  }
 
   res.status(200).json({
     status: "success",
@@ -29,11 +36,16 @@ export const getFinancialCast = async (req: Request, res: Response) => {
   });
 };
 
-export const getFinancialCastAsPdf = async (req: Request, res: Response) => {
+export const getFinancialCastAsPdf = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const financialCastData: FinancialCastData = getFinancialCastData(birthDate);
     
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('financialCast', req.user.customerId.toString(), birthDate, 'pdf');
+  }
+
   const filename: string = `financialCast_${birthDate.replace(/\./g, '-')}.pdf`;
   res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-type', 'application/pdf');

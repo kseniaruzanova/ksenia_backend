@@ -5,6 +5,8 @@ import { ArcanasData } from "../../types/arcan";
 import { AppError } from "../../interfaces/appError";
 import { AwakeningCodesData, AwakeningCodes } from "../../interfaces/arcan";
 import { generateAwakeningCodesPdf } from "../../services/pdfGenerator.service";
+import { trackProductRequest } from "../productStatistics.controller";
+import { AuthRequest } from "../../interfaces/authRequest";
 
 import coreData from "../../data/awakeningCodes/core.json";
 import fearData from "../../data/awakeningCodes/fear.json";
@@ -14,7 +16,7 @@ const coreMap: ArcanasData = coreData;
 const fearMap: ArcanasData = fearData;
 const implementationMap: ArcanasData = implementationData;
 
-export const getAwakeningCodes = async (req: Request, res: Response) => {
+export const getAwakeningCodes = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const parts: string[] = birthDate.split(".");
@@ -44,13 +46,18 @@ export const getAwakeningCodes = async (req: Request, res: Response) => {
     implementation: implementationMap[implementation]
   };
 
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('awakeningCodes', req.user.customerId.toString(), birthDate, 'json');
+  }
+
   res.status(200).json({
     status: "success",
     data: result,
   });
 };
 
-export const getAwakeningCodesAsPdf = async (req: Request, res: Response) => {
+export const getAwakeningCodesAsPdf = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const parts: string[] = birthDate.split(".");
@@ -74,6 +81,11 @@ export const getAwakeningCodesAsPdf = async (req: Request, res: Response) => {
   const fear: number = toArcana(day+month);
   const implementation: number = toArcana(core+month+yearSum);
     
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('awakeningCodes', req.user.customerId.toString(), birthDate, 'pdf');
+  }
+
   const filename: string = `awakeningCodes_${birthDate.replace(/\./g, '-')}.pdf`;
   res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-type', 'application/pdf');

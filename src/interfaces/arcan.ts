@@ -49,3 +49,17 @@ export interface ForecastData {
   events: ArcanumItem;
   monthlyForecasts: MonthlyForecast[];
 }
+
+export interface MatrixLife {
+  
+};
+
+export interface MatrixLifeData {
+  
+};
+
+export interface KarmicTailData {
+  karmicTail: ArcanumCode;
+  destiny: ArcanumCode;
+  moneyKarma: ArcanumCode;
+};

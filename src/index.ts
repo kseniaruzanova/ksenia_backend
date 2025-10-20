@@ -23,12 +23,15 @@ import financialCastRoutes from "./routes/products/financialCast.routes";
 import awakeningCodesRoutes from "./routes/products/awakeningCodes.routes";
 import arcanumRealizationRoutes from "./routes/products/arcanumRealization.routes";
 import mistakesIncarnationRoutes from "./routes/products/mistakesIncarnation.routes";
+import matrixLifeRoutes from "./routes/products/matrixLife.routes";
+import karmicTailRoutes from "./routes/products/karmicTail.routes";
 
 import tarotRoutes from "./routes/tarot.routes";
 import prodamusRoutes from "./routes/prodamus.routes";
 import paymentsRoutes from "./routes/payments.routes";
 import geocodingRoutes from "./routes/geocoding.routes";
 import statisticsRoutes from "./routes/statistics.routes";
+import productStatisticsRoutes from "./routes/productStatistics.routes";
 import botManager from "./services/botManager.service";
 import { setBotManagerInstance } from "./lib/botManagerInstance";
 
@@ -156,6 +159,8 @@ app.use('/api/financialCast', financialCastRoutes);
 app.use('/api/awakeningCodes', awakeningCodesRoutes);
 app.use('/api/mistakesIncarnation', mistakesIncarnationRoutes);
 app.use('/api/arcanumRealization', arcanumRealizationRoutes);
+app.use('/api/matrixLife', matrixLifeRoutes);
+app.use('/api/karmicTail', karmicTailRoutes);
 
 app.use('/api/tarot', tarotRoutes);
 app.use('/api/astro', astroRoutes);
@@ -165,6 +170,7 @@ app.use('/api/prodamus', prodamusRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/geocoding', geocodingRoutes);
 app.use('/api/statistics', statisticsRoutes);
+app.use('/api/product-statistics', productStatisticsRoutes);
 app.use('/api/daily-messaging', dailyMessagingRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messagesRoutes);

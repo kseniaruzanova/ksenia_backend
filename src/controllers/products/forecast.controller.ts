@@ -5,6 +5,8 @@ import { AppError } from "../../interfaces/appError";
 import { toArcana } from "../../utils/arcan";
 import { ForecastData, MonthlyForecast } from "../../interfaces/arcan";
 import { generateForecastPdf } from "../../services/pdfGenerator.service";
+import { trackProductRequest } from "../productStatistics.controller";
+import { AuthRequest } from "../../interfaces/authRequest";
 
 import monthsData from "../../data/taroscop/months.json";
 import yearDoorData from "../../data/taroscop/yearDoor.json";
@@ -21,10 +23,15 @@ const monthNames: string[] = [
   "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
 ];
 
-export const getForecast = async (req: Request, res: Response) => {
+export const getForecast = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const forecastData: ForecastData = getForecastData(birthDate);
+
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('forecast', req.user.customerId.toString(), birthDate, 'json');
+  }
 
   res.status(200).json({
     status: "success",
@@ -32,11 +39,16 @@ export const getForecast = async (req: Request, res: Response) => {
   });
 };
 
-export const getForecastAsPdf = async (req: Request, res: Response) => {
+export const getForecastAsPdf = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const forecastData: ForecastData = getForecastData(birthDate);
     
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('forecast', req.user.customerId.toString(), birthDate, 'pdf');
+  }
+
   const filename: string = `forecast_${birthDate.replace(/\./g, '-')}.pdf`;
   res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-type', 'application/pdf');

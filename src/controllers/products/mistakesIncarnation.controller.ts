@@ -8,11 +8,13 @@ import { ArcanasData } from "../../types/arcan";
 import { AppError } from "../../interfaces/appError";
 import { toArcana } from "../../utils/arcan";
 import { MistakesIncarnationData } from "../../interfaces/arcan";
+import { trackProductRequest } from "../productStatistics.controller";
+import { AuthRequest } from "../../interfaces/authRequest";
 
 const karmicLessonsMap: ArcanasData = karmicLessonsData;
 const lessonIncarnationMap: ArcanasData = lessonIncarnationData;
 
-export const getMistakesIncarnation = async (req: Request, res: Response) => {
+export const getMistakesIncarnation = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const parts: string[] = birthDate.split(".");
@@ -35,13 +37,18 @@ export const getMistakesIncarnation = async (req: Request, res: Response) => {
     karmicLessons: karmicLessonsMap[karmicLessons]
   };
 
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('mistakesIncarnation', req.user.customerId.toString(), birthDate, 'json');
+  }
+
   res.status(200).json({
     status: "success",
     data: mistakesIncarnationData,
   });
 };
 
-export const getMistakesIncarnationAsPdf = async (req: Request, res: Response) => {
+export const getMistakesIncarnationAsPdf = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const parts = birthDate.split(".");
@@ -60,6 +67,11 @@ export const getMistakesIncarnationAsPdf = async (req: Request, res: Response) =
     karmicLessons: { arcanum: karmicLessons, text: karmicLessonsMap[karmicLessons] || "" }
   };
   
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('mistakesIncarnation', req.user.customerId.toString(), birthDate, 'pdf');
+  }
+
   const filename = `mistakesIncarnation_${birthDate.replace(/\./g, '-')}.pdf`;
   res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-type', 'application/pdf');

@@ -2048,7 +2048,7 @@ class BotManager extends EventEmitter {
     if (userState === "step_1") {
       const dateRegex = /^([0-2]\d|3[01])\.(0\d|1[0-2])\.(19|20)\d{2}$/;
       if (dateRegex.test(text)) {
-        await this.sendMessage(
+        const tempMessage = await this.sendMessage(
           customerId,
           chatId,
           `⏳ Анализирую вашу дату рождения...`,
@@ -2087,6 +2087,11 @@ class BotManager extends EventEmitter {
           )
 
           if (messageSecond) {
+            // Удаляем временное сообщение
+            if (tempMessage.messageId) {
+              await this.editOrDeleteMessage(customerId, chatId, tempMessage.messageId);
+            }
+
             await this.sendMessage(
               customerId,
               chatId,
@@ -2121,7 +2126,7 @@ class BotManager extends EventEmitter {
       }
     } 
     else if (userState === "step_2") {
-      await this.sendMessage(
+      const tempMessage = await this.sendMessage(
         customerId,
         chatId,
         `🔮 Анализирую вашу ситуацию...`,
@@ -2142,6 +2147,11 @@ class BotManager extends EventEmitter {
       )   
 
       if (message) {
+        // Удаляем временное сообщение
+        if (tempMessage.messageId) {
+          await this.editOrDeleteMessage(customerId, chatId, tempMessage.messageId);
+        }
+
         await this.sendMessage(
           customerId,
           chatId,
@@ -2233,7 +2243,7 @@ class BotManager extends EventEmitter {
       );
     } 
     else if(userState === "step_4") {
-      await this.sendMessage(
+      const tempMessage = await this.sendMessage(
         customerId,
         chatId,
         `🧭 Изучаю ваш ответ...`,
@@ -2254,6 +2264,11 @@ class BotManager extends EventEmitter {
       );
 
       if (message) {
+        // Удаляем временное сообщение
+        if (tempMessage.messageId) {
+          await this.editOrDeleteMessage(customerId, chatId, tempMessage.messageId);
+        }
+
         await this.sendMessage(
           customerId,
           chatId,
@@ -2821,7 +2836,7 @@ class BotManager extends EventEmitter {
     parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined,
     customButtons?: string[],
     useInlineButtons: boolean = false
-  ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
+  ): Promise<{ success: boolean; error?: string; message?: IMessage; messageId?: number }> {
     const bot = this.getBot(customerId);
     const botInfo = this.getBotInfo(customerId);
 
@@ -2922,7 +2937,7 @@ class BotManager extends EventEmitter {
         useInlineButtons,
       });
 
-      return { success: true };
+      return { success: true, messageId: result.message_id };
     } catch (error: any) {
       console.error(`❌ Failed to send message via bot for customer ${botInfo.username}:`, error);
 
@@ -2932,6 +2947,45 @@ class BotManager extends EventEmitter {
         error,
       });
 
+      return {
+        success: false,
+        error: error.message || 'Unknown error',
+      };
+    }
+  }
+
+  async editOrDeleteMessage(
+    customerId: string,
+    chatId: string,
+    messageId: number,
+    newText?: string,
+    parse_mode?: "HTML" | "Markdown" | "MarkdownV2"
+  ): Promise<{ success: boolean; error?: string }> {
+    const bot = this.getBot(customerId);
+    const botInfo = this.getBotInfo(customerId);
+
+    if (!bot || !botInfo) {
+      return {
+        success: false,
+        error: botInfo?.status === 'error'
+          ? `Bot for customer ${botInfo.username} is in error state`
+          : 'Bot not found'
+      };
+    }
+
+    try {
+      if (newText) {
+        // Редактируем сообщение
+        await bot.telegram.editMessageText(chatId, messageId, undefined, newText, { parse_mode });
+        console.log(`✏️ Message ${messageId} edited in chat ${chatId}`);
+      } else {
+        // Удаляем сообщение
+        await bot.telegram.deleteMessage(chatId, messageId);
+        console.log(`🗑️ Message ${messageId} deleted in chat ${chatId}`);
+      }
+      return { success: true };
+    } catch (error: any) {
+      console.error(`❌ Failed to edit/delete message ${messageId}:`, error);
       return {
         success: false,
         error: error.message || 'Unknown error',
@@ -3657,7 +3711,7 @@ class BotManager extends EventEmitter {
 
   private async generateAndSendProduct(customerId: string, chatId: string, productType: string, birthDate: string, productName: string) {
     try {
-      await this.sendMessage(
+      const tempMessage = await this.sendMessage(
         customerId,
         chatId,
         `⏳ Генерирую *${productName}*...\n\nЭто может занять несколько секунд.`,
@@ -3695,6 +3749,11 @@ class BotManager extends EventEmitter {
 
       // Генерируем PDF
       await this.generateProductPDF(productType, birthDate, filePath);
+
+      // Удаляем временное сообщение
+      if (tempMessage.messageId) {
+        await this.editOrDeleteMessage(customerId, chatId, tempMessage.messageId);
+      }
 
       // Отправляем файл
       const accompanimentText = this.getProductAccompanimentText(productType);

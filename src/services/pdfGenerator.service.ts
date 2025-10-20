@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
-import { AwakeningCodesData, FinancialCastData, ForecastData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
+import { AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
 
 const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
 const fontBoldPath: string = "./src/assets/fonts/DejaVuSans-Bold.ttf";
@@ -318,6 +318,138 @@ export function generateAwakeningCodesPdf(
     .font("DejaVu-Regular")
     .fontSize(11)
     .text(data.implementation.text, { align: "justify" });
+  doc.moveDown(2);
+
+  doc.end();
+}
+
+export function generateMatrixLifePdf(
+  data: MatrixLifeData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/awakeningCodes.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Расчет «Три кода пробуждения: твоя суть, твой страх и твоя реализация»", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(3);
+
+  
+
+  doc.end();
+}
+
+export function generateKarmicTailPdf(
+  data: KarmicTailData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/karmicTail.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Расчет «Кармический хвост, предназначение и карма денег»", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(3);
+
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(16)
+    .fillColor("#8B4513")
+    .text(`Кармический хвост (Аркан ${data.karmicTail.arcanum})`, { underline: true });
+  doc.moveDown(1);
+
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(12)
+    .fillColor("#000000")
+    .text(data.karmicTail.text, { align: "justify" });
+  doc.moveDown(2);
+
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(16)
+    .fillColor("#4169E1")
+    .text(`Ваше предназначение (Аркан ${data.destiny.arcanum})`, { underline: true });
+  doc.moveDown(1);
+
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(12)
+    .fillColor("#000000")
+    .text(data.destiny.text, { align: "justify" });
+  doc.moveDown(2);
+
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(16)
+    .fillColor("#228B22")
+    .text(`Карма денег (Аркан ${data.moneyKarma.arcanum})`, { underline: true });
+  doc.moveDown(1);
+
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(12)
+    .fillColor("#000000")
+    .text(data.moneyKarma.text, { align: "justify" });
   doc.moveDown(2);
 
   doc.end();

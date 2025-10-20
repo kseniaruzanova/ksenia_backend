@@ -3,7 +3,7 @@ import { Router } from "express";
 import { validate } from "../../lib/validate";
 import { catchAsync } from "../../lib/catchAsync";
 import { arcanSchema } from "../../lib/validators/forecastValidators";
-import { getForecast, getForecastAsPdf } from "../../controllers/products/forecast.controller";
+import { getMatrixLife, getMatrixLifeAsPdf } from "../../controllers/products/matrixLife.controller";
 import { authMiddleware } from "../../middleware/auth.middleware";
 
 const router: Router = Router();
@@ -11,10 +11,11 @@ const router: Router = Router();
 // Все роуты требуют аутентификации
 router.use(authMiddleware);
 
-// POST /api/forecast
-router.post("/", validate(arcanSchema), catchAsync(getForecast));
+// POST /api/matrixLife
+router.post("/", validate(arcanSchema), catchAsync(getMatrixLife));
 
-// POST /api/forecast/pdf
-router.post('/pdf', validate(arcanSchema), catchAsync(getForecastAsPdf));
+// POST /api/matrixLife/pdf
+router.post('/pdf', validate(arcanSchema), catchAsync(getMatrixLifeAsPdf));
 
 export default router;
+

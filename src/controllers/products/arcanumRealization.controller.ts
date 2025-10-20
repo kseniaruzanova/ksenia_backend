@@ -3,8 +3,10 @@ import fs from "fs";
 import { Request, Response } from "express";
 import { AppError } from "../../interfaces/appError";
 import { getArcanFilePath, toArcana } from "../../utils/arcan";
+import { trackProductRequest } from "../productStatistics.controller";
+import { AuthRequest } from "../../interfaces/authRequest";
 
-export const getArcanumRealizationAsPdf = async (req: Request, res: Response) => {
+export const getArcanumRealizationAsPdf = async (req: AuthRequest, res: Response) => {
   const { birthDate } = req.body;
 
   const parts: string[] = birthDate.split(".");
@@ -27,6 +29,11 @@ export const getArcanumRealizationAsPdf = async (req: Request, res: Response) =>
   const finalNumber: number = toArcana(day+month+yearSum);
   
   const arcanFilePath: string = getArcanFilePath(finalNumber, __dirname, ["..", "..", "src", "data", "arcanumRealization"]);
+
+  // Трекинг запроса
+  if (req.user?.customerId) {
+    await trackProductRequest('arcanumRealization', req.user.customerId.toString(), birthDate, 'pdf');
+  }
 
   const filename: string = `arcanumRealization_${birthDate.replace(/\./g, "-")}.pdf`;
   res.setHeader("Content-disposition", `attachment; filename="${filename}"`);
