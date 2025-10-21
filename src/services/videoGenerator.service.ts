@@ -177,7 +177,7 @@ class VideoGeneratorService {
       }
       
       // Объединяем все блоки в одно видео
-      await this.concatenateVideos(blockVideos, outputPath, reel.backgroundMusic, reel.audioSettings);
+      await this.concatenateVideos(blockVideos, outputPath, reel.backgroundMusic, reel.audioSettings, reel.blocks);
       
       // Удаляем временные файлы
       this.cleanupTempFiles(tempDir);
@@ -204,6 +204,51 @@ class VideoGeneratorService {
     }
     
     return blockOutputPath;
+  }
+
+  /**
+   * Создает FFmpeg фильтр для анимации изображения
+   */
+  private getImageAnimationFilter(animation: string, duration: number): string {
+    switch (animation) {
+      case 'zoom-in':
+        // Приближение (zoom in) - начинается с 1.0, заканчивается в 1.2
+        return `scale=1080*1.2:1920*1.2,zoompan=z='min(zoom+0.0015,1.2)':d=${duration * 25}:s=1080x1920:fps=25`;
+      
+      case 'zoom-out':
+        // Отдаление (zoom out) - начинается с 1.2, заканчивается в 1.0
+        return `scale=1080*1.2:1920*1.2,zoompan=z='max(zoom-0.0015,1.0)':d=${duration * 25}:s=1080x1920:fps=25`;
+      
+      case 'pan-left':
+        // Движение влево (Ken Burns)
+        return `scale=1296:1920,crop=1080:1920:'if(gte(t,0),min(w-ow,(t/${duration})*(w-ow)),0)':0`;
+      
+      case 'pan-right':
+        // Движение вправо
+        return `scale=1296:1920,crop=1080:1920:'if(gte(t,0),max(0,w-ow-(t/${duration})*(w-ow)),0)':0`;
+      
+      case 'none':
+      default:
+        // Без анимации
+        return 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black';
+    }
+  }
+
+  /**
+   * Создает фильтр для текста (обычный или бегущий)
+   */
+  private getTextFilter(displayText: string, scrolling: boolean, duration: number, fontPath: string): string {
+    const escapedText = displayText.replace(/'/g, "\\'").replace(/:/g, "\\:");
+    
+    if (scrolling) {
+      // Бегущий текст (справа налево)
+      const fontSpec = fontPath ? `:fontfile='${fontPath}'` : '';
+      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:y=(h-text_h)/2:x=w-mod(t/${duration}*(w+tw),w+tw)${fontSpec}`;
+    } else {
+      // Статичный текст (внизу по центру)
+      const fontSpec = fontPath ? `:fontfile='${fontPath}'` : '';
+      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50${fontSpec}`;
+    }
   }
 
   /**
@@ -236,19 +281,19 @@ class VideoGeneratorService {
    */
   private async createVideoWithBlackBackground(block: any, outputPath: string, reel: any): Promise<void> {
     const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    const fontPath = this.getFontPath();
     
     let command = `ffmpeg -y -f lavfi -i color=c=black:s=1080x1920:d=${block.duration} -vf "`;
     
-    // Добавляем текст на экран
-    const displayText = block.displayText.replace(/'/g, "\\'").replace(/:/g, "\\:");
-    const fontPath = this.getFontPath();
+    // Добавляем текст на экран (обычный или бегущий)
+    const textFilter = this.getTextFilter(
+      block.displayText, 
+      block.scrollingText || false, 
+      block.duration, 
+      fontPath
+    );
     
-    if (fontPath) {
-      command += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${fontPath}'`;
-    } else {
-      command += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2`;
-    }
-    
+    command += textFilter;
     command += `" -c:v libx264 -pix_fmt yuv420p`;
     
     // Если есть озвучка, добавляем аудио
@@ -304,23 +349,31 @@ class VideoGeneratorService {
     
     // Создаем временные видео из каждого изображения
     const imageVideos: string[] = [];
+    const fontPath = this.getFontPath();
+    
     for (let i = 0; i < images.length; i++) {
       const imageVideoPath = path.join(path.dirname(outputPath), `img_${block.order}_${i}.mp4`);
       
-      const displayText = block.displayText.replace(/'/g, "\\'").replace(/:/g, "\\:");
-      const fontPath = this.getFontPath();
-      
       let imgCommand = `ffmpeg -y -loop 1 -i "${images[i]}" -t ${durationPerImage} -vf "`;
-      imgCommand += `scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,`;
       
-      if (fontPath) {
-        imgCommand += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:fontfile='${fontPath}'`;
-      } else {
-        imgCommand += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50`;
-      }
+      // Применяем анимацию изображения
+      const animation = block.imageAnimation || 'zoom-in';
+      const animationFilter = this.getImageAnimationFilter(animation, durationPerImage);
+      imgCommand += animationFilter;
       
-      imgCommand += `" -c:v libx264 -pix_fmt yuv420p -an "${imageVideoPath}"`;
+      // Добавляем текст (обычный или бегущий)
+      imgCommand += `,`;
+      const textFilter = this.getTextFilter(
+        block.displayText,
+        block.scrollingText || false,
+        durationPerImage,
+        fontPath
+      );
+      imgCommand += textFilter;
       
+      imgCommand += `" -c:v libx264 -pix_fmt yuv420p -r 25 -an "${imageVideoPath}"`;
+      
+      console.log(`⚙️ Creating image ${i + 1}/${images.length} with ${animation} animation...`);
       await execPromise(imgCommand);
       imageVideos.push(imageVideoPath);
     }
@@ -348,22 +401,105 @@ class VideoGeneratorService {
   }
 
   /**
-   * Объединяет блоки в финальное видео с фоновой музыкой
+   * Получает FFmpeg xfade фильтр для перехода
+   */
+  private getTransitionFilter(transition: string): string {
+    switch (transition) {
+      case 'fade':
+        return 'fade';
+      case 'dissolve':
+        return 'dissolve';
+      case 'wipe':
+        return 'wiperight';
+      case 'none':
+      default:
+        return null as any; // Без перехода
+    }
+  }
+
+  /**
+   * Объединяет видео с применением переходов (xfade)
+   */
+  private async concatenateWithTransitions(blockVideos: string[], outputPath: string, blocks: any[]): Promise<void> {
+    if (blockVideos.length < 2) {
+      // Если только 1 блок, просто копируем
+      fs.copyFileSync(blockVideos[0], outputPath);
+      return;
+    }
+
+    const transitionDuration = 0.5; // Длительность перехода в секундах
+    
+    // Получаем информацию о длительности каждого видео
+    const durations: number[] = [];
+    for (const block of blocks) {
+      durations.push(block.duration || 10);
+    }
+    
+    // Строим filter_complex для применения xfade между всеми блоками
+    let filterComplex = '';
+    let currentLabel = '0:v';
+    let offset = 0;
+    
+    for (let i = 0; i < blockVideos.length - 1; i++) {
+      const transition = this.getTransitionFilter(blocks[i].transition || 'fade');
+      const nextLabel = i === blockVideos.length - 2 ? 'vout' : `v${i}`;
+      
+      // Рассчитываем offset для перехода
+      offset += durations[i] - transitionDuration;
+      
+      if (transition) {
+        filterComplex += `[${currentLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
+      } else {
+        // Без перехода - просто конкатенация
+        filterComplex += `[${currentLabel}][${i + 1}:v]concat=n=2:v=1[${nextLabel}]`;
+      }
+      
+      if (i < blockVideos.length - 2) {
+        filterComplex += ';';
+      }
+      
+      currentLabel = nextLabel;
+    }
+    
+    // Строим команду FFmpeg с множественным входом
+    let command = 'ffmpeg -y';
+    blockVideos.forEach(video => {
+      command += ` -i "${video}"`;
+    });
+    
+    command += ` -filter_complex "${filterComplex}" -map "[vout]" -c:v libx264 -pix_fmt yuv420p -r 25 "${outputPath}"`;
+    
+    console.log(`🎬 Concatenating ${blockVideos.length} blocks with transitions...`);
+    await execPromise(command);
+  }
+
+  /**
+   * Объединяет блоки в финальное видео с фоновой музыкой и переходами
    */
   private async concatenateVideos(
     blockVideos: string[], 
     outputPath: string, 
     backgroundMusic?: string,
-    audioSettings?: any
+    audioSettings?: any,
+    blocks?: any[]
   ): Promise<void> {
-    const tempConcatList = path.join(path.dirname(outputPath), 'concat_list.txt');
-    const concatContent = blockVideos.map(v => `file '${v}'`).join('\n');
-    fs.writeFileSync(tempConcatList, concatContent);
-    
     const tempOutputPath = path.join(path.dirname(outputPath), 'temp_concat.mp4');
     
-    // Объединяем все блоки
-    await execPromise(`ffmpeg -y -f concat -safe 0 -i "${tempConcatList}" -c copy "${tempOutputPath}"`);
+    // Проверяем есть ли переходы между блоками
+    const hasTransitions = blocks && blocks.some(b => b.transition && b.transition !== 'none');
+    
+    if (hasTransitions && blockVideos.length > 1) {
+      console.log('🎞️ Applying transitions between blocks...');
+      await this.concatenateWithTransitions(blockVideos, tempOutputPath, blocks);
+    } else {
+      // Простое объединение без переходов
+      const tempConcatList = path.join(path.dirname(outputPath), 'concat_list.txt');
+      const concatContent = blockVideos.map(v => `file '${v}'`).join('\n');
+      fs.writeFileSync(tempConcatList, concatContent);
+      
+      await execPromise(`ffmpeg -y -f concat -safe 0 -i "${tempConcatList}" -c copy "${tempOutputPath}"`);
+      fs.unlinkSync(tempConcatList);
+    }
     
     // Если есть фоновая музыка, накладываем её
     if (backgroundMusic) {
@@ -390,9 +526,6 @@ class VideoGeneratorService {
     } else {
       fs.renameSync(tempOutputPath, outputPath);
     }
-    
-    // Удаляем файл списка
-    fs.existsSync(tempConcatList) && fs.unlinkSync(tempConcatList);
     
     console.log('✅ All blocks concatenated into final video');
   }

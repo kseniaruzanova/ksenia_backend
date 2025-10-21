@@ -362,6 +362,9 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
       displayText: block.displayText || block.text || '',
       duration: block.duration || 10,
       images: [],
+      imageAnimation: 'zoom-in',
+      transition: index < blocks.length - 1 ? 'fade' : 'none', // Последний блок без перехода
+      scrollingText: false,
       order: index + 1
     }));
 

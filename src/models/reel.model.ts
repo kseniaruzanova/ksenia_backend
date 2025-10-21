@@ -7,6 +7,9 @@ export interface IVideoBlock {
   displayText: string;       // Текст для отображения в видео
   duration: number;          // Продолжительность в секундах
   images: string[];          // URL загруженных изображений
+  imageAnimation?: string;   // Тип анимации для изображений (zoom-in, zoom-out, pan-left, pan-right, none)
+  transition?: string;       // Переход к следующему блоку (fade, dissolve, wipe, none)
+  scrollingText?: boolean;   // Бегущий текст
   audioUrl?: string;         // URL сгенерированной озвучки
   order: number;             // Порядок блока
 }
@@ -38,6 +41,17 @@ const VideoBlockSchema = new Schema({
   displayText: { type: String, required: true },
   duration: { type: Number, required: true, default: 10 },
   images: { type: [String], default: [] },
+  imageAnimation: { 
+    type: String, 
+    enum: ['zoom-in', 'zoom-out', 'pan-left', 'pan-right', 'none'],
+    default: 'zoom-in'
+  },
+  transition: { 
+    type: String, 
+    enum: ['fade', 'dissolve', 'wipe', 'none'],
+    default: 'fade'
+  },
+  scrollingText: { type: Boolean, default: false },
   audioUrl: { type: String, required: false },
   order: { type: Number, required: true }
 }, { _id: false });
