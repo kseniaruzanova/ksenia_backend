@@ -10,6 +10,7 @@ import dailyMessagingService from "./services/dailyMessaging.service";
 import authRoutes from "./routes/auth.routes";
 import astroRoutes from './routes/astro.routes'
 import videoRoutes from './routes/videos.route';
+import playlistsRoutes from './routes/playlists.routes';
 import contentRoutes from "./routes/content.routes";
 import customerRoutes from "./routes/customers.routes";
 import dailyMessagingRoutes from './routes/dailyMessaging.routes';
@@ -165,6 +166,7 @@ app.use('/api/karmicTail', karmicTailRoutes);
 app.use('/api/tarot', tarotRoutes);
 app.use('/api/astro', astroRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/playlists', playlistsRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/prodamus', prodamusRoutes);
 app.use('/api/payments', paymentsRoutes);

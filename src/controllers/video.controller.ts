@@ -111,7 +111,7 @@ async function deleteFromGridFS(
   }
 }
 
-// 📌 Получить все видео
+// 📌 Получить все видео (с опциональной фильтрацией по плейлисту)
 export const getVideos: RequestHandler = async (_req, res) => {
   try {
     const videos = await Video.find().sort({ createdAt: -1 });
@@ -124,7 +124,7 @@ export const getVideos: RequestHandler = async (_req, res) => {
 // POST /api/videos
 export const createVideo: RequestHandler = async (req, res) => {
   try {
-    const { title, description, type, source: sourceLink } = req.body;
+    const { title, description, type, source: sourceLink, playlistId, order } = req.body;
 
     let source: string | mongoose.Types.ObjectId | undefined;
     let thumbnail: mongoose.Types.ObjectId | string | undefined;
@@ -168,7 +168,9 @@ export const createVideo: RequestHandler = async (req, res) => {
       description, 
       type, 
       source, 
-      thumbnail 
+      thumbnail,
+      playlistId: playlistId || null,
+      order: order || 0
     });
     
     const savedVideo = await video.save();
@@ -191,10 +193,12 @@ export const updateVideo: RequestHandler = async (req, res) => {
       return;
     }
 
-    const { title, description, type, source: sourceLink } = req.body;
+    const { title, description, type, source: sourceLink, playlistId, order } = req.body;
 
     if (title) found.title = title;
-    if (description) found.description = description;
+    if (description !== undefined) found.description = description;
+    if (playlistId !== undefined) found.playlistId = playlistId || null;
+    if (order !== undefined) found.order = order;
     
     // Функции для отслеживания прогресса
     const onVideoProgress = (progress: number) => {

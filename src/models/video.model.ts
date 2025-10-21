@@ -6,6 +6,8 @@ export interface IVideo extends Document {
   type: "file" | "link";
   source: mongoose.Types.ObjectId | string;
   thumbnail?: mongoose.Types.ObjectId;
+  playlistId?: mongoose.Types.ObjectId;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,8 @@ const VideoSchema: Schema = new Schema(
     type: { type: String, enum: ["file", "link"], required: true },
     source: { type: Schema.Types.Mixed, required: true },
     thumbnail: { type: Schema.Types.Mixed, default: null },
+    playlistId: { type: Schema.Types.ObjectId, ref: "Playlist", default: null },
+    order: { type: Number, default: 0 }
   },
   { timestamps: true }
 );
