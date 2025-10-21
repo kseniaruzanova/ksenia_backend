@@ -235,7 +235,7 @@ class VideoGeneratorService {
    * Создает видео блока с черным фоном
    */
   private async createVideoWithBlackBackground(block: any, outputPath: string, reel: any): Promise<void> {
-    const audioPath = block.audioUrl ? path.join(process.cwd(), block.audioUrl.replace(/^\//, '')) : null;
+    const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
     
     let command = `ffmpeg -y -f lavfi -i color=c=black:s=1080x1920:d=${block.duration} -vf "`;
     
@@ -266,11 +266,37 @@ class VideoGeneratorService {
   }
 
   /**
+   * Конвертирует URL в локальный путь к файлу
+   */
+  private urlToLocalPath(url: string): string {
+    // Удаляем домен если есть (https://example.com/api/uploads/... → /api/uploads/...)
+    let relativePath = url.replace(/^https?:\/\/[^\/]+/, '');
+    
+    // Удаляем /api/ префикс (/api/uploads/... → /uploads/...)
+    relativePath = relativePath.replace(/^\/api/, '');
+    
+    // Удаляем начальный слеш и конвертируем в локальный путь
+    relativePath = relativePath.replace(/^\//, '');
+    
+    // Создаем полный путь (/uploads/images/... → /app/uploads/images/...)
+    const localPath = path.join(process.cwd(), relativePath);
+    
+    console.log(`🔄 URL to Path: ${url} → ${localPath}`);
+    
+    // Проверяем существование файла
+    if (!fs.existsSync(localPath)) {
+      console.warn(`⚠️ File not found: ${localPath}`);
+    }
+    
+    return localPath;
+  }
+
+  /**
    * Создает видео блока с изображениями (слайдшоу)
    */
   private async createVideoWithImages(block: any, outputPath: string, reel: any): Promise<void> {
-    const audioPath = block.audioUrl ? path.join(process.cwd(), block.audioUrl.replace(/^\//, '')) : null;
-    const images = block.images.map((img: string) => path.join(process.cwd(), img.replace(/^\//, '')));
+    const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    const images = block.images.map((img: string) => this.urlToLocalPath(img));
     
     // Создаем файл списка для FFmpeg concat
     const listPath = path.join(path.dirname(outputPath), `list_${block.order}.txt`);
@@ -341,7 +367,7 @@ class VideoGeneratorService {
     
     // Если есть фоновая музыка, накладываем её
     if (backgroundMusic) {
-      const musicPath = path.join(process.cwd(), backgroundMusic.replace(/^\//, ''));
+      const musicPath = this.urlToLocalPath(backgroundMusic);
       
       if (fs.existsSync(musicPath)) {
         console.log('🎵 Adding background music...');
