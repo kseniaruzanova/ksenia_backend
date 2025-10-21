@@ -1,9 +1,32 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
 import { AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
+import * as fs from "fs";
+import * as path from "path";
 
 const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
 const fontBoldPath: string = "./src/assets/fonts/DejaVuSans-Bold.ttf";
+
+// Загружаем трактовки кодов
+const tractovkiPath = path.join(__dirname, "../data/matrixLife/tractovki.json");
+const tractovkiData = JSON.parse(fs.readFileSync(tractovkiPath, "utf-8"));
+
+interface CodeInterpretation {
+  code: string;
+  activation: string;
+  neutralization: string;
+}
+
+// Функция для поиска трактовки кода
+function findCodeInterpretation(code: string, category: string): CodeInterpretation | null {
+  const categoryData = tractovkiData[category];
+  if (!categoryData || !Array.isArray(categoryData)) {
+    return null;
+  }
+  
+  const interpretation = categoryData.find((item: CodeInterpretation) => item.code === code);
+  return interpretation || null;
+}
 
 export function generateForecastPdf(
   data: ForecastData,
@@ -421,7 +444,7 @@ export function generateMatrixLifePdf(
     doc.font("DejaVu-Bold").fontSize(18).text("Коды жизни:", { align: "center" });
     doc.moveDown(2);
 
-    const renderCodeSection = (title: string, codes: string[]) => {
+    const renderCodeSection = (title: string, codes: string[], category: string) => {
       // Проверяем, нужно ли добавить новую страницу
       if (doc.y > doc.page.height - doc.page.margins.bottom - 100) {
         doc.addPage();
@@ -431,9 +454,46 @@ export function generateMatrixLifePdf(
       doc.moveDown(0.5);
       
       if (codes.length > 0) {
-        doc.font("DejaVu-Regular").fontSize(12).text(codes.join("; "), { 
-          align: "left",
-          width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+        codes.forEach((code, index) => {
+          // Проверяем место на странице перед выводом каждого кода
+          if (doc.y > doc.page.height - doc.page.margins.bottom - 150) {
+            doc.addPage();
+          }
+
+          // Выводим код жирным шрифтом
+          doc.font("DejaVu-Bold").fontSize(12).fillColor("#1a5490").text(`Код ${code}:`, { 
+            align: "left",
+            continued: false
+          });
+          doc.fillColor("#000000");
+          doc.moveDown(0.3);
+          
+          // Ищем трактовку для этого кода
+          const interpretation = findCodeInterpretation(code, category);
+          
+          if (interpretation) {
+            // Выводим активацию
+            doc.font("DejaVu-Bold").fontSize(11).text("Активация:", { align: "left" });
+            doc.font("DejaVu-Regular").fontSize(11).text(interpretation.activation, { 
+              align: "left",
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+            });
+            doc.moveDown(0.5);
+            
+            // Выводим нейтрализацию
+            doc.font("DejaVu-Bold").fontSize(11).text("Нейтрализация:", { align: "left" });
+            doc.font("DejaVu-Regular").fontSize(11).text(interpretation.neutralization, { 
+              align: "left",
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right
+            });
+          } else {
+            doc.font("DejaVu-Regular").fontSize(11).fillColor("#999999").text("Трактовка не найдена", { align: "left" });
+            doc.fillColor("#000000");
+          }
+          
+          if (index < codes.length - 1) {
+            doc.moveDown(1);
+          }
         });
       } else {
         doc.font("DejaVu-Regular").fontSize(12).fillColor("#999999").text("Не обнаружено", { align: "left" });
@@ -442,16 +502,16 @@ export function generateMatrixLifePdf(
       doc.moveDown(1.5);
     };
 
-    renderCodeSection("Коды богатства:", data.codes.richCodes);
-    renderCodeSection("Коды брака:", data.codes.marriageCodes);
-    renderCodeSection("Коды выгодного брака:", data.codes.profitableMarriageCodes);
-    renderCodeSection("Коды проблем с детьми:", data.codes.childIssueCodes);
-    renderCodeSection("Коды онкологии:", data.codes.oncologyCodes);
-    renderCodeSection("Коды аварий/травм:", data.codes.accidentCodes);
-    renderCodeSection("Коды иностранного брака:", data.codes.foreignMarriageCodes);
-    renderCodeSection("Коды нестабильности:", data.codes.instabilityCodes);
-    renderCodeSection("Коды психологических проблем:", data.codes.psychProblemsCodes);
-    renderCodeSection("Коды одиночества:", data.codes.lonelinessCodes);
+    renderCodeSection("Коды богатства:", data.codes.richCodes, "КОДЫ БОГАТСТВА");
+    renderCodeSection("Коды брака:", data.codes.marriageCodes, "КОДЫ УДАЧНОГО БРАКА");
+    renderCodeSection("Коды выгодного брака:", data.codes.profitableMarriageCodes, "КОДЫ ВЫГОДНОГО БРАКА");
+    renderCodeSection("Коды проблем с детьми:", data.codes.childIssueCodes, "КОДЫ ПРОБЛЕМ С ДЕТЬМИ");
+    renderCodeSection("Коды онкологии:", data.codes.oncologyCodes, "КОДЫ ОНКОЛОГИИ");
+    renderCodeSection("Коды аварий/травм:", data.codes.accidentCodes, "КОДЫ НЕСЧАСТНЫХ СЛУЧАЕВ");
+    renderCodeSection("Коды иностранного брака:", data.codes.foreignMarriageCodes, "КОДЫ БРАКА С ИНОСТРАНЦЕМ");
+    renderCodeSection("Коды нестабильности:", data.codes.instabilityCodes, "КОДЫ НЕСТАБИЛЬНОСТИ");
+    renderCodeSection("Коды психологических проблем:", data.codes.psychProblemsCodes, "КОДЫ ПСИХОЛОГИЧЕСКИХ ПРОБЛЕМ");
+    renderCodeSection("Коды одиночества:", data.codes.lonelinessCodes, "КОДЫ ОДИНОЧЕСТВА");
   }
 
   doc.end();
