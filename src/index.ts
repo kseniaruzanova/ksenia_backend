@@ -2,6 +2,8 @@ import qs from "qs"
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import fs from "fs";
+import path from "path";
 
 import connectDB from "./config/db";
 
@@ -42,8 +44,36 @@ dotenv.config();
 
 const app = express();
 
+// Функция создания необходимых директорий
+const ensureDirectoriesExist = () => {
+  const directories = [
+    'uploads',
+    'uploads/images',
+    'uploads/audio',
+    'uploads/videos',
+    'temp'
+  ];
+
+  console.log('📁 Checking required directories...');
+
+  directories.forEach(dir => {
+    const dirPath = path.join(process.cwd(), dir);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+      console.log(`✅ Created directory: ${dir}`);
+    } else {
+      console.log(`✓ Directory exists: ${dir}`);
+    }
+  });
+
+  console.log('✅ All required directories ready');
+};
+
 const initializeApp = async () => {
   try {
+    // Создаем необходимые папки
+    ensureDirectoriesExist();
+
     await connectDB();
     console.log('✅ Database connected');
 
