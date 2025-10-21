@@ -100,7 +100,7 @@ class VideoGeneratorService {
         const block = reel.blocks[i];
         if (!block.audioUrl) {
           const audioPath = await this.generateTTS(block.text, i, reel._id, voiceSpeed);
-          block.audioUrl = `/uploads/audio/${path.basename(audioPath)}`;
+          block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
         }
       }
       

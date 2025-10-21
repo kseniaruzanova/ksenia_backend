@@ -10,7 +10,7 @@ export const uploadImages = async (req: AuthRequest, res: Response) => {
     }
 
     const imageUrls = req.files.map(file => {
-      return `/uploads/images/${file.filename}`;
+      return `/api/uploads/images/${file.filename}`;
     });
 
     console.log(`✅ Uploaded ${imageUrls.length} images`);
@@ -32,7 +32,7 @@ export const uploadAudio = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'No audio file uploaded' });
     }
 
-    const audioUrl = `/uploads/audio/${req.file.filename}`;
+    const audioUrl = `/api/uploads/audio/${req.file.filename}`;
 
     console.log(`✅ Uploaded audio: ${audioUrl}`);
     

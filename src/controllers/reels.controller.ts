@@ -579,7 +579,7 @@ async function generateVideoAsync(reel: any) {
     const videoPath = await videoGeneratorService.generateVideo(reel);
     
     // Обновляем рилс с URL видео
-    reel.videoUrl = `/uploads/videos/${path.basename(videoPath)}`;
+    reel.videoUrl = `/api/uploads/videos/${path.basename(videoPath)}`;
     reel.status = 'video_created';
     await reel.save();
     
