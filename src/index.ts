@@ -19,6 +19,7 @@ import messagesRoutes from './routes/messages.routes';
 import usersRoutes from './routes/users.routes';
 import aiSettingsRoutes from './routes/aiSettings.routes';
 import reelsRoutes from './routes/reels.routes';
+import uploadRoutes from './routes/upload.routes';
 
 import forecastRoutes from "./routes/products/forecast.routes";
 import financialCastRoutes from "./routes/products/financialCast.routes";
@@ -144,7 +145,10 @@ initializeApp();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }))
+app.use(express.urlencoded({ extended: true }));
+
+// Статическая раздача загруженных файлов
+app.use('/uploads', express.static('uploads'));
 app.set('query parser', (str: string) => qs.parse(str))
 
 app.get('/', (req, res) => {
@@ -178,6 +182,7 @@ app.use('/api/daily-messaging', dailyMessagingRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/reels', reelsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 const PORT = process.env.PORT || 3000;
 
