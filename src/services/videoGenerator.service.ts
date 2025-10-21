@@ -207,6 +207,31 @@ class VideoGeneratorService {
   }
 
   /**
+   * Получает путь к шрифту в зависимости от ОС
+   */
+  private getFontPath(): string {
+    // Проверяем наличие различных шрифтов
+    const possibleFonts = [
+      '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',  // Alpine Linux (Docker)
+      '/usr/share/fonts/noto/NotoSans-Regular.ttf',           // Alpine альтернатива
+      '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',      // Debian/Ubuntu
+      '/System/Library/Fonts/Helvetica.ttc',                   // MacOS
+      'C:/Windows/Fonts/arial.ttf',                           // Windows
+      '/Windows/Fonts/arial.ttf'                              // Windows альтернатива
+    ];
+
+    for (const fontPath of possibleFonts) {
+      if (fs.existsSync(fontPath)) {
+        console.log(`✅ Using font: ${fontPath}`);
+        return fontPath;
+      }
+    }
+
+    console.warn('⚠️ No font file found, FFmpeg will use default');
+    return ''; // FFmpeg использует дефолтный шрифт
+  }
+
+  /**
    * Создает видео блока с черным фоном
    */
   private async createVideoWithBlackBackground(block: any, outputPath: string, reel: any): Promise<void> {
@@ -216,7 +241,14 @@ class VideoGeneratorService {
     
     // Добавляем текст на экран
     const displayText = block.displayText.replace(/'/g, "\\'").replace(/:/g, "\\:");
-    command += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:fontfile=/Windows/Fonts/arial.ttf`;
+    const fontPath = this.getFontPath();
+    
+    if (fontPath) {
+      command += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:fontfile='${fontPath}'`;
+    } else {
+      command += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2`;
+    }
+    
     command += `" -c:v libx264 -pix_fmt yuv420p`;
     
     // Если есть озвучка, добавляем аудио
@@ -250,9 +282,17 @@ class VideoGeneratorService {
       const imageVideoPath = path.join(path.dirname(outputPath), `img_${block.order}_${i}.mp4`);
       
       const displayText = block.displayText.replace(/'/g, "\\'").replace(/:/g, "\\:");
+      const fontPath = this.getFontPath();
+      
       let imgCommand = `ffmpeg -y -loop 1 -i "${images[i]}" -t ${durationPerImage} -vf "`;
       imgCommand += `scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,`;
-      imgCommand += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:fontfile=/Windows/Fonts/arial.ttf`;
+      
+      if (fontPath) {
+        imgCommand += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:fontfile='${fontPath}'`;
+      } else {
+        imgCommand += `drawtext=text='${displayText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50`;
+      }
+      
       imgCommand += `" -c:v libx264 -pix_fmt yuv420p -an "${imageVideoPath}"`;
       
       await execPromise(imgCommand);

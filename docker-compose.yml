@@ -10,6 +10,11 @@ services:
       - DB_NAME=${DB_NAME}
       - PORT=7000
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    volumes:
+      # Сохраняем загруженные файлы между перезапусками
+      - ./uploads:/app/uploads
+      # Временные файлы (можно не мапить, но полезно для отладки)
+      - ./temp:/app/temp
     restart: unless-stopped
     command: >
       sh -c "
@@ -17,5 +22,7 @@ services:
         echo 'MONGO_URI=' $$MONGO_URI &&
         echo 'DB_NAME=' $$DB_NAME &&
         echo 'TELEGRAM_BOT_TOKEN exists=' $${TELEGRAM_BOT_TOKEN:+yes} &&
+        echo 'Checking FFmpeg installation:' &&
+        ffmpeg -version | head -n 1 &&
         npm start
       "
