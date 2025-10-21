@@ -1,15 +1,12 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
 import { AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
-import * as fs from "fs";
-import * as path from "path";
+import tractovkiDataJSON from "../data/matrixLife/tractovki.json";
 
 const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
 const fontBoldPath: string = "./src/assets/fonts/DejaVuSans-Bold.ttf";
 
-// Загружаем трактовки кодов
-const tractovkiPath = path.join(__dirname, "../data/matrixLife/tractovki.json");
-const tractovkiData = JSON.parse(fs.readFileSync(tractovkiPath, "utf-8"));
+const tractovkiData = tractovkiDataJSON as Record<string, CodeInterpretation[]>;
 
 interface CodeInterpretation {
   code: string;
