@@ -18,6 +18,7 @@ import chatRoutes from './routes/chat.routes';
 import messagesRoutes from './routes/messages.routes';
 import usersRoutes from './routes/users.routes';
 import aiSettingsRoutes from './routes/aiSettings.routes';
+import reelsRoutes from './routes/reels.routes';
 
 import forecastRoutes from "./routes/products/forecast.routes";
 import financialCastRoutes from "./routes/products/financialCast.routes";
@@ -176,6 +177,7 @@ app.use('/api/product-statistics', productStatisticsRoutes);
 app.use('/api/daily-messaging', dailyMessagingRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/reels', reelsRoutes);
 
 const PORT = process.env.PORT || 3000;
 
