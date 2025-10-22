@@ -472,7 +472,7 @@ class VideoGeneratorService {
   }
 
   /**
-   * Объединяет видео с применением переходов (xfade)
+   * Объединяет видео с применением переходов (xfade) и сохранением аудио
    */
   private async concatenateWithTransitions(blockVideos: string[], outputPath: string, blocks: any[]): Promise<void> {
     if (blockVideos.length < 2) {
@@ -489,31 +489,45 @@ class VideoGeneratorService {
       durations.push(block.duration || 10);
     }
     
-    // Строим filter_complex для применения xfade между всеми блоками
-    let filterComplex = '';
-    let currentLabel = '0:v';
+    // Строим filter_complex для применения xfade между всеми блоками (ВИДЕО)
+    let videoFilterComplex = '';
+    let currentVideoLabel = '0:v';
     let offset = 0;
     
     for (let i = 0; i < blockVideos.length - 1; i++) {
       const transition = this.getTransitionFilter(blocks[i].transition || 'fade');
       const nextLabel = i === blockVideos.length - 2 ? 'vout' : `v${i}`;
       
-      // Рассчитываем offset для перехода
-      offset += durations[i] - transitionDuration;
+      // Правильный расчет offset: сумма всех предыдущих длительностей минус накопленные переходы
+      if (i > 0) {
+        offset += durations[i] - transitionDuration;
+      } else {
+        offset = durations[0] - transitionDuration;
+      }
       
       if (transition) {
-        filterComplex += `[${currentLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
+        videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
       } else {
         // Без перехода - просто конкатенация
-        filterComplex += `[${currentLabel}][${i + 1}:v]concat=n=2:v=1[${nextLabel}]`;
+        videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]concat=n=2:v=1[${nextLabel}]`;
       }
       
       if (i < blockVideos.length - 2) {
-        filterComplex += ';';
+        videoFilterComplex += ';';
       }
       
-      currentLabel = nextLabel;
+      currentVideoLabel = nextLabel;
     }
+    
+    // АУДИО: просто конкатенируем все аудио потоки
+    let audioFilterComplex = '';
+    for (let i = 0; i < blockVideos.length; i++) {
+      audioFilterComplex += `[${i}:a]`;
+    }
+    audioFilterComplex += `concat=n=${blockVideos.length}:v=0:a=1[aout]`;
+    
+    // Объединяем видео и аудио фильтры
+    const fullFilterComplex = `${videoFilterComplex};${audioFilterComplex}`;
     
     // Строим команду FFmpeg с множественным входом
     let command = 'ffmpeg -y';
@@ -521,9 +535,9 @@ class VideoGeneratorService {
       command += ` -i "${video}"`;
     });
     
-    command += ` -filter_complex "${filterComplex}" -map "[vout]" -c:v libx264 -pix_fmt yuv420p -r 25 "${outputPath}"`;
+    command += ` -filter_complex "${fullFilterComplex}" -map "[vout]" -map "[aout]" -c:v libx264 -pix_fmt yuv420p -r 25 -c:a aac "${outputPath}"`;
     
-    console.log(`🎬 Concatenating ${blockVideos.length} blocks with transitions...`);
+    console.log(`🎬 Concatenating ${blockVideos.length} blocks with transitions and audio...`);
     await execPromise(command);
   }
 
@@ -546,13 +560,15 @@ class VideoGeneratorService {
       console.log('🎞️ Applying transitions between blocks...');
       await this.concatenateWithTransitions(blockVideos, tempOutputPath, blocks);
     } else {
-      // Простое объединение без переходов
+      // Простое объединение без переходов (сохраняет видео и аудио)
       const tempConcatList = path.join(path.dirname(outputPath), 'concat_list.txt');
       const concatContent = blockVideos.map(v => `file '${v}'`).join('\n');
       fs.writeFileSync(tempConcatList, concatContent);
       
-      await execPromise(`ffmpeg -y -f concat -safe 0 -i "${tempConcatList}" -c copy "${tempOutputPath}"`);
+      // Используем concat demuxer с re-encode для надежности (copy может не работать если кодеки разные)
+      await execPromise(`ffmpeg -y -f concat -safe 0 -i "${tempConcatList}" -c:v libx264 -c:a aac "${tempOutputPath}"`);
       fs.unlinkSync(tempConcatList);
+      console.log(`✅ All ${blockVideos.length} blocks concatenated without transitions`);
     }
     
     // Если есть фоновая музыка, накладываем её
