@@ -11,6 +11,7 @@ import {
   generateFinalVideo,
   getVideoGenerationProgress,
   regenerateFinalVideo,
+  regenerateImage,
 } from '../controllers/reels.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { catchAsync } from '../lib/catchAsync';
@@ -46,6 +47,9 @@ router.post('/:id/regenerate-final-video', catchAsync(regenerateFinalVideo));
 
 // GET /api/reels/:id/generation-progress - получить прогресс генерации видео
 router.get('/:id/generation-progress', catchAsync(getVideoGenerationProgress));
+
+// POST /api/reels/regenerate-image - перегенерировать изображение по промпту
+router.post('/regenerate-image', catchAsync(regenerateImage));
 
 // PUT /api/reels/:id - обновить рилс
 router.put('/:id', catchAsync(updateReel));

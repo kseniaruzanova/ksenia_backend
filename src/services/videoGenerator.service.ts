@@ -507,9 +507,11 @@ class VideoGeneratorService {
     
     // Создаем файл списка для FFmpeg concat
     const listPath = path.join(path.dirname(outputPath), `list_${block.order}.txt`);
-    const durationPerImage = Math.max(1, block.duration / images.length); // Минимум 1 секунда на изображение
     
-    console.log(`  ⏱️ Duration per image: ${durationPerImage.toFixed(2)}s`);
+    // Каждое изображение показывается 2 секунды
+    const durationPerImage = 2;
+    
+    console.log(`  ⏱️ Duration per image: ${durationPerImage}s`);
     
     // Создаем временные видео из каждого изображения
     const imageVideos: string[] = [];
@@ -547,7 +549,7 @@ class VideoGeneratorService {
         `"${imageVideoPath}"`
       ].join(' ');
       
-      console.log(`  🖼️  Image ${i + 1}/${images.length}: ${animation} animation (${durationPerImage.toFixed(2)}s)`);
+      console.log(`  🖼️  Image ${i + 1}/${images.length}: ${animation} animation (${durationPerImage}s)`);
       await execPromise(imgCommand);
       imageVideos.push(imageVideoPath);
     }

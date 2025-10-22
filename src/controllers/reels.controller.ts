@@ -4,6 +4,7 @@ import { catchAsync } from '../lib/catchAsync';
 import { AuthRequest } from '../interfaces/authRequest';
 import AISettings from '../models/aiSettings.model';
 import videoGeneratorService from '../services/videoGenerator.service';
+import imageGeneratorService from '../services/imageGenerator.service';
 import path from 'path';
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
@@ -362,6 +363,7 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
       displayText: block.displayText || block.text || '',
       duration: block.duration || 10,
       images: [],
+      imagePrompts: block.imagePrompts || [],                      // Промпты для генерации изображений
       imageAnimation: 'zoom-in',                                    // По умолчанию zoom-in
       transition: index < blocks.length - 1 ? 'fade' : 'none',     // Fade между блоками, последний без
       scrollingText: false,                                         // По умолчанию обычный текст
@@ -374,6 +376,11 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
     await reel.save();
 
     console.log(`✅ Video blocks generated and saved for reel ${id}`);
+    
+    // Генерируем изображения для всех блоков асинхронно
+    generateImagesAsync(reel).catch(error => {
+      console.error(`❌ Error generating images for reel ${id}:`, error);
+    });
     
     res.status(200).json(reel);
   } catch (error: any) {
@@ -420,12 +427,26 @@ async function generateVideoBlocksWithAI(prompt: string): Promise<string> {
   {
     "voiceText": "Текст для озвучки голосом (что будет говорить диктор)",
     "displayText": "Короткий текст для отображения на экране",
-    "duration": 10
+    "duration": 10,
+    "imagePrompts": [
+      "Детальное описание первого изображения для генерации",
+      "Детальное описание второго изображения для генерации",
+      "Детальное описание третьего изображения для генерации",
+      "Детальное описание четвертого изображения для генерации",
+      "Детальное описание пятого изображения для генерации"
+    ]
   },
   {
     "voiceText": "Текст для озвучки второго блока",
     "displayText": "Короткий текст на экране",
-    "duration": 10
+    "duration": 10,
+    "imagePrompts": [
+      "Детальное описание первого изображения для генерации",
+      "Детальное описание второго изображения для генерации",
+      "Детальное описание третьего изображения для генерации",
+      "Детальное описание четвертого изображения для генерации",
+      "Детальное описание пятого изображения для генерации"
+    ]
   }
   ... (всего 5 блоков)
 ]
@@ -435,14 +456,22 @@ async function generateVideoBlocksWithAI(prompt: string): Promise<string> {
 - voiceText: текст для озвучки (естественная речь) ровно на 10 секунд
 - displayText: 3-7 слов (ключевая мысль блока)
 - duration: всегда 10 секунд
+- imagePrompts: ровно 5 детальных промптов для генерации изображений через DALL-E
 - Логичная последовательность от вступления к заключению
 - Каждый блок должен быть законченной мыслью
+- Промпты для изображений должны быть детальными и визуально привлекательными
+- Изображения должны соответствовать теме блока и быть подходящими для вертикального формата (9:16)
 
 Примеры хороших displayText:
 - "Начни с малого"
 - "3 простых шага"
 - "Результат за неделю"
 - "Главный секрет успеха"
+
+Примеры хороших imagePrompts:
+- "Современный минималистичный офис с большими окнами, естественное освещение, профессиональная атмосфера"
+- "Красивый закат над городом, силуэты зданий, теплые цвета, вертикальная композиция"
+- "Абстрактная композиция с градиентами синего и фиолетового, современный дизайн"
 
 Отвечай ТОЛЬКО JSON массивом, без markdown форматирования, без текста до или после!`;
 
@@ -642,6 +671,11 @@ export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
       reel.blocks = reel.blocks.map((b: any) => ({ ...b, audioUrl: undefined }));
     }
 
+    // Всегда перегенерируем изображения при перегенерации видео
+    if (Array.isArray(reel.blocks)) {
+      reel.blocks = reel.blocks.map((b: any) => ({ ...b, images: [] }));
+    }
+
     // Сбрасываем предыдущий url видео
     reel.videoUrl = undefined as any;
 
@@ -674,10 +708,35 @@ export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Асинхронная генерация изображений
+async function generateImagesAsync(reel: any) {
+  try {
+    console.log(`🎨 Generating images for reel ${reel._id}...`);
+    
+    // Используем imageGeneratorService для генерации изображений
+    await imageGeneratorService.generateImagesForReel(reel);
+    
+    // Сохраняем обновленный рилс с изображениями
+    await reel.save();
+    
+    console.log(`✅ Images generated successfully for reel ${reel._id}`);
+    
+  } catch (error) {
+    console.error(`❌ Error generating images for reel ${reel._id}:`, error);
+  }
+}
+
 // Асинхронная генерация видео
 async function generateVideoAsync(reel: any) {
   try {
     console.log(`🎬 Generating video for reel ${reel._id}...`);
+    
+    // Сначала генерируем изображения, если их нет
+    if (reel.blocks && reel.blocks.some((b: any) => !b.images || b.images.length === 0)) {
+      console.log(`🎨 Generating missing images for reel ${reel._id}...`);
+      await imageGeneratorService.generateImagesForReel(reel);
+      await reel.save();
+    }
     
     // Используем videoGeneratorService для генерации
     const videoPath = await videoGeneratorService.generateVideo(reel);
@@ -695,6 +754,43 @@ async function generateVideoAsync(reel: any) {
     await reel.save();
   }
 }
+
+// Перегенерировать изображение по промпту
+export const regenerateImage = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.customerId;
+  const { prompt, blockIndex, promptIndex } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  try {
+    console.log(`🎨 Regenerating image for prompt: "${prompt.substring(0, 50)}..."`);
+    
+    // Генерируем одно изображение
+    const images = await imageGeneratorService.generateImagesForBlock([prompt], blockIndex || 0, `temp_${Date.now()}`);
+    
+    if (images.length > 0) {
+      res.status(200).json({ 
+        imageUrl: images[0],
+        message: 'Image regenerated successfully'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to generate image' });
+    }
+    
+  } catch (error: any) {
+    console.error(`❌ Error regenerating image:`, error);
+    res.status(500).json({ 
+      error: 'Failed to regenerate image', 
+      details: error.message 
+    });
+  }
+};
 
 // Сгенерировать сценарий для рилса с помощью ИИ
 export const generateScenario = async (req: AuthRequest, res: Response) => {
