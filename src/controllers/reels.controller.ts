@@ -355,16 +355,17 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
     // Парсим JSON ответ от ИИ
     const blocks = JSON.parse(blocksData);
     
-    // Добавляем ID и order к каждому блоку
+    // Добавляем ID и order к каждому блоку с дефолтными значениями для анимаций
     const formattedBlocks = blocks.map((block: any, index: number) => ({
       id: `block_${Date.now()}_${index}`,
       text: block.voiceText || block.text || '',
       displayText: block.displayText || block.text || '',
       duration: block.duration || 10,
       images: [],
-      imageAnimation: 'zoom-in',
-      transition: index < blocks.length - 1 ? 'fade' : 'none', // Последний блок без перехода
-      scrollingText: false,
+      imageAnimation: 'zoom-in',                                    // По умолчанию zoom-in
+      transition: index < blocks.length - 1 ? 'fade' : 'none',     // Fade между блоками, последний без
+      scrollingText: false,                                         // По умолчанию обычный текст
+      audioUrl: undefined,
       order: index + 1
     }));
 

@@ -210,22 +210,24 @@ class VideoGeneratorService {
    * Создает FFmpeg фильтр для анимации изображения
    */
   private getImageAnimationFilter(animation: string, duration: number): string {
+    const frames = duration * 25;
+    
     switch (animation) {
       case 'zoom-in':
         // Приближение (zoom in) - начинается с 1.0, заканчивается в 1.2
-        return `scale=1080*1.2:1920*1.2,zoompan=z='min(zoom+0.0015,1.2)':d=${duration * 25}:s=1080x1920:fps=25`;
+        return `scale=1080*1.2:1920*1.2,zoompan=z=min(zoom+0.0015\\,1.2):d=${frames}:s=1080x1920:fps=25`;
       
       case 'zoom-out':
         // Отдаление (zoom out) - начинается с 1.2, заканчивается в 1.0
-        return `scale=1080*1.2:1920*1.2,zoompan=z='max(zoom-0.0015,1.0)':d=${duration * 25}:s=1080x1920:fps=25`;
+        return `scale=1080*1.2:1920*1.2,zoompan=z=max(zoom-0.0015\\,1.0):d=${frames}:s=1080x1920:fps=25`;
       
       case 'pan-left':
         // Движение влево (Ken Burns)
-        return `scale=1296:1920,crop=1080:1920:'if(gte(t,0),min(w-ow,(t/${duration})*(w-ow)),0)':0`;
+        return `scale=1296:1920,crop=1080:1920:if(gte(t\\,0)\\,min(w-ow\\,(t/${duration})*(w-ow))\\,0):0`;
       
       case 'pan-right':
         // Движение вправо
-        return `scale=1296:1920,crop=1080:1920:'if(gte(t,0),max(0,w-ow-(t/${duration})*(w-ow)),0)':0`;
+        return `scale=1296:1920,crop=1080:1920:if(gte(t\\,0)\\,max(0\\,w-ow-(t/${duration})*(w-ow))\\,0):0`;
       
       case 'none':
       default:
@@ -235,18 +237,30 @@ class VideoGeneratorService {
   }
 
   /**
+   * Экранирует текст для использования в FFmpeg drawtext
+   */
+  private escapeFFmpegText(text: string): string {
+    return text
+      .replace(/\\/g, '\\\\\\\\')   // Обратные слеши
+      .replace(/'/g, "'\\\\''")     // Одинарные кавычки
+      .replace(/:/g, '\\:')         // Двоеточия
+      .replace(/,/g, '\\,')         // Запятые
+      .replace(/%/g, '\\%');        // Проценты
+  }
+
+  /**
    * Создает фильтр для текста (обычный или бегущий)
    */
   private getTextFilter(displayText: string, scrolling: boolean, duration: number, fontPath: string): string {
-    const escapedText = displayText.replace(/'/g, "\\'").replace(/:/g, "\\:");
+    const escapedText = this.escapeFFmpegText(displayText);
+    const fontSpec = fontPath ? `:fontfile=${fontPath}` : '';
     
     if (scrolling) {
       // Бегущий текст (справа налево)
-      const fontSpec = fontPath ? `:fontfile='${fontPath}'` : '';
-      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:y=(h-text_h)/2:x=w-mod(t/${duration}*(w+tw),w+tw)${fontSpec}`;
+      const speed = duration;
+      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:y=(h-text_h)/2:x=w-mod(t*((w+tw)/${speed})\\,w+tw)${fontSpec}`;
     } else {
       // Статичный текст (внизу по центру)
-      const fontSpec = fontPath ? `:fontfile='${fontPath}'` : '';
       return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50${fontSpec}`;
     }
   }
@@ -283,8 +297,6 @@ class VideoGeneratorService {
     const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
     const fontPath = this.getFontPath();
     
-    let command = `ffmpeg -y -f lavfi -i color=c=black:s=1080x1920:d=${block.duration} -vf "`;
-    
     // Добавляем текст на экран (обычный или бегущий)
     const textFilter = this.getTextFilter(
       block.displayText, 
@@ -293,18 +305,29 @@ class VideoGeneratorService {
       fontPath
     );
     
-    command += textFilter;
-    command += `" -c:v libx264 -pix_fmt yuv420p`;
+    // Собираем команду
+    const commandParts = [
+      'ffmpeg',
+      '-y',
+      '-f', 'lavfi',
+      '-i', `color=c=black:s=1080x1920:d=${block.duration}`,
+      '-vf', `"${textFilter}"`,
+      '-c:v', 'libx264',
+      '-pix_fmt', 'yuv420p',
+      '-r', '25'
+    ];
     
     // Если есть озвучка, добавляем аудио
     if (audioPath && fs.existsSync(audioPath)) {
-      command += ` -i "${audioPath}" -c:a aac -shortest`;
+      commandParts.push('-i', `"${audioPath}"`, '-c:a', 'aac', '-shortest');
     } else {
       // Без аудио - тишина
-      command += ` -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t ${block.duration} -c:a aac`;
+      commandParts.push('-f', 'lavfi', '-i', `anullsrc=channel_layout=stereo:sample_rate=44100`, '-t', block.duration.toString(), '-c:a', 'aac');
     }
     
-    command += ` "${outputPath}"`;
+    commandParts.push(`"${outputPath}"`);
+    
+    const command = commandParts.join(' ');
     
     console.log(`⚙️ Creating block ${block.order} with black background...`);
     await execPromise(command);
@@ -354,24 +377,34 @@ class VideoGeneratorService {
     for (let i = 0; i < images.length; i++) {
       const imageVideoPath = path.join(path.dirname(outputPath), `img_${block.order}_${i}.mp4`);
       
-      let imgCommand = `ffmpeg -y -loop 1 -i "${images[i]}" -t ${durationPerImage} -vf "`;
-      
       // Применяем анимацию изображения
       const animation = block.imageAnimation || 'zoom-in';
       const animationFilter = this.getImageAnimationFilter(animation, durationPerImage);
-      imgCommand += animationFilter;
       
       // Добавляем текст (обычный или бегущий)
-      imgCommand += `,`;
       const textFilter = this.getTextFilter(
         block.displayText,
         block.scrollingText || false,
         durationPerImage,
         fontPath
       );
-      imgCommand += textFilter;
       
-      imgCommand += `" -c:v libx264 -pix_fmt yuv420p -r 25 -an "${imageVideoPath}"`;
+      // Собираем полную команду
+      const videoFilter = `${animationFilter},${textFilter}`;
+      
+      const imgCommand = [
+        'ffmpeg',
+        '-y',
+        '-loop', '1',
+        '-i', `"${images[i]}"`,
+        '-t', durationPerImage.toString(),
+        '-vf', `"${videoFilter}"`,
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        '-r', '25',
+        '-an',
+        `"${imageVideoPath}"`
+      ].join(' ');
       
       console.log(`⚙️ Creating image ${i + 1}/${images.length} with ${animation} animation...`);
       await execPromise(imgCommand);
