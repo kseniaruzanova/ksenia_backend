@@ -546,12 +546,23 @@ class VideoGeneratorService {
         const voiceVolume = (audioSettings?.voiceVolume || 80) / 100;
         const musicVolume = (audioSettings?.musicVolume || 30) / 100;
         
-        // Миксуем голос с музыкой
-        const filterComplex = `[0:a]volume=${voiceVolume}[voice];[1:a]volume=${musicVolume},aloop=loop=-1:size=2e+09[music];[voice][music]amix=inputs=2:duration=first[aout]`;
+        // Проверяем, есть ли аудиодорожка (голос) в видео после склейки
+        const tempInfo = await this.getVideoInfo(tempOutputPath);
+        const hasVoice = !!tempInfo?.streams?.some((s: any) => s.codec_type === 'audio');
         
-        await execPromise(
-          `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${outputPath}"`
-        );
+        if (hasVoice) {
+          // Микс голоса и музыки
+          const filterComplex = `[0:a]volume=${voiceVolume}[voice];[1:a]volume=${musicVolume},aloop=loop=-1:size=2e+09[music];[voice][music]amix=inputs=2:duration=first[aout]`;
+          await execPromise(
+            `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${outputPath}"`
+          );
+        } else {
+          // В видео нет аудио (например, использовались xfade по видео). Используем только музыку.
+          const filterComplex = `[1:a]volume=${musicVolume},aloop=loop=-1:size=2e+09[aout]`;
+          await execPromise(
+            `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v copy -c:a aac -shortest "${outputPath}"`
+          );
+        }
         
         fs.unlinkSync(tempOutputPath);
       } else {
