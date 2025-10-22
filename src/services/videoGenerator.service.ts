@@ -98,7 +98,8 @@ class VideoGeneratorService {
       
       for (let i = 0; i < reel.blocks.length; i++) {
         const block = reel.blocks[i];
-        if (!block.audioUrl) {
+        const audioPathLocal = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+        if (!audioPathLocal || !fs.existsSync(audioPathLocal)) {
           const audioPath = await this.generateTTS(block.text, i, reel._id, voiceSpeed);
           block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
         }
@@ -215,21 +216,22 @@ class VideoGeneratorService {
     switch (animation) {
       case 'zoom-in':
         // Приближение (zoom in) - начинается с 1.0, заканчивается в 1.2
-        return `scale=1080*1.2:1920*1.2,zoompan=z=min(zoom+0.0015\\,1.2):d=${frames}:s=1080x1920:fps=25`;
+        // Масштабируем по высоте, сохраняем пропорции, кадрируем по центру в 1080x1920 (без растяжения)
+        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=iw:1920:(iw-iw)/2:(oh-ih)/2:black,zoompan=z=min(zoom+0.0015\\,1.2):d=${frames}:s=1080x1920:fps=25`;
       
       case 'zoom-out':
         // Отдаление (zoom out) - начинается с 1.2, заканчивается в 1.0
-        return `scale=1080*1.2:1920*1.2,zoompan=z=max(zoom-0.0015\\,1.0):d=${frames}:s=1080x1920:fps=25`;
+        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=iw:1920:(iw-iw)/2:(oh-ih)/2:black,zoompan=z=max(zoom-0.0015\\,1.0):d=${frames}:s=1080x1920:fps=25`;
       
       case 'pan-left':
         // Движение влево (Ken Burns)
         // Линейное смещение без функций с запятыми: x = (t/d)*(iw-ow)
-        return `scale=1296:1920,crop=1080:1920:(t/${duration})*(iw-ow):0`;
+        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(1080-iw)/2:(1920-ih)/2:black,crop=1080:1920:(t/${duration})*(max(iw-1080\,0)):(1920-ih)/2`;
       
       case 'pan-right':
         // Движение вправо
         // Линейное смещение справа налево: x = (iw-ow) - (t/d)*(iw-ow)
-        return `scale=1296:1920,crop=1080:1920:(iw-ow)-(t/${duration})*(iw-ow):0`;
+        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(1080-iw)/2:(1920-ih)/2:black,crop=1080:1920:(max(iw-1080\,0))-(t/${duration})*(max(iw-1080\,0)):(1920-ih)/2`;
       
       case 'none':
       default:
@@ -254,15 +256,36 @@ class VideoGeneratorService {
    * Создает фильтр для текста (обычный или бегущий)
    */
   private getTextFilter(displayText: string, scrolling: boolean, duration: number, fontPath: string): string {
-    const escapedText = this.escapeFFmpegText(displayText);
     const fontSpec = fontPath ? `:fontfile=${fontPath}` : '';
     
     if (scrolling) {
-      // Бегущий текст (справа налево)
-      const speed = duration;
-      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:y=(h-text_h)/2:x=w-mod(t*((w+tw)/${speed})\\,w+tw)${fontSpec}`;
+      // Эффект "печатной машинки": постепенно показываем текст по словам
+      const words = displayText.split(/\s+/).filter(Boolean);
+      const steps = Math.min(10, Math.max(1, words.length));
+      const wordsPerStep = Math.ceil(words.length / steps);
+      const segments: string[] = [];
+      
+      for (let i = 0; i < steps; i++) {
+        const endIndex = Math.min(words.length, (i + 1) * wordsPerStep);
+        const partialText = words.slice(0, endIndex).join(' ');
+        const escaped = this.escapeFFmpegText(partialText);
+        const start = (i * duration) / steps;
+        const end = ((i + 1) * duration) / steps;
+        segments.push(
+          `drawtext=text='${escaped}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:enable='between(t,${start.toFixed(3)},${end.toFixed(3)})'${fontSpec}`
+        );
+      }
+      
+      // Последний шаг держим текст до конца
+      const finalText = this.escapeFFmpegText(displayText);
+      segments.push(
+        `drawtext=text='${finalText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:enable='gte(t,${(duration * (steps - 1) / steps).toFixed(3)})'${fontSpec}`
+      );
+      
+      return segments.join(',');
     } else {
       // Статичный текст (внизу по центру)
+      const escapedText = this.escapeFFmpegText(displayText);
       return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50${fontSpec}`;
     }
   }
