@@ -223,11 +223,13 @@ class VideoGeneratorService {
       
       case 'pan-left':
         // Движение влево (Ken Burns)
-        return `scale=1296:1920,crop=1080:1920:if(gte(t\\,0)\\,min(w-ow\\,(t/${duration})*(w-ow))\\,0):0`;
+        // Линейное смещение без функций с запятыми: x = (t/d)*(iw-ow)
+        return `scale=1296:1920,crop=1080:1920:(t/${duration})*(iw-ow):0`;
       
       case 'pan-right':
         // Движение вправо
-        return `scale=1296:1920,crop=1080:1920:if(gte(t\\,0)\\,max(0\\,w-ow-(t/${duration})*(w-ow))\\,0):0`;
+        // Линейное смещение справа налево: x = (iw-ow) - (t/d)*(iw-ow)
+        return `scale=1296:1920,crop=1080:1920:(iw-ow)-(t/${duration})*(iw-ow):0`;
       
       case 'none':
       default:
