@@ -614,6 +614,66 @@ export const getVideoGenerationProgress = async (req: AuthRequest, res: Response
   }
 };
 
+// Перегенерировать финальное видео (с опцией пересоздать TTS)
+export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.customerId;
+  const { id } = req.params;
+  const { forceTTS } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const reel = await Reel.findOne({ _id: id, userId });
+
+  if (!reel) {
+    return res.status(404).json({ error: 'Reel not found' });
+  }
+
+  if (!reel.blocks || reel.blocks.length === 0) {
+    return res.status(400).json({ error: 'No video blocks found. Please create blocks first.' });
+  }
+
+  try {
+    console.log(`♻️ Regenerating video for reel ${id}... forceTTS=${!!forceTTS}`);
+
+    // Опционально очищаем озвучку, чтобы пересинтезировать
+    if (forceTTS && Array.isArray(reel.blocks)) {
+      reel.blocks = reel.blocks.map((b: any) => ({ ...b, audioUrl: undefined }));
+    }
+
+    // Сбрасываем предыдущий url видео
+    reel.videoUrl = undefined as any;
+
+    // Инициализируем прогресс
+    reel.status = 'video_generating';
+    reel.generationProgress = {
+      currentStep: 'Инициализация генерации видео',
+      stepProgress: 0,
+      totalProgress: 0,
+      estimatedTimeRemaining: 180,
+      logs: ['♻️ Запущена перегенерация видео...', forceTTS ? '🎙️ Пересоздаем озвучку' : '🎙️ Используем существующую озвучку'],
+      error: undefined
+    };
+    await reel.save();
+
+    // Запускаем генерацию видео асинхронно
+    generateVideoAsync(reel).catch(error => {
+      console.error(`❌ Error in async video regeneration for reel ${id}:`, error);
+    });
+
+    return res.status(202).json({
+      message: 'Video regeneration started',
+      reelId: reel._id,
+      estimatedTime: '2-5 minutes',
+      progress: reel.generationProgress
+    });
+  } catch (error: any) {
+    console.error(`❌ Error starting video regeneration for reel ${id}:`, error);
+    return res.status(500).json({ error: 'Failed to start video regeneration', details: error.message });
+  }
+};
+
 // Асинхронная генерация видео
 async function generateVideoAsync(reel: any) {
   try {

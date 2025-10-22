@@ -10,6 +10,7 @@ import {
   updateVideoBlocks,
   generateFinalVideo,
   getVideoGenerationProgress,
+  regenerateFinalVideo,
 } from '../controllers/reels.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { catchAsync } from '../lib/catchAsync';
@@ -39,6 +40,9 @@ router.put('/:id/video-blocks', catchAsync(updateVideoBlocks));
 
 // POST /api/reels/:id/generate-final-video - сгенерировать финальное видео
 router.post('/:id/generate-final-video', catchAsync(generateFinalVideo));
+
+// POST /api/reels/:id/regenerate-final-video - перегенерировать финальное видео
+router.post('/:id/regenerate-final-video', catchAsync(regenerateFinalVideo));
 
 // GET /api/reels/:id/generation-progress - получить прогресс генерации видео
 router.get('/:id/generation-progress', catchAsync(getVideoGenerationProgress));
