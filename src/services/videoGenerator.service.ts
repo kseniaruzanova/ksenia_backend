@@ -462,7 +462,7 @@ class VideoGeneratorService {
     // Маппинг
     commandParts.push('-map', '[v]', '-map', '1:a');
     // Кодеки и параметры
-    commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', '-shortest', `"${outputPath}"`);
+    commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', `"${outputPath}"`);
     
     const command = commandParts.join(' ');
     
@@ -562,7 +562,7 @@ class VideoGeneratorService {
     
     // Добавляем аудио
     if (audioPath && fs.existsSync(audioPath)) {
-      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -i "${audioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`);
+      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -i "${audioPath}" -c:v copy -c:a aac "${outputPath}"`);
       fs.unlinkSync(concatVideoPath);
     } else {
       fs.renameSync(concatVideoPath, outputPath);
@@ -715,6 +715,11 @@ class VideoGeneratorService {
       console.log(`✅ All ${blockVideos.length} blocks concatenated without transitions (total: ${totalDuration}s)`);
     }
     
+    // Проверяем длительность временного файла перед добавлением музыки
+    const tempInfo = await this.getVideoInfo(tempOutputPath);
+    const tempDuration = tempInfo?.format?.duration ? parseFloat(tempInfo.format.duration) : 0;
+    console.log(`📊 Temporary video duration: ${tempDuration.toFixed(2)}s`);
+    
     // Если есть фоновая музыка, накладываем её
     if (backgroundMusic) {
       const musicPath = this.urlToLocalPath(backgroundMusic);
@@ -726,20 +731,23 @@ class VideoGeneratorService {
         const musicVolume = (audioSettings?.musicVolume || 30) / 100;
         
         // Проверяем, есть ли аудиодорожка (голос) в видео после склейки
-        const tempInfo = await this.getVideoInfo(tempOutputPath);
         const hasVoice = !!tempInfo?.streams?.some((s: any) => s.codec_type === 'audio');
         
         if (hasVoice) {
           // Микс голоса и музыки
-          const filterComplex = `[0:a]volume=${voiceVolume}[voice];[1:a]volume=${musicVolume},aloop=loop=-1:size=2e+09[music];[voice][music]amix=inputs=2:duration=first[aout]`;
+          // Используем длительность видео для правильного обрезания музыки
+          const videoDuration = tempDuration || 0;
+          const filterComplex = `[0:a]volume=${voiceVolume}[voice];[1:a]volume=${musicVolume},atrim=duration=${videoDuration}[music];[voice][music]amix=inputs=2:duration=first[aout]`;
           await execPromise(
-            `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${outputPath}"`
+            `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v libx264 -c:a aac "${outputPath}"`
           );
         } else {
           // В видео нет аудио (например, использовались xfade по видео). Используем только музыку.
-          const filterComplex = `[1:a]volume=${musicVolume},aloop=loop=-1:size=2e+09[aout]`;
+          // Получаем длительность видео для правильного обрезания музыки
+          const videoDuration = tempDuration || 0;
+          const filterComplex = `[1:a]volume=${musicVolume},atrim=duration=${videoDuration}[aout]`;
           await execPromise(
-            `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v copy -c:a aac -shortest "${outputPath}"`
+            `ffmpeg -y -i "${tempOutputPath}" -i "${musicPath}" -filter_complex "${filterComplex}" -map 0:v -map "[aout]" -c:v libx264 -c:a aac "${outputPath}"`
           );
         }
         
@@ -751,6 +759,11 @@ class VideoGeneratorService {
     } else {
       fs.renameSync(tempOutputPath, outputPath);
     }
+    
+    // Проверяем финальную длительность
+    const finalInfo = await this.getVideoInfo(outputPath);
+    const finalDuration = finalInfo?.format?.duration ? parseFloat(finalInfo.format.duration) : 0;
+    console.log(`📊 Final video duration: ${finalDuration.toFixed(2)}s`);
     
     console.log('✅ All blocks concatenated into final video');
   }
