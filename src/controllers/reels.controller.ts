@@ -356,20 +356,41 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
     // Парсим JSON ответ от ИИ
     const blocks = JSON.parse(blocksData);
     
+    console.log(`📋 Parsed blocks:`, JSON.stringify(blocks, null, 2));
+    
     // Добавляем ID и order к каждому блоку с дефолтными значениями для анимаций
-    const formattedBlocks = blocks.map((block: any, index: number) => ({
-      id: `block_${Date.now()}_${index}`,
-      text: block.voiceText || block.text || '',
-      displayText: block.displayText || block.text || '',
-      duration: block.duration || 10,
-      images: [],
-      imagePrompts: block.imagePrompts || [],                      // Промпты для генерации изображений
-      imageAnimation: 'zoom-in',                                    // По умолчанию zoom-in
-      transition: index < blocks.length - 1 ? 'fade' : 'none',     // Fade между блоками, последний без
-      scrollingText: false,                                         // По умолчанию обычный текст
-      audioUrl: undefined,
-      order: index + 1
-    }));
+    const formattedBlocks = blocks.map((block: any, index: number) => {
+      // Fallback промпты для изображений, если ИИ их не сгенерировал
+      const fallbackImagePrompts = [
+        `Современная абстрактная композиция с градиентами для блока ${index + 1}`,
+        `Минималистичный дизайн с геометрическими формами для блока ${index + 1}`,
+        `Креативная иллюстрация с яркими цветами для блока ${index + 1}`,
+        `Профессиональная фотография с естественным освещением для блока ${index + 1}`,
+        `Художественная композиция с текстурами для блока ${index + 1}`
+      ];
+      
+      const finalImagePrompts = block.imagePrompts && block.imagePrompts.length > 0 ? block.imagePrompts : fallbackImagePrompts;
+      
+      if (!block.imagePrompts || block.imagePrompts.length === 0) {
+        console.log(`⚠️ Block ${index + 1}: Using fallback image prompts`);
+      } else {
+        console.log(`✅ Block ${index + 1}: Using AI-generated image prompts`);
+      }
+      
+      return {
+        id: `block_${Date.now()}_${index}`,
+        text: block.voiceText || block.text || '',
+        displayText: block.displayText || block.text || '',
+        duration: block.duration || 10,
+        images: [],
+        imagePrompts: finalImagePrompts,
+        imageAnimation: 'zoom-in',                                    // По умолчанию zoom-in
+        transition: index < blocks.length - 1 ? 'fade' : 'none',     // Fade между блоками, последний без
+        scrollingText: false,                                         // По умолчанию обычный текст
+        audioUrl: undefined,
+        order: index + 1
+      };
+    });
 
     reel.blocks = formattedBlocks;
     reel.status = 'blocks_created';
@@ -712,6 +733,13 @@ export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
 async function generateImagesAsync(reel: any) {
   try {
     console.log(`🎨 Generating images for reel ${reel._id}...`);
+    console.log(`📊 Reel blocks count: ${reel.blocks?.length || 0}`);
+    
+    if (reel.blocks) {
+      reel.blocks.forEach((block: any, index: number) => {
+        console.log(`📝 Block ${index + 1}: imagePrompts = ${block.imagePrompts?.length || 0}`);
+      });
+    }
     
     // Используем imageGeneratorService для генерации изображений
     await imageGeneratorService.generateImagesForReel(reel);

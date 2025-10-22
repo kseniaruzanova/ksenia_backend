@@ -20,6 +20,8 @@ class ImageGeneratorService {
       const settings = await AISettings.findOne();
       const apiKey = settings?.openaiApiKey;
       
+      console.log(`🔑 OpenAI API key status: ${apiKey ? 'configured' : 'not configured'}`);
+      
       if (!apiKey) {
         console.warn('⚠️ OpenAI API key not configured, using mock images');
         return this.generateMockImages(imagePrompts, blockIndex, reelId);
@@ -94,7 +96,7 @@ class ImageGeneratorService {
   }
 
   /**
-   * Создает mock изображения (заглушки)
+   * Создает mock изображения (заглушки) - создает простые цветные изображения
    */
   private generateMockImages(imagePrompts: string[], blockIndex: number, reelId: string): string[] {
     const imageDir = path.join(process.cwd(), 'uploads', 'images');
@@ -103,16 +105,42 @@ class ImageGeneratorService {
     }
 
     const mockImages: string[] = [];
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'];
     
     for (let i = 0; i < imagePrompts.length; i++) {
-      const mockFilename = `mock_image_${reelId}_block${blockIndex}_${i}_${Date.now()}.txt`;
+      const mockFilename = `mock_image_${reelId}_block${blockIndex}_${i}_${Date.now()}.png`;
       const mockPath = path.join(imageDir, mockFilename);
       
-      const mockContent = `MOCK IMAGE: ${imagePrompts[i]}`;
-      fs.writeFileSync(mockPath, mockContent);
+      // Создаем простое цветное изображение с помощью FFmpeg
+      const color = colors[i % colors.length];
+      const command = `ffmpeg -y -f lavfi -i "color=c=${color}:s=1024x1792:d=1" -frames:v 1 "${mockPath}"`;
       
-      const imageUrlForFrontend = `/api/uploads/images/${mockFilename}`;
-      mockImages.push(imageUrlForFrontend);
+      try {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execPromise = promisify(exec);
+        
+        execPromise(command).then(() => {
+          console.log(`✅ Created mock image: ${mockFilename}`);
+        }).catch((error: any) => {
+          console.warn(`⚠️ Failed to create mock image, using text file instead: ${error.message}`);
+          // Fallback к текстовому файлу
+          const textFilename = mockFilename.replace('.png', '.txt');
+          const textPath = path.join(imageDir, textFilename);
+          fs.writeFileSync(textPath, `MOCK IMAGE: ${imagePrompts[i]}`);
+          mockImages.push(`/api/uploads/images/${textFilename}`);
+        });
+        
+        const imageUrlForFrontend = `/api/uploads/images/${mockFilename}`;
+        mockImages.push(imageUrlForFrontend);
+      } catch (error) {
+        console.warn(`⚠️ Error creating mock image: ${error}`);
+        // Fallback к текстовому файлу
+        const textFilename = mockFilename.replace('.png', '.txt');
+        const textPath = path.join(imageDir, textFilename);
+        fs.writeFileSync(textPath, `MOCK IMAGE: ${imagePrompts[i]}`);
+        mockImages.push(`/api/uploads/images/${textFilename}`);
+      }
     }
     
     console.log(`⚠️ Created ${mockImages.length} mock images for block ${blockIndex}`);
@@ -132,6 +160,11 @@ class ImageGeneratorService {
     
     for (let i = 0; i < reel.blocks.length; i++) {
       const block = reel.blocks[i];
+      
+      console.log(`🔍 Block ${i + 1}: imagePrompts = ${block.imagePrompts?.length || 0}`);
+      if (block.imagePrompts && block.imagePrompts.length > 0) {
+        console.log(`📝 Block ${i + 1} prompts:`, block.imagePrompts);
+      }
       
       if (!block.imagePrompts || block.imagePrompts.length === 0) {
         console.warn(`⚠️ No image prompts for block ${i + 1}, skipping`);

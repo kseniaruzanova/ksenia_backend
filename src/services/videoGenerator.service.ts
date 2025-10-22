@@ -36,7 +36,7 @@ class VideoGeneratorService {
   /**
    * Генерирует TTS озвучку с использованием OpenAI TTS API
    */
-  async generateTTS(text: string, blockIndex: number, reelId: string, voiceSpeed: number = 1.0): Promise<string> {
+  async generateTTS(text: string, blockIndex: number, reelId: string, voiceSpeed: number = 1.0): Promise<string | null> {
     try {
       const settings = await AISettings.findOne();
       const apiKey = settings?.openaiApiKey;
@@ -86,17 +86,11 @@ class VideoGeneratorService {
   }
 
   /**
-   * Создает mock TTS файл (заглушка)
+   * Создает mock TTS файл (заглушка) - возвращает null для использования тишины
    */
-  private generateMockTTS(text: string, blockIndex: number, reelId: string): string {
-    const audioDir = path.join(process.cwd(), 'uploads', 'audio');
-    const audioFilename = `tts_mock_${reelId}_block${blockIndex}_${Date.now()}.txt`;
-    const audioPath = path.join(audioDir, audioFilename);
-    
-    fs.writeFileSync(audioPath, `MOCK TTS: ${text}`);
-    console.log(`⚠️ Created mock TTS file for block ${blockIndex}`);
-    
-    return audioPath;
+  private generateMockTTS(text: string, blockIndex: number, reelId: string): string | null {
+    console.log(`⚠️ Mock TTS for block ${blockIndex}: "${text.substring(0, 30)}..."`);
+    return null; // Возвращаем null, чтобы использовать тишину вместо невалидного аудио файла
   }
 
   /**
@@ -150,7 +144,11 @@ class VideoGeneratorService {
         
         if (!audioPathLocal || !fs.existsSync(audioPathLocal)) {
           const audioPath = await this.generateTTS(block.text, i, reel._id, voiceSpeed);
-          block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
+          if (audioPath) {
+            block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
+          } else {
+            block.audioUrl = null; // Используем тишину для mock TTS
+          }
         }
       }
       
@@ -449,12 +447,8 @@ class VideoGeneratorService {
     const commandParts = ['ffmpeg', '-y'];
     // Видео-вход (чёрный фон)
     commandParts.push('-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${block.duration}`);
-    // Аудио-вход
-    if (audioPath && fs.existsSync(audioPath)) {
-      commandParts.push('-i', `"${audioPath}"`);
-    } else {
-      commandParts.push('-f', 'lavfi', '-t', block.duration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
-    }
+    // Аудио-вход - всегда используем тишину для mock TTS
+    commandParts.push('-f', 'lavfi', '-t', block.duration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
     // Фильтр на видео
     const filterComplex = `"[0:v]${textFilter}[v]"`;
     commandParts.push('-filter_complex', filterComplex);
@@ -561,13 +555,9 @@ class VideoGeneratorService {
     const concatVideoPath = path.join(path.dirname(outputPath), `concat_${block.order}.mp4`);
     await execPromise(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${concatVideoPath}"`);
     
-    // Добавляем аудио
-    if (audioPath && fs.existsSync(audioPath)) {
-      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -i "${audioPath}" -c:v copy -c:a aac "${outputPath}"`);
-      fs.unlinkSync(concatVideoPath);
-    } else {
-      fs.renameSync(concatVideoPath, outputPath);
-    }
+    // Добавляем аудио - всегда используем тишину для mock TTS
+    await execPromise(`ffmpeg -y -i "${concatVideoPath}" -f lavfi -t ${block.duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac "${outputPath}"`);
+    fs.unlinkSync(concatVideoPath);
     
     // Удаляем временные файлы
     imageVideos.forEach(v => fs.existsSync(v) && fs.unlinkSync(v));
