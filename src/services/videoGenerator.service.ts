@@ -3,6 +3,8 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import AISettings from '../models/aiSettings.model';
+import Reel from '../models/reel.model';
+import { IVideoGenerationProgress } from '../models/reel.model';
 
 const execPromise = promisify(exec);
 
@@ -11,6 +13,26 @@ const execPromise = promisify(exec);
  */
 class VideoGeneratorService {
   
+  /**
+   * Обновляет прогресс генерации в базе данных
+   */
+  private async updateProgress(reelId: string, progress: Partial<IVideoGenerationProgress>): Promise<void> {
+    try {
+      await Reel.findByIdAndUpdate(reelId, {
+        $set: {
+          'generationProgress.currentStep': progress.currentStep,
+          'generationProgress.stepProgress': progress.stepProgress,
+          'generationProgress.totalProgress': progress.totalProgress,
+          'generationProgress.estimatedTimeRemaining': progress.estimatedTimeRemaining,
+          'generationProgress.error': progress.error,
+          $push: progress.logs ? { 'generationProgress.logs': { $each: progress.logs } } : {}
+        }
+      });
+    } catch (error) {
+      console.error('Error updating progress:', error);
+    }
+  }
+
   /**
    * Генерирует TTS озвучку с использованием OpenAI TTS API
    */
@@ -84,6 +106,15 @@ class VideoGeneratorService {
     try {
       console.log(`🎬 Starting video generation for reel ${reel._id}...`);
       
+      // Обновляем прогресс - начало генерации
+      await this.updateProgress(reel._id, {
+        currentStep: 'Подготовка к генерации видео',
+        stepProgress: 5,
+        totalProgress: 5,
+        estimatedTimeRemaining: 180,
+        logs: ['🎬 Начинаем генерацию видео...', '📁 Создаем директории для файлов...']
+      });
+      
       const outputDir = path.join(process.cwd(), 'uploads', 'videos');
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
@@ -94,11 +125,29 @@ class VideoGeneratorService {
       
       // Шаг 1: Генерация озвучки для каждого блока
       console.log('🎙️ Step 1: Generating voice-overs...');
+      await this.updateProgress(reel._id, {
+        currentStep: 'Генерация озвучки',
+        stepProgress: 0,
+        totalProgress: 20,
+        estimatedTimeRemaining: 150,
+        logs: ['🎙️ Генерируем озвучку для каждого блока...']
+      });
+      
       const voiceSpeed = reel.audioSettings?.voiceSpeed || 1.0;
       
       for (let i = 0; i < reel.blocks.length; i++) {
         const block = reel.blocks[i];
         const audioPathLocal = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+        
+        // Обновляем прогресс для каждого блока
+        await this.updateProgress(reel._id, {
+          currentStep: `Генерация озвучки блока ${i + 1}/${reel.blocks.length}`,
+          stepProgress: Math.round((i / reel.blocks.length) * 100),
+          totalProgress: 20,
+          estimatedTimeRemaining: 150 - (i * 10),
+          logs: [`🎙️ Обрабатываем блок ${i + 1}: "${block.text.substring(0, 30)}..."`]
+        });
+        
         if (!audioPathLocal || !fs.existsSync(audioPathLocal)) {
           const audioPath = await this.generateTTS(block.text, i, reel._id, voiceSpeed);
           block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
@@ -109,22 +158,75 @@ class VideoGeneratorService {
       await reel.save();
       
       // Шаг 2: Проверка наличия FFmpeg
+      await this.updateProgress(reel._id, {
+        currentStep: 'Проверка FFmpeg',
+        stepProgress: 100,
+        totalProgress: 25,
+        estimatedTimeRemaining: 120,
+        logs: ['🔍 Проверяем доступность FFmpeg...']
+      });
+      
       const hasFFmpeg = await this.checkFFmpegInstalled();
       
       if (!hasFFmpeg) {
         console.warn('⚠️ FFmpeg not installed, creating mock video');
+        await this.updateProgress(reel._id, {
+          currentStep: 'Создание тестового видео',
+          stepProgress: 100,
+          totalProgress: 100,
+          estimatedTimeRemaining: 0,
+          logs: ['⚠️ FFmpeg недоступен, создаем тестовое видео']
+        });
         return this.createMockVideo(outputPath, reel);
       }
       
       // Шаг 3: Создание видео из блоков
-      console.log('🎬 Step 2: Creating video with FFmpeg...');
+      console.log('🎬 Step 3: Creating video with FFmpeg...');
+      await this.updateProgress(reel._id, {
+        currentStep: 'Создание видео блоков',
+        stepProgress: 0,
+        totalProgress: 80,
+        estimatedTimeRemaining: 100,
+        logs: ['🎬 Создаем видео блоки с помощью FFmpeg...']
+      });
+      
       await this.createVideoWithFFmpeg(reel, outputPath);
       
-      console.log(`✅ Video generated successfully: ${outputFilename}`);
+      // Финальный этап - завершение
+      await this.updateProgress(reel._id, {
+        currentStep: 'Завершение генерации',
+        stepProgress: 100,
+        totalProgress: 100,
+        estimatedTimeRemaining: 0,
+        logs: ['✅ Видео успешно создано!', '📊 Проверяем финальную длительность...']
+      });
+      
+      // Проверяем финальную длительность видео
+      const videoInfo = await this.getVideoInfo(outputPath);
+      const actualDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : 0;
+      const expectedDuration = reel.blocks.reduce((sum: number, b: any) => sum + (b.duration || 10), 0);
+      
+      console.log(`\n📊 Final video stats:`);
+      console.log(`   Expected duration: ${expectedDuration}s`);
+      console.log(`   Actual duration: ${actualDuration.toFixed(2)}s`);
+      console.log(`   Difference: ${Math.abs(expectedDuration - actualDuration).toFixed(2)}s`);
+      
+      console.log(`\n✅ Video generated successfully: ${outputFilename}`);
       return outputPath;
       
     } catch (error) {
       console.error('❌ Error in video generation:', error);
+      
+      // Обновляем прогресс с ошибкой
+      await this.updateProgress(reel._id, {
+        currentStep: 'Ошибка генерации',
+        stepProgress: 0,
+        totalProgress: 0,
+        estimatedTimeRemaining: 0,
+        error: error instanceof Error ? error.message : 'Неизвестная ошибка',
+        logs: ['❌ Произошла ошибка при генерации видео', `Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`]
+      });
+      
       throw error;
     }
   }
@@ -174,6 +276,16 @@ class VideoGeneratorService {
       console.log(`\n🎬 Creating ${reel.blocks.length} video blocks...`);
       for (let i = 0; i < reel.blocks.length; i++) {
         const block = reel.blocks[i];
+        
+        // Обновляем прогресс для каждого блока
+        await this.updateProgress(reel._id, {
+          currentStep: `Создание блока ${i + 1}/${reel.blocks.length}`,
+          stepProgress: Math.round((i / reel.blocks.length) * 100),
+          totalProgress: 80,
+          estimatedTimeRemaining: 100 - (i * 15),
+          logs: [`🎬 Создаем блок ${i + 1}: "${block.displayText.substring(0, 30)}..."`]
+        });
+        
         console.log(`\n📹 Block ${i + 1}/${reel.blocks.length}: "${block.displayText.substring(0, 50)}..." (${block.duration}s, ${block.images?.length || 0} images)`);
         const blockVideoPath = await this.createBlockVideo(block, i, tempDir, reel);
         blockVideos.push(blockVideoPath);
@@ -181,6 +293,14 @@ class VideoGeneratorService {
       }
       console.log(`\n✅ All ${blockVideos.length} blocks created\n`);
       
+      // Обновляем прогресс - этап объединения
+      await this.updateProgress(reel._id, {
+        currentStep: 'Объединение блоков в финальное видео',
+        stepProgress: 0,
+        totalProgress: 95,
+        estimatedTimeRemaining: 30,
+        logs: ['🔗 Объединяем все блоки в финальное видео...']
+      });
       
       // Объединяем все блоки в одно видео
       await this.concatenateVideos(blockVideos, outputPath, reel.backgroundMusic, reel.audioSettings, reel.blocks);
@@ -264,17 +384,26 @@ class VideoGeneratorService {
     const escapedText = this.escapeFFmpegText(displayText);
     const fontSpec = fontPath ? `:fontfile=${fontPath}` : '';
     
+    // Автоматически подбираем размер шрифта в зависимости от длины текста
+    let fontSize = 60;
+    const textLength = displayText.length;
+    if (textLength > 100) {
+      fontSize = 45;
+    } else if (textLength > 70) {
+      fontSize = 50;
+    } else if (textLength > 40) {
+      fontSize = 55;
+    }
+    
+    // Максимальная ширина текста (850px для 1080px ширины экрана = ~80%)
+    const maxTextWidth = 850;
+    
     if (scrolling) {
-      // Бегущий текст (постепенное появление слов)
-      // Используем один drawtext с переменной для постепенного появления
-      const words = displayText.split(/\s+/).filter(Boolean);
-      
-      // Простая анимация: показываем все слова по очереди с fade-in эффектом
-      // Используем alpha для плавного появления текста
-      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:alpha='if(lt(t\\,0.5)\\,t/0.5\\,1)'${fontSpec}`;
+      // Бегущий текст с плавным появлением, переносом строк и черной обводкой
+      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:alpha='if(lt(t\\,0.3)\\,t/0.3\\,1)':text_w=${maxTextWidth}${fontSpec}`;
     } else {
-      // Статичный текст (внизу по центру, всегда видим)
-      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50${fontSpec}`;
+      // Статичный текст с переносом строк, обводкой и тенью для лучшей читаемости
+      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5:text_w=${maxTextWidth}${fontSpec}`;
     }
   }
 
@@ -525,32 +654,18 @@ class VideoGeneratorService {
       currentVideoLabel = nextLabel;
     }
     
-    // АУДИО: конкатенируем все аудио потоки с правильными задержками
-    // Используем adelay для синхронизации аудио с видео переходами
+    // АУДИО: просто конкатенируем последовательно (длительность сохраняется)
+    // Переходы влияют только на видео, аудио идет последовательно
     let audioFilterComplex = '';
-    let audioOffset = 0;
-    
     for (let i = 0; i < blockVideos.length; i++) {
-      if (i === 0) {
-        // Первый блок без задержки
-        audioFilterComplex += `[${i}:a]asetpts=PTS-STARTPTS[a${i}];`;
-      } else {
-        // Последующие блоки с учетом переходов
-        const delay = audioOffset * 1000; // в миллисекундах
-        audioFilterComplex += `[${i}:a]adelay=${delay}|${delay}[a${i}];`;
-      }
-      
-      // Обновляем offset для следующего блока
-      if (i < blockVideos.length - 1) {
-        audioOffset += durations[i] - transitionDuration;
-      }
+      audioFilterComplex += `[${i}:a]`;
     }
+    // Используем concat для точного сохранения длительности
+    // Добавляем atrim для обрезки аудио с учетом переходов
+    audioFilterComplex += `concat=n=${blockVideos.length}:v=0:a=1[aconcat];`;
     
-    // Миксуем все аудио потоки
-    for (let i = 0; i < blockVideos.length; i++) {
-      audioFilterComplex += `[a${i}]`;
-    }
-    audioFilterComplex += `amix=inputs=${blockVideos.length}:duration=longest[aout]`;
+    // Обрезаем аудио до длительности видео (с учетом переходов)
+    audioFilterComplex += `[aconcat]atrim=end=${finalDuration}[aout]`;
     
     // Объединяем видео и аудио фильтры
     const fullFilterComplex = `${videoFilterComplex};${audioFilterComplex}`;
@@ -595,7 +710,10 @@ class VideoGeneratorService {
       // Используем concat demuxer с re-encode для надежности (copy может не работать если кодеки разные)
       await execPromise(`ffmpeg -y -f concat -safe 0 -i "${tempConcatList}" -c:v libx264 -c:a aac "${tempOutputPath}"`);
       fs.unlinkSync(tempConcatList);
-      console.log(`✅ All ${blockVideos.length} blocks concatenated without transitions`);
+      
+      // Подсчитываем общую длительность без переходов
+      const totalDuration = blocks?.reduce((sum, b) => sum + (b.duration || 10), 0) || 0;
+      console.log(`✅ All ${blockVideos.length} blocks concatenated without transitions (total: ${totalDuration}s)`);
     }
     
     // Если есть фоновая музыка, накладываем её

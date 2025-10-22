@@ -21,6 +21,16 @@ export interface IAudioSettings {
   voiceSpeed: number;        // Скорость речи (0.5-2.0)
 }
 
+// Интерфейс для отслеживания прогресса генерации видео
+export interface IVideoGenerationProgress {
+  currentStep: string;              // Текущий шаг генерации
+  stepProgress: number;            // Прогресс текущего шага (0-100)
+  totalProgress: number;            // Общий прогресс (0-100)
+  estimatedTimeRemaining?: number;  // Оставшееся время в секундах
+  logs: string[];                   // Логи процесса генерации
+  error?: string;                   // Ошибка, если есть
+}
+
 export interface IReelDocument extends Document {
   userId: mongoose.Types.ObjectId;
   title: string;
@@ -31,6 +41,7 @@ export interface IReelDocument extends Document {
   audioSettings?: IAudioSettings;   // Настройки аудио
   videoUrl?: string;
   status: 'draft' | 'scenario_generated' | 'blocks_created' | 'video_generating' | 'video_created';
+  generationProgress?: IVideoGenerationProgress; // Прогресс генерации видео
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,6 +71,15 @@ const AudioSettingsSchema = new Schema({
   voiceVolume: { type: Number, default: 80, min: 0, max: 100 },
   musicVolume: { type: Number, default: 30, min: 0, max: 100 },
   voiceSpeed: { type: Number, default: 1.0, min: 0.5, max: 2.0 }
+}, { _id: false });
+
+const VideoGenerationProgressSchema = new Schema({
+  currentStep: { type: String, default: 'Инициализация' },
+  stepProgress: { type: Number, default: 0, min: 0, max: 100 },
+  totalProgress: { type: Number, default: 0, min: 0, max: 100 },
+  estimatedTimeRemaining: { type: Number, required: false },
+  logs: { type: [String], default: [] },
+  error: { type: String, required: false }
 }, { _id: false });
 
 const ReelSchema = new Schema<IReelDocument>(
@@ -109,6 +129,16 @@ const ReelSchema = new Schema<IReelDocument>(
       enum: ['draft', 'scenario_generated', 'blocks_created', 'video_generating', 'video_created'],
       default: 'draft',
       required: true,
+    },
+    generationProgress: {
+      type: VideoGenerationProgressSchema,
+      required: false,
+      default: () => ({
+        currentStep: 'Инициализация',
+        stepProgress: 0,
+        totalProgress: 0,
+        logs: []
+      })
     },
   },
   {

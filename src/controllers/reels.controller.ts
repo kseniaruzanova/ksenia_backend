@@ -549,8 +549,16 @@ export const generateFinalVideo = async (req: AuthRequest, res: Response) => {
   try {
     console.log(`🎬 Starting video generation for reel ${id}...`);
     
-    // Обновляем статус на "генерируется"
+    // Инициализируем прогресс генерации
     reel.status = 'video_generating';
+    reel.generationProgress = {
+      currentStep: 'Инициализация генерации видео',
+      stepProgress: 0,
+      totalProgress: 0,
+      estimatedTimeRemaining: 180, // 3 минуты по умолчанию
+      logs: ['🎬 Начинаем генерацию видео...'],
+      error: undefined
+    };
     await reel.save();
 
     // Запускаем генерацию видео асинхронно
@@ -562,7 +570,8 @@ export const generateFinalVideo = async (req: AuthRequest, res: Response) => {
     res.status(202).json({ 
       message: 'Video generation started',
       reelId: reel._id,
-      estimatedTime: '2-5 minutes'
+      estimatedTime: '2-5 minutes',
+      progress: reel.generationProgress
     });
     
   } catch (error: any) {
@@ -571,6 +580,37 @@ export const generateFinalVideo = async (req: AuthRequest, res: Response) => {
       error: 'Failed to start video generation', 
       details: error.message 
     });
+  }
+};
+
+// Получить прогресс генерации видео
+export const getVideoGenerationProgress = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.customerId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const reel = await Reel.findOne({ _id: id, userId });
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+
+    res.status(200).json({
+      status: reel.status,
+      progress: reel.generationProgress || {
+        currentStep: 'Не начато',
+        stepProgress: 0,
+        totalProgress: 0,
+        logs: []
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error getting video generation progress:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
 
