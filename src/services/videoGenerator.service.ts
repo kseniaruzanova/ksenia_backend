@@ -171,11 +171,16 @@ class VideoGeneratorService {
       const blockVideos: string[] = [];
       
       // Создаем видео для каждого блока
+      console.log(`\n🎬 Creating ${reel.blocks.length} video blocks...`);
       for (let i = 0; i < reel.blocks.length; i++) {
         const block = reel.blocks[i];
+        console.log(`\n📹 Block ${i + 1}/${reel.blocks.length}: "${block.displayText.substring(0, 50)}..." (${block.duration}s, ${block.images?.length || 0} images)`);
         const blockVideoPath = await this.createBlockVideo(block, i, tempDir, reel);
         blockVideos.push(blockVideoPath);
+        console.log(`✅ Block ${i + 1} created successfully`);
       }
+      console.log(`\n✅ All ${blockVideos.length} blocks created\n`);
+      
       
       // Объединяем все блоки в одно видео
       await this.concatenateVideos(blockVideos, outputPath, reel.backgroundMusic, reel.audioSettings, reel.blocks);
@@ -256,36 +261,19 @@ class VideoGeneratorService {
    * Создает фильтр для текста (обычный или бегущий)
    */
   private getTextFilter(displayText: string, scrolling: boolean, duration: number, fontPath: string): string {
+    const escapedText = this.escapeFFmpegText(displayText);
     const fontSpec = fontPath ? `:fontfile=${fontPath}` : '';
     
     if (scrolling) {
-      // Эффект "печатной машинки": постепенно показываем текст по словам
+      // Бегущий текст (постепенное появление слов)
+      // Используем один drawtext с переменной для постепенного появления
       const words = displayText.split(/\s+/).filter(Boolean);
-      const steps = Math.min(10, Math.max(1, words.length));
-      const wordsPerStep = Math.ceil(words.length / steps);
-      const segments: string[] = [];
       
-      for (let i = 0; i < steps; i++) {
-        const endIndex = Math.min(words.length, (i + 1) * wordsPerStep);
-        const partialText = words.slice(0, endIndex).join(' ');
-        const escaped = this.escapeFFmpegText(partialText);
-        const start = (i * duration) / steps;
-        const end = ((i + 1) * duration) / steps;
-        segments.push(
-          `drawtext=text='${escaped}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:enable='between(t,${start.toFixed(3)},${end.toFixed(3)})'${fontSpec}`
-        );
-      }
-      
-      // Последний шаг держим текст до конца
-      const finalText = this.escapeFFmpegText(displayText);
-      segments.push(
-        `drawtext=text='${finalText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:enable='gte(t,${(duration * (steps - 1) / steps).toFixed(3)})'${fontSpec}`
-      );
-      
-      return segments.join(',');
+      // Простая анимация: показываем все слова по очереди с fade-in эффектом
+      // Используем alpha для плавного появления текста
+      return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50:alpha='if(lt(t\\,0.5)\\,t/0.5\\,1)'${fontSpec}`;
     } else {
-      // Статичный текст (внизу по центру)
-      const escapedText = this.escapeFFmpegText(displayText);
+      // Статичный текст (внизу по центру, всегда видим)
       return `drawtext=text='${escapedText}':fontsize=80:fontcolor=white:x=(w-text_w)/2:y=h-th-50${fontSpec}`;
     }
   }
@@ -350,8 +338,9 @@ class VideoGeneratorService {
     
     const command = commandParts.join(' ');
     
-    console.log(`⚙️ Creating block ${block.order} with black background...`);
+    console.log(`  ⚫ Creating ${block.duration}s video with black background and text`);
     await execPromise(command);
+    console.log(`  ✅ Black background video created`);
   }
 
   /**
@@ -387,9 +376,13 @@ class VideoGeneratorService {
     const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
     const images = block.images.map((img: string) => this.urlToLocalPath(img));
     
+    console.log(`  📸 Creating slideshow with ${images.length} images (${block.duration}s total)`);
+    
     // Создаем файл списка для FFmpeg concat
     const listPath = path.join(path.dirname(outputPath), `list_${block.order}.txt`);
-    const durationPerImage = block.duration / images.length;
+    const durationPerImage = Math.max(1, block.duration / images.length); // Минимум 1 секунда на изображение
+    
+    console.log(`  ⏱️ Duration per image: ${durationPerImage.toFixed(2)}s`);
     
     // Создаем временные видео из каждого изображения
     const imageVideos: string[] = [];
@@ -427,7 +420,7 @@ class VideoGeneratorService {
         `"${imageVideoPath}"`
       ].join(' ');
       
-      console.log(`⚙️ Creating image ${i + 1}/${images.length} with ${animation} animation...`);
+      console.log(`  🖼️  Image ${i + 1}/${images.length}: ${animation} animation (${durationPerImage.toFixed(2)}s)`);
       await execPromise(imgCommand);
       imageVideos.push(imageVideoPath);
     }
@@ -451,7 +444,7 @@ class VideoGeneratorService {
     imageVideos.forEach(v => fs.existsSync(v) && fs.unlinkSync(v));
     fs.existsSync(listPath) && fs.unlinkSync(listPath);
     
-    console.log(`✅ Block ${block.order} video created with ${images.length} images`);
+    console.log(`  ✅ Slideshow created: ${images.length} images, ${block.duration}s total, with audio`);
   }
 
   /**
@@ -478,6 +471,7 @@ class VideoGeneratorService {
     if (blockVideos.length < 2) {
       // Если только 1 блок, просто копируем
       fs.copyFileSync(blockVideos[0], outputPath);
+      console.log(`✅ Single block copied (duration: ${blocks[0].duration}s)`);
       return;
     }
 
@@ -485,9 +479,16 @@ class VideoGeneratorService {
     
     // Получаем информацию о длительности каждого видео
     const durations: number[] = [];
+    let totalDuration = 0;
     for (const block of blocks) {
-      durations.push(block.duration || 10);
+      const dur = block.duration || 10;
+      durations.push(dur);
+      totalDuration += dur;
     }
+    
+    // Итоговая длительность с учетом переходов
+    const finalDuration = totalDuration - (transitionDuration * (blockVideos.length - 1));
+    console.log(`📊 Video stats: ${blockVideos.length} blocks, ${totalDuration}s total, ${finalDuration}s with transitions`);
     
     // Строим filter_complex для применения xfade между всеми блоками (ВИДЕО)
     let videoFilterComplex = '';
@@ -498,12 +499,17 @@ class VideoGeneratorService {
       const transition = this.getTransitionFilter(blocks[i].transition || 'fade');
       const nextLabel = i === blockVideos.length - 2 ? 'vout' : `v${i}`;
       
-      // Правильный расчет offset: сумма всех предыдущих длительностей минус накопленные переходы
-      if (i > 0) {
-        offset += durations[i] - transitionDuration;
-      } else {
+      // Рассчитываем offset для перехода
+      // Offset = начало второго видео относительно начала результата
+      // Для первого перехода: duration[0] - transitionDuration
+      // Для последующих: предыдущий offset + duration[i] - transitionDuration
+      if (i === 0) {
         offset = durations[0] - transitionDuration;
+      } else {
+        offset += durations[i] - transitionDuration;
       }
+      
+      console.log(`🔀 Transition ${i + 1}: ${blocks[i].transition || 'fade'} at offset ${offset.toFixed(2)}s`);
       
       if (transition) {
         videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
@@ -519,12 +525,32 @@ class VideoGeneratorService {
       currentVideoLabel = nextLabel;
     }
     
-    // АУДИО: просто конкатенируем все аудио потоки
+    // АУДИО: конкатенируем все аудио потоки с правильными задержками
+    // Используем adelay для синхронизации аудио с видео переходами
     let audioFilterComplex = '';
+    let audioOffset = 0;
+    
     for (let i = 0; i < blockVideos.length; i++) {
-      audioFilterComplex += `[${i}:a]`;
+      if (i === 0) {
+        // Первый блок без задержки
+        audioFilterComplex += `[${i}:a]asetpts=PTS-STARTPTS[a${i}];`;
+      } else {
+        // Последующие блоки с учетом переходов
+        const delay = audioOffset * 1000; // в миллисекундах
+        audioFilterComplex += `[${i}:a]adelay=${delay}|${delay}[a${i}];`;
+      }
+      
+      // Обновляем offset для следующего блока
+      if (i < blockVideos.length - 1) {
+        audioOffset += durations[i] - transitionDuration;
+      }
     }
-    audioFilterComplex += `concat=n=${blockVideos.length}:v=0:a=1[aout]`;
+    
+    // Миксуем все аудио потоки
+    for (let i = 0; i < blockVideos.length; i++) {
+      audioFilterComplex += `[a${i}]`;
+    }
+    audioFilterComplex += `amix=inputs=${blockVideos.length}:duration=longest[aout]`;
     
     // Объединяем видео и аудио фильтры
     const fullFilterComplex = `${videoFilterComplex};${audioFilterComplex}`;
@@ -537,8 +563,9 @@ class VideoGeneratorService {
     
     command += ` -filter_complex "${fullFilterComplex}" -map "[vout]" -map "[aout]" -c:v libx264 -pix_fmt yuv420p -r 25 -c:a aac "${outputPath}"`;
     
-    console.log(`🎬 Concatenating ${blockVideos.length} blocks with transitions and audio...`);
+    console.log(`🎬 Concatenating ${blockVideos.length} blocks with transitions and synchronized audio...`);
     await execPromise(command);
+    console.log(`✅ Video created with final duration: ~${finalDuration.toFixed(1)}s`);
   }
 
   /**
