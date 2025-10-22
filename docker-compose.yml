@@ -1,5 +1,6 @@
 services:
   app:
+    container_name: ksenia_backend_container
     build: .
     ports:
       - "7000:7000"
@@ -11,18 +12,18 @@ services:
       - PORT=7000
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     volumes:
-      # Сохраняем загруженные файлы между перезапусками
+      # Сохраняем загруженные файлы между перезапусками (ВНЕ контейнера)
       - ./uploads:/app/uploads
-      # Временные файлы (можно не мапить, но полезно для отладки)
+      # Временные файлы для генерации видео (ВНЕ контейнера)
       - ./temp:/app/temp
     restart: unless-stopped
     command: >
       sh -c "
-        echo 'Checking environment variables:' &&
-        echo 'MONGO_URI=' $$MONGO_URI &&
-        echo 'DB_NAME=' $$DB_NAME &&
-        echo 'TELEGRAM_BOT_TOKEN exists=' $${TELEGRAM_BOT_TOKEN:+yes} &&
-        echo 'Checking FFmpeg installation:' &&
+        echo '🚀 Starting Ksenia Backend...' &&
+        echo '📁 Checking directories...' &&
+        ls -la /app/uploads 2>/dev/null || echo 'Creating uploads...' &&
+        echo '🎬 Checking FFmpeg...' &&
         ffmpeg -version | head -n 1 &&
+        echo '✅ Starting application...' &&
         npm start
       "
