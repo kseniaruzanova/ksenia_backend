@@ -330,27 +330,23 @@ class VideoGeneratorService {
       fontPath
     );
     
-    // Собираем команду
-    const commandParts = [
-      'ffmpeg',
-      '-y',
-      '-f', 'lavfi',
-      '-i', `color=c=black:s=1080x1920:d=${block.duration}`,
-      '-vf', `"${textFilter}"`,
-      '-c:v', 'libx264',
-      '-pix_fmt', 'yuv420p',
-      '-r', '25'
-    ];
-    
-    // Если есть озвучка, добавляем аудио
+    // Собираем команду: 0:v = цветной фон, 1:a = аудио (tts или тишина)
+    const commandParts = ['ffmpeg', '-y'];
+    // Видео-вход (чёрный фон)
+    commandParts.push('-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${block.duration}`);
+    // Аудио-вход
     if (audioPath && fs.existsSync(audioPath)) {
-      commandParts.push('-i', `"${audioPath}"`, '-c:a', 'aac', '-shortest');
+      commandParts.push('-i', `"${audioPath}"`);
     } else {
-      // Без аудио - тишина
-      commandParts.push('-f', 'lavfi', '-i', `anullsrc=channel_layout=stereo:sample_rate=44100`, '-t', block.duration.toString(), '-c:a', 'aac');
+      commandParts.push('-f', 'lavfi', '-t', block.duration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
     }
-    
-    commandParts.push(`"${outputPath}"`);
+    // Фильтр на видео
+    const filterComplex = `"[0:v]${textFilter}[v]"`;
+    commandParts.push('-filter_complex', filterComplex);
+    // Маппинг
+    commandParts.push('-map', '[v]', '-map', '1:a');
+    // Кодеки и параметры
+    commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', '-shortest', `"${outputPath}"`);
     
     const command = commandParts.join(' ');
     
