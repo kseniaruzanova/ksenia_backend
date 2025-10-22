@@ -60,7 +60,7 @@ class ImageGeneratorService {
           throw new Error(`OpenAI DALL-E API error: ${response.status} - ${error}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as { data: { url: string }[] };
         const imageUrl = data.data[0].url;
         
         if (!imageUrl) {
