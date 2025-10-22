@@ -341,27 +341,26 @@ class VideoGeneratorService {
     switch (animation) {
       case 'zoom-in':
         // Приближение (zoom in) - начинается с 1.0, заканчивается в 1.2
-        // Масштабируем по высоте, сохраняем пропорции, кадрируем по центру в 1080x1920 (без растяжения)
-        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=iw:1920:(iw-iw)/2:(oh-ih)/2:black,zoompan=z=min(zoom+0.0015\\,1.2):d=${frames}:s=1080x1920:fps=25`;
+        // Сначала масштабируем до нужного размера, затем применяем zoompan
+        return `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z=min(zoom+0.0015\\,1.2):d=${frames}:s=1080x1920:fps=25`;
       
       case 'zoom-out':
         // Отдаление (zoom out) - начинается с 1.2, заканчивается в 1.0
-        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=iw:1920:(iw-iw)/2:(oh-ih)/2:black,zoompan=z=max(zoom-0.0015\\,1.0):d=${frames}:s=1080x1920:fps=25`;
+        return `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z=max(zoom-0.0015\\,1.0):d=${frames}:s=1080x1920:fps=25`;
       
       case 'pan-left':
         // Движение влево (Ken Burns)
-        // Линейное смещение без функций с запятыми: x = (t/d)*(iw-ow)
-        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(1080-iw)/2:(1920-ih)/2:black,crop=1080:1920:(t/${duration})*(max(iw-1080\,0)):(1920-ih)/2`;
+        // Сначала масштабируем больше целевого размера, затем кадрируем с движением
+        return `scale=1296:1920:force_original_aspect_ratio=increase,crop=1080:1920:(t/${duration})*(iw-1080):(ih-1920)/2`;
       
       case 'pan-right':
         // Движение вправо
-        // Линейное смещение справа налево: x = (iw-ow) - (t/d)*(iw-ow)
-        return `scale=-1:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(1080-iw)/2:(1920-ih)/2:black,crop=1080:1920:(max(iw-1080\,0))-(t/${duration})*(max(iw-1080\,0)):(1920-ih)/2`;
+        return `scale=1296:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)-(t/${duration})*(iw-1080):(ih-1920)/2`;
       
       case 'none':
       default:
-        // Без анимации
-        return 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black';
+        // Без анимации - масштабируем и кадрируем до точного размера
+        return 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
     }
   }
 
