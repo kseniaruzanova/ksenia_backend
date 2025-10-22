@@ -395,15 +395,14 @@ class VideoGeneratorService {
       fontSize = 55;
     }
     
-    // Максимальная ширина текста (850px для 1080px ширины экрана = ~80%)
-    const maxTextWidth = 850;
-    
+    // Внимание: опция text_w не поддерживается в drawtext на нашей сборке FFmpeg.
+    // Поэтому не используем её. Центрируем текст и даём обводку/тень для читаемости.
     if (scrolling) {
-      // Бегущий текст с плавным появлением, переносом строк и черной обводкой
-      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:alpha='if(lt(t\\,0.3)\\,t/0.3\\,1)':text_w=${maxTextWidth}${fontSpec}`;
+      // Плавное появление (fade-in) и обводка
+      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:alpha='if(lt(t\\,0.3)\\,t/0.3\\,1)'${fontSpec}`;
     } else {
-      // Статичный текст с переносом строк, обводкой и тенью для лучшей читаемости
-      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5:text_w=${maxTextWidth}${fontSpec}`;
+      // Статичный текст с обводкой и тенью
+      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5${fontSpec}`;
     }
   }
 
