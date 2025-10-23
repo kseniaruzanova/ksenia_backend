@@ -2,9 +2,12 @@ import path from 'path';
 import fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import axios from 'axios';
 import AISettings from '../models/aiSettings.model';
 import Reel from '../models/reel.model';
 import { IVideoGenerationProgress } from '../models/reel.model';
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const execPromise = promisify(exec);
 
@@ -52,27 +55,50 @@ class VideoGeneratorService {
       
       console.log(`🎙️ Generating TTS with OpenAI for block ${blockIndex}...`);
       
-      const response = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
+      // Proxy setup from DB
+      let fetchAgent: any = undefined;
+      if (settings?.proxyEnabled && settings.proxyIp && settings.proxyPort) {
+        let proxyUrl: string;
+        const type = (settings.proxyType || 'SOCKS5') as 'SOCKS5' | 'HTTP' | 'HTTPS';
+        if (type === 'SOCKS5') {
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `socks5://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `socks5://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new SocksProxyAgent(proxyUrl);
+        } else {
+          const protocol = type.toLowerCase();
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `${protocol}://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `${protocol}://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new HttpsProxyAgent(proxyUrl);
+        }
+        console.log(`🌐 Using ${settings.proxyType || 'SOCKS5'} proxy for OpenAI TTS: ${settings.proxyIp}:${settings.proxyPort}`);
+      } else {
+        console.log(`🌐 No proxy configured for OpenAI TTS`);
+      }
+
+      console.log(`🎙️ Making TTS request with agent: ${fetchAgent ? 'YES' : 'NO'}`);
+      const response = await axios.post('https://api.openai.com/v1/audio/speech', {
+        model: 'tts-1', // или tts-1-hd для лучшего качества
+        voice: 'alloy', // alloy, echo, fable, onyx, nova, shimmer
+        input: text,
+        speed: Math.max(0.25, Math.min(4.0, voiceSpeed)) // OpenAI принимает 0.25-4.0
+      }, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          model: 'tts-1', // или tts-1-hd для лучшего качества
-          voice: 'alloy', // alloy, echo, fable, onyx, nova, shimmer
-          input: text,
-          speed: Math.max(0.25, Math.min(4.0, voiceSpeed)) // OpenAI принимает 0.25-4.0
-        })
+        httpsAgent: fetchAgent,
+        responseType: 'arraybuffer',
+        timeout: 30000
       });
       
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`OpenAI TTS API error: ${response.status} - ${error}`);
+      if (response.status !== 200) {
+        console.error(`❌ OpenAI TTS API error details:`, response.data);
+        throw new Error(`OpenAI TTS API error: ${response.status} - ${JSON.stringify(response.data)}`);
       }
       
-      const audioBuffer = await response.arrayBuffer();
-      fs.writeFileSync(audioPath, Buffer.from(audioBuffer));
+      fs.writeFileSync(audioPath, response.data);
       
       console.log(`✅ TTS generated: ${audioFilename}`);
       

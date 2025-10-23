@@ -1,9 +1,12 @@
 import path from 'path';
 import fs from 'fs';
+import axios from 'axios';
 import AISettings from '../models/aiSettings.model';
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 // Константы для генерации изображений
-const REEL_IMAGE_SIZE = '1024x1792'; // Вертикальный формат 9:16 для рилсов
+const REEL_IMAGE_SIZE = '1024x1024'; // DALL-E 2 поддерживает: 256x256, 512x512, 1024x1024
 const IMAGES_PER_BLOCK = 5;
 const IMAGE_DURATION_PER_SECOND = 2; // 2 секунды на изображение
 
@@ -27,6 +30,28 @@ class ImageGeneratorService {
         return this.generateMockImages(imagePrompts, blockIndex, reelId);
       }
 
+      // Proxy setup from DB
+      let fetchAgent: any = undefined;
+      if (settings?.proxyEnabled && settings.proxyIp && settings.proxyPort) {
+        let proxyUrl: string;
+        const type = (settings.proxyType || 'SOCKS5') as 'SOCKS5' | 'HTTP' | 'HTTPS';
+        if (type === 'SOCKS5') {
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `socks5://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `socks5://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new SocksProxyAgent(proxyUrl);
+        } else {
+          const protocol = type.toLowerCase();
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `${protocol}://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `${protocol}://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new HttpsProxyAgent(proxyUrl);
+        }
+        console.log(`🌐 Using ${settings.proxyType || 'SOCKS5'} proxy for OpenAI images: ${settings.proxyIp}:${settings.proxyPort}`);
+      } else {
+        console.log(`🌐 No proxy configured for OpenAI images`);
+      }
+
       const imageDir = path.join(process.cwd(), 'uploads', 'images');
       if (!fs.existsSync(imageDir)) {
         fs.mkdirSync(imageDir, { recursive: true });
@@ -42,47 +67,55 @@ class ImageGeneratorService {
         const imagePath = path.join(imageDir, imageFilename);
         
         console.log(`  🖼️  Generating image ${i + 1}/${imagePrompts.length}: "${prompt.substring(0, 50)}..."`);
+        console.log(`  🌐 Using agent: ${fetchAgent ? 'YES' : 'NO'}`);
         
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
+        const response = await axios.post('https://api.openai.com/v1/images/generations', {
+          model: 'dall-e-3',
+          prompt: prompt,
+          n: 1,
+          size: REEL_IMAGE_SIZE
+        }, {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            model: 'dall-e-2',
-            prompt: prompt,
-            n: 1,
-            size: REEL_IMAGE_SIZE
-          })
+          httpsAgent: fetchAgent,
+          timeout: 30000
         });
         
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`OpenAI DALL-E API error: ${response.status} - ${error}`);
+        if (response.status !== 200) {
+          console.error(`❌ OpenAI DALL-E API error details:`, response.data);
+          throw new Error(`OpenAI DALL-E API error: ${response.status} - ${JSON.stringify(response.data)}`);
         }
-        
-        const data = await response.json() as { data: { url: string }[] };
-        const imageUrl = data.data[0].url;
+
+        const imageUrl = response.data.data[0].url;
         
         if (!imageUrl) {
           throw new Error('No image URL in OpenAI response');
         }
         
         // Скачиваем изображение
-        const imageResponse = await fetch(imageUrl);
-        if (!imageResponse.ok) {
+        console.log(`  📥 Downloading image from: ${imageUrl}`);
+        
+        const imageResponse = await axios.get(imageUrl, {
+          responseType: 'arraybuffer',
+          httpsAgent: fetchAgent,
+          timeout: 30000
+        });
+        
+        if (imageResponse.status !== 200) {
           throw new Error(`Failed to download image: ${imageResponse.status}`);
         }
         
-        const imageBuffer = await imageResponse.arrayBuffer();
-        fs.writeFileSync(imagePath, Buffer.from(imageBuffer));
+        fs.writeFileSync(imagePath, imageResponse.data);
         
         // Возвращаем URL для фронтенда
         const imageUrlForFrontend = `/api/uploads/images/${imageFilename}`;
         generatedImages.push(imageUrlForFrontend);
         
         console.log(`  ✅ Image ${i + 1} generated: ${imageFilename}`);
+        console.log(`  📁 Image saved to: ${imagePath}`);
+        console.log(`  🌐 Image URL for frontend: ${imageUrlForFrontend}`);
       }
       
       console.log(`✅ All ${generatedImages.length} images generated for block ${blockIndex}`);
@@ -113,7 +146,7 @@ class ImageGeneratorService {
       
       // Создаем простое цветное изображение с помощью FFmpeg
       const color = colors[i % colors.length];
-      const command = `ffmpeg -y -f lavfi -i "color=c=${color}:s=1024x1792:d=1" -frames:v 1 "${mockPath}"`;
+      const command = `ffmpeg -y -f lavfi -i "color=c=${color}:s=1024x1024:d=1" -frames:v 1 "${mockPath}"`;
       
       try {
         const { exec } = require('child_process');
