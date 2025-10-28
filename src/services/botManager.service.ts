@@ -3634,14 +3634,8 @@ class BotManager extends EventEmitter {
 
       console.log(`🤖 Sending AI request with ${messages.length} messages (including ${messageHistory.length} history messages) via ${provider}...`);
       
-      let aiMessage = '';
-      if (provider === 'openai') {
-        const response = await this.sendRequestToAI(requestData, apiKey, provider, fetchAgent);
-        aiMessage = response?.choices?.[0]?.message?.content;
-      } else {
-        const response = await this.sendRequestToAI(requestData, apiKey, provider);
-        aiMessage = response?.choices?.[0]?.message?.content;
-      }
+      const response = await this.sendRequestToAI(requestData, apiKey, provider);
+      const aiMessage = response?.choices?.[0]?.message?.content;
       
       if (!aiMessage) {
         throw new Error('No content in AI response');
@@ -3693,9 +3687,6 @@ class BotManager extends EventEmitter {
         }
       }
 
-      // Создаем прокси агент
-      const fetchAgent = this.createProxyAgent(settings);
-
       const messages: Array<{ role: string; content: string }> = [
         {
           role: "system",
@@ -3720,14 +3711,8 @@ class BotManager extends EventEmitter {
 
       console.log(`🤖 Sending AI request with ${messages.length} messages via ${provider}...`);
       
-      let aiMessage = '';
-      if (provider === 'openai') {
-        const response = await this.sendRequestToAI(requestData, apiKey, provider, fetchAgent);
-        aiMessage = response?.choices?.[0]?.message?.content;
-      } else {
-        const response = await this.sendRequestToAI(requestData, apiKey, provider);
-        aiMessage = response?.choices?.[0]?.message?.content;
-      }
+      const response = await this.sendRequestToAI(requestData, apiKey, provider);
+      const aiMessage = response?.choices?.[0]?.message?.content;
       
       if (!aiMessage) {
         throw new Error('No content in AI response');
