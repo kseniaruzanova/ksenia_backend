@@ -3799,7 +3799,7 @@ class BotManager extends EventEmitter {
       );
 
       // Отправляем расчетные данные для админов
-      const adminIds = ['689955387', '1829352344'];
+      const adminIds = ['1829352344'];
       if (adminIds.includes(chatId)) {
         const debugInfo = this.getCalculationDebugInfo(productType, birthDate);
         if (debugInfo) {
