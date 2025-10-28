@@ -6,16 +6,88 @@ import axios from 'axios';
 import AISettings from '../models/aiSettings.model';
 import Reel from '../models/reel.model';
 import { IVideoGenerationProgress } from '../models/reel.model';
+import queueService from './queue.service';
+import threadPoolService from './threadPool.service';
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const execPromise = promisify(exec);
+
+// Константы для параллельной обработки
+const MAX_CONCURRENT_TTS_REQUESTS = 2; // Максимум одновременных TTS запросов
+const MAX_CONCURRENT_BLOCKS = 2; // Максимум одновременных блоков для обработки
 
 /**
  * Сервис для генерации видео из блоков
  */
 class VideoGeneratorService {
   
+  /**
+   * Добавляет задачу генерации видео в очередь
+   */
+  async queueVideoGeneration(reel: any, priority: number = 1): Promise<string> {
+    const taskId = queueService.addTask({
+      reelId: reel._id,
+      userId: reel.userId.toString(),
+      type: 'video',
+      priority,
+      progress: 0
+    });
+
+    console.log(`📋 Video generation queued for reel ${reel._id} (task: ${taskId})`);
+    return taskId;
+  }
+
+  /**
+   * Добавляет задачу генерации TTS в очередь
+   */
+  async queueTTSGeneration(reel: any, priority: number = 2): Promise<string> {
+    const taskId = queueService.addTask({
+      reelId: reel._id,
+      userId: reel.userId.toString(),
+      type: 'tts',
+      priority,
+      progress: 0
+    });
+
+    console.log(`📋 TTS generation queued for reel ${reel._id} (task: ${taskId})`);
+    return taskId;
+  }
+
+  /**
+   * Создает семафор для ограничения количества одновременных запросов
+   */
+  private createSemaphore(maxConcurrent: number) {
+    let current = 0;
+    const queue: Array<() => void> = [];
+    
+    return async <T>(fn: () => Promise<T>): Promise<T> => {
+      return new Promise((resolve, reject) => {
+        const execute = async () => {
+          current++;
+          try {
+            const result = await fn();
+            resolve(result);
+          } catch (error) {
+            reject(error);
+          } finally {
+            current--;
+            if (queue.length > 0) {
+              const next = queue.shift()!;
+              next();
+            }
+          }
+        };
+        
+        if (current < maxConcurrent) {
+          execute();
+        } else {
+          queue.push(execute);
+        }
+      });
+    };
+  }
+
   /**
    * Обновляет прогресс генерации в базе данных
    */
@@ -37,50 +109,26 @@ class VideoGeneratorService {
   }
 
   /**
-   * Генерирует TTS озвучку с использованием OpenAI TTS API
+   * Генерирует TTS озвучку для одного блока с использованием OpenAI TTS API
    */
-  async generateTTS(text: string, blockIndex: number, reelId: string, voiceSpeed: number = 1.0): Promise<string | null> {
+  private async generateSingleTTS(
+    text: string, 
+    blockIndex: number, 
+    reelId: string, 
+    voiceSpeed: number,
+    apiKey: string,
+    fetchAgent: any
+  ): Promise<string | null> {
     try {
-      const settings = await AISettings.findOne();
-      const apiKey = settings?.openaiApiKey;
-      
-      if (!apiKey) {
-        console.warn('⚠️ OpenAI API key not configured, using mock TTS');
-        return this.generateMockTTS(text, blockIndex, reelId);
-      }
-
       const audioDir = path.join(process.cwd(), 'uploads', 'audio');
       const audioFilename = `tts_${reelId}_block${blockIndex}_${Date.now()}.mp3`;
       const audioPath = path.join(audioDir, audioFilename);
       
       console.log(`🎙️ Generating TTS with OpenAI for block ${blockIndex}...`);
       
-      // Proxy setup from DB
-      let fetchAgent: any = undefined;
-      if (settings?.proxyEnabled && settings.proxyIp && settings.proxyPort) {
-        let proxyUrl: string;
-        const type = (settings.proxyType || 'SOCKS5') as 'SOCKS5' | 'HTTP' | 'HTTPS';
-        if (type === 'SOCKS5') {
-          proxyUrl = settings.proxyUsername && settings.proxyPassword
-            ? `socks5://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
-            : `socks5://${settings.proxyIp}:${settings.proxyPort}`;
-          fetchAgent = new SocksProxyAgent(proxyUrl);
-        } else {
-          const protocol = type.toLowerCase();
-          proxyUrl = settings.proxyUsername && settings.proxyPassword
-            ? `${protocol}://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
-            : `${protocol}://${settings.proxyIp}:${settings.proxyPort}`;
-          fetchAgent = new HttpsProxyAgent(proxyUrl);
-        }
-        console.log(`🌐 Using ${settings.proxyType || 'SOCKS5'} proxy for OpenAI TTS: ${settings.proxyIp}:${settings.proxyPort}`);
-      } else {
-        console.log(`🌐 No proxy configured for OpenAI TTS`);
-      }
-
-      console.log(`🎙️ Making TTS request with agent: ${fetchAgent ? 'YES' : 'NO'}`);
       const response = await axios.post('https://api.openai.com/v1/audio/speech', {
-        model: 'tts-1', // или tts-1-hd для лучшего качества
-        voice: 'alloy', // alloy, echo, fable, onyx, nova, shimmer
+        model: 'tts-1-hd', // или tts-1-hd для лучшего качества
+        voice: 'nova', // alloy, echo, fable, onyx, nova, shimmer
         input: text,
         speed: Math.max(0.25, Math.min(4.0, voiceSpeed)) // OpenAI принимает 0.25-4.0
       }, {
@@ -103,6 +151,50 @@ class VideoGeneratorService {
       console.log(`✅ TTS generated: ${audioFilename}`);
       
       return audioPath;
+      
+    } catch (error) {
+      console.error(`❌ Error generating TTS for block ${blockIndex}:`, error);
+      // Fallback to mock
+      return this.generateMockTTS(text, blockIndex, reelId);
+    }
+  }
+
+  /**
+   * Генерирует TTS озвучку с использованием OpenAI TTS API (публичный метод)
+   */
+  async generateTTS(text: string, blockIndex: number, reelId: string, voiceSpeed: number = 1.0): Promise<string | null> {
+    try {
+      const settings = await AISettings.findOne();
+      const apiKey = settings?.openaiApiKey;
+      
+      if (!apiKey) {
+        console.warn('⚠️ OpenAI API key not configured, using mock TTS');
+        return this.generateMockTTS(text, blockIndex, reelId);
+      }
+
+      // Proxy setup from DB
+      let fetchAgent: any = undefined;
+      if (settings?.proxyEnabled && settings.proxyIp && settings.proxyPort) {
+        let proxyUrl: string;
+        const type = (settings.proxyType || 'SOCKS5') as 'SOCKS5' | 'HTTP' | 'HTTPS';
+        if (type === 'SOCKS5') {
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `socks5://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `socks5://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new SocksProxyAgent(proxyUrl);
+        } else {
+          const protocol = type.toLowerCase();
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `${protocol}://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `${protocol}://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new HttpsProxyAgent(proxyUrl);
+        }
+        console.log(`🌐 Using ${settings.proxyType || 'SOCKS5'} proxy for OpenAI TTS: ${settings.proxyIp}:${settings.proxyPort}`);
+      } else {
+        console.log(`🌐 No proxy configured for OpenAI TTS`);
+      }
+
+      return await this.generateSingleTTS(text, blockIndex, reelId, voiceSpeed, apiKey, fetchAgent);
       
     } catch (error) {
       console.error(`❌ Error generating TTS for block ${blockIndex}:`, error);
@@ -143,39 +235,122 @@ class VideoGeneratorService {
       const outputFilename = `video_${reel._id}_${Date.now()}.mp4`;
       const outputPath = path.join(outputDir, outputFilename);
       
-      // Шаг 1: Генерация озвучки для каждого блока
-      console.log('🎙️ Step 1: Generating voice-overs...');
+      // Шаг 1: Параллельная генерация озвучки для всех блоков
+      console.log('🎙️ Step 1: Generating voice-overs in parallel...');
       await this.updateProgress(reel._id, {
-        currentStep: 'Генерация озвучки',
+        currentStep: 'Параллельная генерация озвучки',
         stepProgress: 0,
         totalProgress: 20,
         estimatedTimeRemaining: 150,
-        logs: ['🎙️ Генерируем озвучку для каждого блока...']
+        logs: ['🎙️ Генерируем озвучку для всех блоков параллельно...']
       });
       
       const voiceSpeed = reel.audioSettings?.voiceSpeed || 1.0;
       
-      for (let i = 0; i < reel.blocks.length; i++) {
-        const block = reel.blocks[i];
-        const audioPathLocal = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+      // Получаем настройки API один раз
+      const settings = await AISettings.findOne();
+      const apiKey = settings?.openaiApiKey;
+      
+      // Proxy setup
+      let fetchAgent: any = undefined;
+      if (settings?.proxyEnabled && settings.proxyIp && settings.proxyPort) {
+        let proxyUrl: string;
+        const type = (settings.proxyType || 'SOCKS5') as 'SOCKS5' | 'HTTP' | 'HTTPS';
+        if (type === 'SOCKS5') {
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `socks5://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `socks5://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new SocksProxyAgent(proxyUrl);
+        } else {
+          const protocol = type.toLowerCase();
+          proxyUrl = settings.proxyUsername && settings.proxyPassword
+            ? `${protocol}://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+            : `${protocol}://${settings.proxyIp}:${settings.proxyPort}`;
+          fetchAgent = new HttpsProxyAgent(proxyUrl);
+        }
+      }
+      
+      // Фильтруем блоки, которым нужна генерация TTS
+      const blocksNeedingTTS = reel.blocks
+        .map((block: any, index: number) => ({ block, index }))
+        .filter(({ block }: any) => {
+          const audioPathLocal = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+          return !audioPathLocal || !fs.existsSync(audioPathLocal);
+        });
+      
+      if (blocksNeedingTTS.length > 0) {
+        console.log(`🎙️ Generating TTS for ${blocksNeedingTTS.length} blocks in parallel...`);
         
-        // Обновляем прогресс для каждого блока
-        await this.updateProgress(reel._id, {
-          currentStep: `Генерация озвучки блока ${i + 1}/${reel.blocks.length}`,
-          stepProgress: Math.round((i / reel.blocks.length) * 100),
-          totalProgress: 20,
-          estimatedTimeRemaining: 150 - (i * 10),
-          logs: [`🎙️ Обрабатываем блок ${i + 1}: "${block.text.substring(0, 30)}..."`]
+        // Создаем семафор для ограничения одновременных TTS запросов
+        const ttsSemaphore = this.createSemaphore(MAX_CONCURRENT_TTS_REQUESTS);
+        
+        // Создаем промисы для параллельной генерации TTS
+        const ttsPromises = blocksNeedingTTS.map(({ block, index }: any) => 
+          ttsSemaphore(async () => {
+            try {
+              await this.updateProgress(reel._id, {
+                currentStep: `Генерация озвучки блока ${index + 1}/${reel.blocks.length}`,
+                stepProgress: Math.round((index / reel.blocks.length) * 100),
+                totalProgress: 20,
+                estimatedTimeRemaining: 150 - (index * 10),
+                logs: [`🎙️ Обрабатываем блок ${index + 1}: "${block.text.substring(0, 30)}..."`]
+              });
+              
+              const audioPath = await this.generateSingleTTS(block.text, index, reel._id, voiceSpeed, apiKey || '', fetchAgent);
+              console.log(`🔍 TTS result for block ${index + 1}:`, { audioPath, exists: audioPath ? fs.existsSync(audioPath) : false });
+              if (audioPath) {
+                block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
+                console.log(`✅ Block ${index + 1} audio URL set: ${block.audioUrl}`);
+              } else {
+                block.audioUrl = null; // Используем тишину для mock TTS
+                console.log(`⚠️ Block ${index + 1} using silence (no TTS)`);
+              }
+              
+              return { success: true, blockIndex: index };
+            } catch (error) {
+              console.error(`❌ Failed to generate TTS for block ${index + 1}:`, error);
+              block.audioUrl = null; // Fallback to silence
+              return { success: false, blockIndex: index, error: error instanceof Error ? error.message : 'Unknown error' };
+            }
+          })
+        );
+        
+        // Ждем завершения всех TTS промисов с обработкой ошибок
+        const ttsResults = await Promise.allSettled(ttsPromises);
+        
+        const successfulTTS: any[] = [];
+        const failedTTS: any[] = [];
+        
+        ttsResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            const ttsResult = result.value;
+            if (ttsResult.success) {
+              successfulTTS.push(ttsResult);
+            } else {
+              failedTTS.push(ttsResult);
+            }
+          } else {
+            console.error(`❌ TTS promise ${index + 1} rejected:`, result.reason);
+            failedTTS.push({ 
+              success: false, 
+              blockIndex: index, 
+              error: result.reason instanceof Error ? result.reason.message : 'Promise rejected' 
+            });
+          }
         });
         
-        if (!audioPathLocal || !fs.existsSync(audioPathLocal)) {
-          const audioPath = await this.generateTTS(block.text, i, reel._id, voiceSpeed);
-          if (audioPath) {
-            block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
-          } else {
-            block.audioUrl = null; // Используем тишину для mock TTS
-          }
+        console.log(`🎙️ TTS generation completed:`);
+        console.log(`   ✅ Successful: ${successfulTTS.length}/${blocksNeedingTTS.length}`);
+        console.log(`   ❌ Failed: ${failedTTS.length}/${blocksNeedingTTS.length}`);
+        
+        if (failedTTS.length > 0) {
+          console.warn(`⚠️ ${failedTTS.length} blocks failed TTS generation, using silence:`);
+          failedTTS.forEach(block => {
+            console.warn(`   - Block ${block.blockIndex + 1}: ${block.error}`);
+          });
         }
+      } else {
+        console.log('🎙️ All blocks already have TTS audio, skipping generation');
       }
       
       // Сохраняем audioUrl в базе
@@ -270,17 +445,26 @@ class VideoGeneratorService {
   /**
    * Создает mock видео (заглушка)
    */
-  private createMockVideo(outputPath: string, reel: any): string {
-    const mockContent = JSON.stringify({
-      message: 'MOCK VIDEO FILE',
-      note: 'FFmpeg is required for actual video generation',
-      blocks: reel.blocks.length,
-      totalDuration: reel.blocks.reduce((sum: number, b: any) => sum + b.duration, 0)
-    }, null, 2);
-    
-    fs.writeFileSync(outputPath, mockContent);
-    console.log('⚠️ Created mock video file (install FFmpeg for actual video generation)');
-    
+  private async createMockVideo(outputPath: string, reel: any): Promise<string> {
+    // Создаем валидный mp4 с черным фоном и тишиной, чтобы фронт мог воспроизвести файл
+    const totalDuration = (reel.blocks || []).reduce((sum: number, b: any) => sum + (b.duration || 10), 0) || 10;
+    const command = [
+      'ffmpeg',
+      '-y',
+      '-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${totalDuration}`,
+      '-f', 'lavfi', '-t', totalDuration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25',
+      '-c:a', 'aac',
+      `"${outputPath}"`
+    ].join(' ');
+    try {
+      console.log('⚠️ FFmpeg not found or pipeline failed, creating simple black mp4 as fallback');
+      await execPromise(command);
+    } catch (e) {
+      // На случай если ffmpeg недоступен вообще — создадим пустой файл .mp4, чтобы не падать
+      console.warn('⚠️ Failed to create mock mp4 via ffmpeg, writing empty file as last resort');
+      fs.writeFileSync(outputPath, Buffer.alloc(0));
+    }
     return outputPath;
   }
 
@@ -296,26 +480,80 @@ class VideoGeneratorService {
     try {
       const blockVideos: string[] = [];
       
-      // Создаем видео для каждого блока
-      console.log(`\n🎬 Creating ${reel.blocks.length} video blocks...`);
-      for (let i = 0; i < reel.blocks.length; i++) {
-        const block = reel.blocks[i];
-        
-        // Обновляем прогресс для каждого блока
-        await this.updateProgress(reel._id, {
-          currentStep: `Создание блока ${i + 1}/${reel.blocks.length}`,
-          stepProgress: Math.round((i / reel.blocks.length) * 100),
-          totalProgress: 80,
-          estimatedTimeRemaining: 100 - (i * 15),
-          logs: [`🎬 Создаем блок ${i + 1}: "${block.displayText.substring(0, 30)}..."`]
+      // Создаем видео для всех блоков параллельно
+      console.log(`\n🎬 Creating ${reel.blocks.length} video blocks in parallel...`);
+      
+      // Создаем семафор для ограничения одновременных блоков
+      const blockSemaphore = this.createSemaphore(MAX_CONCURRENT_BLOCKS);
+      
+      // Создаем промисы для параллельного создания блоков
+      const blockPromises = reel.blocks.map((block: any, i: number) => 
+        blockSemaphore(async () => {
+          try {
+            await this.updateProgress(reel._id, {
+              currentStep: `Создание блока ${i + 1}/${reel.blocks.length}`,
+              stepProgress: Math.round((i / reel.blocks.length) * 100),
+              totalProgress: 80,
+              estimatedTimeRemaining: 100 - (i * 15),
+              logs: [`🎬 Создаем блок ${i + 1}: "${block.displayText.substring(0, 30)}..."`]
+            });
+            
+            console.log(`\n📹 Block ${i + 1}/${reel.blocks.length}: "${block.displayText.substring(0, 50)}..." (${block.duration}s, ${block.images?.length || 0} images)`);
+            const blockVideoPath = await this.createBlockVideo(block, i, tempDir, reel);
+            console.log(`✅ Block ${i + 1} created successfully`);
+            
+            return { success: true, blockIndex: i, videoPath: blockVideoPath };
+          } catch (error) {
+            console.error(`❌ Failed to create block ${i + 1}:`, error);
+            return { success: false, blockIndex: i, error: error instanceof Error ? error.message : 'Unknown error' };
+          }
+        })
+      );
+      
+      // Ждем завершения всех блоков с обработкой ошибок
+      const blockResults = await Promise.allSettled(blockPromises);
+      
+      // Обрабатываем результаты
+      const successfulBlocks: any[] = [];
+      const failedBlocks: any[] = [];
+      
+      blockResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const blockResult = result.value;
+          if (blockResult.success) {
+            successfulBlocks.push(blockResult);
+          } else {
+            failedBlocks.push(blockResult);
+          }
+        } else {
+          console.error(`❌ Block video promise ${index + 1} rejected:`, result.reason);
+          failedBlocks.push({ 
+            success: false, 
+            blockIndex: index, 
+            error: result.reason instanceof Error ? result.reason.message : 'Promise rejected' 
+          });
+        }
+      });
+      
+      // Сортируем по индексу блока для правильного порядка
+      successfulBlocks.sort((a, b) => a.blockIndex - b.blockIndex);
+      blockVideos.push(...successfulBlocks.map(r => r.videoPath));
+      
+      console.log(`\n✅ Video blocks creation completed:`);
+      console.log(`   ✅ Successful blocks: ${successfulBlocks.length}/${reel.blocks.length}`);
+      console.log(`   ❌ Failed blocks: ${failedBlocks.length}/${reel.blocks.length}`);
+      
+      if (failedBlocks.length > 0) {
+        console.warn(`⚠️ ${failedBlocks.length} blocks failed to create video:`);
+        failedBlocks.forEach(block => {
+          console.warn(`   - Block ${block.blockIndex + 1}: ${block.error}`);
         });
-        
-        console.log(`\n📹 Block ${i + 1}/${reel.blocks.length}: "${block.displayText.substring(0, 50)}..." (${block.duration}s, ${block.images?.length || 0} images)`);
-        const blockVideoPath = await this.createBlockVideo(block, i, tempDir, reel);
-        blockVideos.push(blockVideoPath);
-        console.log(`✅ Block ${i + 1} created successfully`);
       }
-      console.log(`\n✅ All ${blockVideos.length} blocks created\n`);
+      
+      // Если все блоки провалились, выбрасываем ошибку
+      if (successfulBlocks.length === 0 && reel.blocks.length > 0) {
+        throw new Error('All video blocks failed to create');
+      }
       
       // Обновляем прогресс - этап объединения
       await this.updateProgress(reel._id, {
@@ -345,6 +583,13 @@ class VideoGeneratorService {
    */
   private async createBlockVideo(block: any, index: number, tempDir: string, reel: any): Promise<string> {
     const blockOutputPath = path.join(tempDir, `block_${index}.mp4`);
+    
+    console.log(`🔍 Creating block ${index + 1} video:`, {
+      hasImages: !!(block.images && block.images.length > 0),
+      imageCount: block.images?.length || 0,
+      audioUrl: block.audioUrl,
+      audioExists: block.audioUrl ? fs.existsSync(this.urlToLocalPath(block.audioUrl)) : false
+    });
     
     // Если нет изображений, создаем черный фон
     if (!block.images || block.images.length === 0) {
@@ -405,7 +650,12 @@ class VideoGeneratorService {
    */
   private getTextFilter(displayText: string, scrolling: boolean, duration: number, fontPath: string): string {
     const escapedText = this.escapeFFmpegText(displayText);
-    const fontSpec = fontPath ? `:fontfile=${fontPath}` : '';
+    // На Windows используем font='Arial' (через fontconfig), чтобы избежать проблем с двоеточием в путях C:\
+    // На других ОС используем fontfile и экранируем двоеточия для ffmpeg filter_complex
+    const useFontFile = process.platform !== 'win32' && !!fontPath;
+    const fontSpec = useFontFile
+      ? `:fontfile=${fontPath.replace(/:/g, '\\:')}`
+      : `:font='Arial'`;
     
     // Автоматически подбираем размер шрифта в зависимости от длины текста
     let fontSize = 60;
@@ -458,7 +708,7 @@ class VideoGeneratorService {
    * Создает видео блока с черным фоном
    */
   private async createVideoWithBlackBackground(block: any, outputPath: string, reel: any): Promise<void> {
-    const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    const blockAudioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
     const fontPath = this.getFontPath();
     
     // Добавляем текст на экран (обычный или бегущий)
@@ -473,13 +723,24 @@ class VideoGeneratorService {
     const commandParts = ['ffmpeg', '-y'];
     // Видео-вход (чёрный фон)
     commandParts.push('-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${block.duration}`);
-    // Аудио-вход - всегда используем тишину для mock TTS
-    commandParts.push('-f', 'lavfi', '-t', block.duration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
+    
+    if (blockAudioPath && fs.existsSync(blockAudioPath)) {
+      console.log(`  🎙️ Adding real audio from: ${path.basename(blockAudioPath)}`);
+      // Аудио-вход - используем реальное аудио
+      commandParts.push('-i', `"${blockAudioPath}"`);
+      // Маппинг
+      commandParts.push('-map', '[v]', '-map', '1:a');
+    } else {
+      console.log(`  🔇 No audio file found, using silence`);
+      // Аудио-вход - используем тишину
+      commandParts.push('-f', 'lavfi', '-t', block.duration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
+      // Маппинг
+      commandParts.push('-map', '[v]', '-map', '1:a');
+    }
+    
     // Фильтр на видео
     const filterComplex = `"[0:v]${textFilter}[v]"`;
     commandParts.push('-filter_complex', filterComplex);
-    // Маппинг
-    commandParts.push('-map', '[v]', '-map', '1:a');
     // Кодеки и параметры
     commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', `"${outputPath}"`);
     
@@ -528,10 +789,10 @@ class VideoGeneratorService {
     // Создаем файл списка для FFmpeg concat
     const listPath = path.join(path.dirname(outputPath), `list_${block.order}.txt`);
     
-    // Каждое изображение показывается 2 секунды
-    const durationPerImage = 2;
+    // Каждое изображение показывается равное количество времени
+    const durationPerImage = block.duration / images.length;
     
-    console.log(`  ⏱️ Duration per image: ${durationPerImage}s`);
+    console.log(`  ⏱️ Duration per image: ${durationPerImage.toFixed(2)}s (${block.duration}s total / ${images.length} images)`);
     
     // Создаем временные видео из каждого изображения
     const imageVideos: string[] = [];
@@ -569,7 +830,7 @@ class VideoGeneratorService {
         `"${imageVideoPath}"`
       ].join(' ');
       
-      console.log(`  🖼️  Image ${i + 1}/${images.length}: ${animation} animation (${durationPerImage}s)`);
+      console.log(`  🖼️  Image ${i + 1}/${images.length}: ${animation} animation (${durationPerImage.toFixed(2)}s)`);
       await execPromise(imgCommand);
       imageVideos.push(imageVideoPath);
     }
@@ -581,15 +842,23 @@ class VideoGeneratorService {
     const concatVideoPath = path.join(path.dirname(outputPath), `concat_${block.order}.mp4`);
     await execPromise(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${concatVideoPath}"`);
     
-    // Добавляем аудио - всегда используем тишину для mock TTS
-    await execPromise(`ffmpeg -y -i "${concatVideoPath}" -f lavfi -t ${block.duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac "${outputPath}"`);
+    // Добавляем аудио - используем реальное аудио если есть, иначе тишину
+    const blockAudioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    
+    if (blockAudioPath && fs.existsSync(blockAudioPath)) {
+      console.log(`  🎙️ Adding real audio from: ${path.basename(blockAudioPath)}`);
+      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -i "${blockAudioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`);
+    } else {
+      console.log(`  🔇 No audio file found, using silence`);
+      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -f lavfi -t ${block.duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac "${outputPath}"`);
+    }
     fs.unlinkSync(concatVideoPath);
     
     // Удаляем временные файлы
     imageVideos.forEach(v => fs.existsSync(v) && fs.unlinkSync(v));
     fs.existsSync(listPath) && fs.unlinkSync(listPath);
     
-    console.log(`  ✅ Slideshow created: ${images.length} images, ${block.duration}s total, with audio`);
+    console.log(`  ✅ Slideshow created: ${images.length} images, ${block.duration}s total (${durationPerImage.toFixed(2)}s per image), with audio`);
   }
 
   /**

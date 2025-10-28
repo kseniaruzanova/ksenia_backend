@@ -1824,6 +1824,21 @@ class BotManager extends EventEmitter {
 
       try {
         const user = await User.findOne({ chat_id: chatId, customerId: customerId });
+        
+        // Проверяем, активен ли режим прямого общения с админом
+        if (user?.adminChatMode) {
+          console.log(`🔧 Admin chat mode active for chat ${chatId}. Skipping script processing.`);
+          this.emit('message:received', {
+            customerId,
+            chatId,
+            type: 'text',
+            text,
+            adminChatMode: true,
+            from: { firstName, lastName, username: telegramUsername }
+          });
+          return;
+        }
+        
         const userState: string | null = user?.state || null;
 
         console.log(`🔍 User state: ${userState}`);
@@ -3193,18 +3208,44 @@ class BotManager extends EventEmitter {
     }
   }
 
+  /**
+   * Создает прокси агент на основе настроек из БД (использует тот же подход, что и в imageGenerator)
+   * @param settings - Настройки AI
+   * @returns Прокси агент или undefined
+   */
+  private createProxyAgent(settings: any): any {
+    // Proxy setup from DB
+    let fetchAgent: any = undefined;
+    if (settings?.proxyEnabled && settings.proxyIp && settings.proxyPort) {
+      let proxyUrl: string;
+      const type = (settings.proxyType || 'SOCKS5') as 'SOCKS5' | 'HTTP' | 'HTTPS';
+      
+      if (type === 'SOCKS5') {
+        proxyUrl = settings.proxyUsername && settings.proxyPassword
+          ? `socks5://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+          : `socks5://${settings.proxyIp}:${settings.proxyPort}`;
+        fetchAgent = new SocksProxyAgent(proxyUrl);
+      } else {
+        const protocol = type.toLowerCase();
+        proxyUrl = settings.proxyUsername && settings.proxyPassword
+          ? `${protocol}://${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyIp}:${settings.proxyPort}`
+          : `${protocol}://${settings.proxyIp}:${settings.proxyPort}`;
+        fetchAgent = new HttpsProxyAgent(proxyUrl);
+      }
+      
+      console.log(`🌐 Using ${settings.proxyType || 'SOCKS5'} proxy for AI: ${settings.proxyIp}:${settings.proxyPort}`);
+    } else {
+      console.log(`🌐 No proxy configured for AI`);
+    }
+    
+    return fetchAgent;
+  }
+
   private async sendRequestToAI(
     data: any, 
     apiKey: string, 
     provider: 'vsegpt' | 'openai' = 'vsegpt',
-    proxySettings?: {
-      enabled: boolean;
-      type: 'SOCKS5' | 'HTTP' | 'HTTPS';
-      ip: string;
-      port: number;
-      username?: string;
-      password?: string;
-    }
+    fetchAgent?: any
   ): Promise<any> {
     try {
       let url: string;
@@ -3224,36 +3265,9 @@ class BotManager extends EventEmitter {
         body: JSON.stringify(data)
       };
 
-      // Добавляем прокси если он включен
-      if (proxySettings?.enabled && proxySettings.ip && proxySettings.port) {
-        let proxyUrl: string;
-        
-        console.log(`🌐 Configuring ${proxySettings.type} proxy: ${proxySettings.ip}:${proxySettings.port}`);
-        
-        if (proxySettings.type === 'SOCKS5') {
-          // Формат: socks5://[username:password@]host:port
-          if (proxySettings.username && proxySettings.password) {
-            proxyUrl = `socks5://${proxySettings.username}:${proxySettings.password}@${proxySettings.ip}:${proxySettings.port}`;
-            console.log(`🔐 Using SOCKS5 with authentication`);
-          } else {
-            proxyUrl = `socks5://${proxySettings.ip}:${proxySettings.port}`;
-            console.log(`🔓 Using SOCKS5 without authentication`);
-          }
-          fetchOptions.agent = new SocksProxyAgent(proxyUrl);
-        } else {
-          // HTTP/HTTPS прокси
-          const protocol = proxySettings.type.toLowerCase();
-          if (proxySettings.username && proxySettings.password) {
-            proxyUrl = `${protocol}://${proxySettings.username}:${proxySettings.password}@${proxySettings.ip}:${proxySettings.port}`;
-          } else {
-            proxyUrl = `${protocol}://${proxySettings.ip}:${proxySettings.port}`;
-          }
-          fetchOptions.agent = new HttpsProxyAgent(proxyUrl);
-        }
-
-        console.log(`✅ Proxy agent configured successfully`);
-      } else {
-        console.log(`ℹ️ No proxy configured, using direct connection`);
+      // Добавляем прокси агент если он передан
+      if (fetchAgent) {
+        fetchOptions.agent = fetchAgent;
       }
 
       const response = await fetch(url, fetchOptions);
@@ -3506,23 +3520,8 @@ class BotManager extends EventEmitter {
         }
       }
 
-      // Подготавливаем настройки прокси
-      const proxySettings = settings.proxyEnabled ? {
-        enabled: true,
-        type: settings.proxyType || 'SOCKS5' as 'SOCKS5' | 'HTTP' | 'HTTPS',
-        ip: settings.proxyIp || '',
-        port: settings.proxyPort || 4145,
-        username: settings.proxyUsername,
-        password: settings.proxyPassword
-      } : undefined;
-
-      console.log(`🔍 Proxy settings:`, {
-        enabled: settings.proxyEnabled,
-        type: settings.proxyType,
-        ip: settings.proxyIp,
-        port: settings.proxyPort,
-        hasAuth: !!(settings.proxyUsername && settings.proxyPassword)
-      });
+      // Создаем прокси агент
+      const fetchAgent = this.createProxyAgent(settings);
 
       const messages: Array<{ role: string; content: string }> = [
         {
@@ -3540,7 +3539,7 @@ class BotManager extends EventEmitter {
 
       console.log(`🤖 Sending AI request with ${messages.length} messages (including ${messageHistory.length} history messages) via ${provider}...`);
       
-      const response = await this.sendRequestToAI(requestData, apiKey, provider, proxySettings);
+      const response = await this.sendRequestToAI(requestData, apiKey, provider, fetchAgent);
       
       const aiMessage = response?.choices?.[0]?.message?.content;
       
@@ -3594,23 +3593,8 @@ class BotManager extends EventEmitter {
         }
       }
 
-      // Подготавливаем настройки прокси
-      const proxySettings = settings.proxyEnabled ? {
-        enabled: true,
-        type: settings.proxyType || 'SOCKS5' as 'SOCKS5' | 'HTTP' | 'HTTPS',
-        ip: settings.proxyIp || '',
-        port: settings.proxyPort || 4145,
-        username: settings.proxyUsername,
-        password: settings.proxyPassword
-      } : undefined;
-
-      console.log(`🔍 Proxy settings:`, {
-        enabled: settings.proxyEnabled,
-        type: settings.proxyType,
-        ip: settings.proxyIp,
-        port: settings.proxyPort,
-        hasAuth: !!(settings.proxyUsername && settings.proxyPassword)
-      });
+      // Создаем прокси агент
+      const fetchAgent = this.createProxyAgent(settings);
 
       const messages: Array<{ role: string; content: string }> = [
         {
@@ -3636,7 +3620,7 @@ class BotManager extends EventEmitter {
 
       console.log(`🤖 Sending AI request with ${messages.length} messages via ${provider}...`);
       
-      const response = await this.sendRequestToAI(requestData, apiKey, provider, proxySettings);
+      const response = await this.sendRequestToAI(requestData, apiKey, provider, fetchAgent);
       
       const aiMessage = response?.choices?.[0]?.message?.content;
       

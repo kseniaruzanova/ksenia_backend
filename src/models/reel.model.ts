@@ -13,6 +13,9 @@ export interface IVideoBlock {
   scrollingText?: boolean;   // Бегущий текст
   audioUrl?: string;         // URL сгенерированной озвучки
   order: number;             // Порядок блока
+  imageGenerationStatus?: 'pending' | 'generating' | 'completed' | 'failed'; // Статус генерации изображений
+  imageGenerationProgress?: number; // Прогресс генерации изображений (0-100)
+  imageGenerationError?: string; // Ошибка генерации изображений
 }
 
 // Настройки аудио
@@ -41,7 +44,7 @@ export interface IReelDocument extends Document {
   backgroundMusic?: string;         // URL фоновой музыки
   audioSettings?: IAudioSettings;   // Настройки аудио
   videoUrl?: string;
-  status: 'draft' | 'scenario_generated' | 'blocks_created' | 'video_generating' | 'video_created';
+  status: 'draft' | 'scenario_generated' | 'blocks_created' | 'generating_images' | 'video_generating' | 'video_created' | 'error';
   generationProgress?: IVideoGenerationProgress; // Прогресс генерации видео
   createdAt: Date;
   updatedAt: Date;
@@ -66,7 +69,14 @@ const VideoBlockSchema = new Schema({
   },
   scrollingText: { type: Boolean, default: false },
   audioUrl: { type: String, required: false },
-  order: { type: Number, required: true }
+  order: { type: Number, required: true },
+  imageGenerationStatus: { 
+    type: String, 
+    enum: ['pending', 'generating', 'completed', 'failed'],
+    default: 'pending'
+  },
+  imageGenerationProgress: { type: Number, default: 0, min: 0, max: 100 },
+  imageGenerationError: { type: String, required: false }
 }, { _id: false });
 
 const AudioSettingsSchema = new Schema({
@@ -128,7 +138,7 @@ const ReelSchema = new Schema<IReelDocument>(
     },
     status: {
       type: String,
-      enum: ['draft', 'scenario_generated', 'blocks_created', 'video_generating', 'video_created'],
+      enum: ['draft', 'scenario_generated', 'blocks_created', 'generating_images', 'video_generating', 'video_created', 'error'],
       default: 'draft',
       required: true,
     },

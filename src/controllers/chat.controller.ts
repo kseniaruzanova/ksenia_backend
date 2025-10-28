@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../interfaces/authRequest';
 import { Chat } from '../models/chat.model';
 import { Message } from '../models/messages.model';
+import User from '../models/user.model';
 
 /**
  * Получить все чаты для клиента
@@ -123,13 +124,17 @@ export const getChatMessages = async (req: AuthRequest, res: Response) => {
     // Сортируем сообщения по возрастанию для отображения
     messages.reverse();
 
+    // Получаем информацию о пользователе, включая режим админа
+    const user = await User.findOne({ chat_id: chat.chatId, customerId }).lean();
+
     res.json({
       messages,
       hasMore,
       userInfo: {
         chatId: chat.chatId,
         state: chat.status,
-        meta: chat.meta
+        meta: chat.meta,
+        adminChatMode: user?.adminChatMode || false
       }
     });
   } catch (error) {

@@ -5,6 +5,7 @@ import { AuthRequest } from '../interfaces/authRequest';
 import AISettings from '../models/aiSettings.model';
 import videoGeneratorService from '../services/videoGenerator.service';
 import imageGeneratorService from '../services/imageGenerator.service';
+import queueService from '../services/queue.service';
 import path from 'path';
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
@@ -398,11 +399,6 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
 
     console.log(`✅ Video blocks generated and saved for reel ${id}`);
     
-    // Генерируем изображения для всех блоков асинхронно
-    generateImagesAsync(reel).catch(error => {
-      console.error(`❌ Error generating images for reel ${id}:`, error);
-    });
-    
     res.status(200).json(reel);
   } catch (error: any) {
     console.error(`❌ Error generating video blocks for reel ${id}:`, error);
@@ -611,9 +607,22 @@ export const generateFinalVideo = async (req: AuthRequest, res: Response) => {
     };
     await reel.save();
 
-    // Запускаем генерацию видео асинхронно
-    generateVideoAsync(reel).catch(error => {
-      console.error(`❌ Error in async video generation for reel ${id}:`, error);
+    // Добавляем генерацию видео в очередь
+    videoGeneratorService.queueVideoGeneration(reel, 1).catch(error => {
+      console.error(`❌ Error queuing video generation for reel ${id}:`, error);
+      // Обновляем статус при ошибке
+      reel.status = 'blocks_created';
+      reel.generationProgress = {
+        currentStep: 'Ошибка добавления в очередь',
+        stepProgress: 0,
+        totalProgress: 0,
+        estimatedTimeRemaining: 0,
+        logs: ['❌ Ошибка при добавлении задачи в очередь'],
+        error: error instanceof Error ? error.message : 'Неизвестная ошибка'
+      };
+      reel.save().catch(saveError => {
+        console.error(`❌ Error saving reel status after queue failure:`, saveError);
+      });
     });
 
     // Сразу возвращаем ответ, что генерация началась
@@ -692,10 +701,10 @@ export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
       reel.blocks = reel.blocks.map((b: any) => ({ ...b, audioUrl: undefined }));
     }
 
-    // Всегда перегенерируем изображения при перегенерации видео
-    if (Array.isArray(reel.blocks)) {
-      reel.blocks = reel.blocks.map((b: any) => ({ ...b, images: [] }));
-    }
+    // НЕ перегенерируем изображения при перегенерации видео - используем существующие
+    // if (Array.isArray(reel.blocks)) {
+    //   reel.blocks = reel.blocks.map((b: any) => ({ ...b, images: [] }));
+    // }
 
     // Сбрасываем предыдущий url видео
     reel.videoUrl = undefined as any;
@@ -707,7 +716,11 @@ export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
       stepProgress: 0,
       totalProgress: 0,
       estimatedTimeRemaining: 180,
-      logs: ['♻️ Запущена перегенерация видео...', forceTTS ? '🎙️ Пересоздаем озвучку' : '🎙️ Используем существующую озвучку'],
+      logs: [
+        '♻️ Запущена перегенерация видео...', 
+        forceTTS ? '🎙️ Пересоздаем озвучку' : '🎙️ Используем существующую озвучку',
+        '🖼️ Используем существующие изображения'
+      ],
       error: undefined
     };
     await reel.save();
@@ -729,10 +742,10 @@ export const regenerateFinalVideo = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Асинхронная генерация изображений
+// Асинхронная генерация изображений с улучшенной обработкой ошибок
 async function generateImagesAsync(reel: any) {
   try {
-    console.log(`🎨 Generating images for reel ${reel._id}...`);
+    console.log(`🎨 Starting parallel image generation for reel ${reel._id}...`);
     console.log(`📊 Reel blocks count: ${reel.blocks?.length || 0}`);
     
     if (reel.blocks) {
@@ -741,7 +754,11 @@ async function generateImagesAsync(reel: any) {
       });
     }
     
-    // Используем imageGeneratorService для генерации изображений
+    // Обновляем статус на генерацию изображений
+    reel.status = 'generating_images';
+    await reel.save();
+    
+    // Используем imageGeneratorService для параллельной генерации изображений
     await imageGeneratorService.generateImagesForReel(reel);
     
     // Сохраняем обновленный рилс с изображениями
@@ -751,35 +768,62 @@ async function generateImagesAsync(reel: any) {
     
   } catch (error) {
     console.error(`❌ Error generating images for reel ${reel._id}:`, error);
+    
+    // Обновляем статус при ошибке
+    try {
+      reel.status = 'blocks_created'; // Возвращаем к предыдущему статусу
+      await reel.save();
+    } catch (saveError) {
+      console.error(`❌ Error saving reel status after image generation failure:`, saveError);
+    }
   }
 }
 
-// Асинхронная генерация видео
+// Асинхронная генерация видео с улучшенной обработкой ошибок
 async function generateVideoAsync(reel: any) {
   try {
-    console.log(`🎬 Generating video for reel ${reel._id}...`);
+    console.log(`🎬 Starting parallel video generation for reel ${reel._id}...`);
     
-    // Сначала генерируем изображения, если их нет
-    if (reel.blocks && reel.blocks.some((b: any) => !b.images || b.images.length === 0)) {
-      console.log(`🎨 Generating missing images for reel ${reel._id}...`);
-      await imageGeneratorService.generateImagesForReel(reel);
-      await reel.save();
-    }
+    // Обновляем статус на генерацию видео
+    reel.status = 'video_generating';
+    await reel.save();
     
-    // Используем videoGeneratorService для генерации
+    // Используем videoGeneratorService для параллельной генерации
     const videoPath = await videoGeneratorService.generateVideo(reel);
     
     // Обновляем рилс с URL видео
     reel.videoUrl = `/api/uploads/videos/${path.basename(videoPath)}`;
     reel.status = 'video_created';
+    reel.generationProgress = {
+      currentStep: 'Видео успешно создано',
+      stepProgress: 100,
+      totalProgress: 100,
+      estimatedTimeRemaining: 0,
+      logs: ['✅ Видео успешно создано!'],
+      error: undefined
+    };
     await reel.save();
     
     console.log(`✅ Video generated successfully for reel ${reel._id}: ${reel.videoUrl}`);
     
   } catch (error) {
     console.error(`❌ Error generating video for reel ${reel._id}:`, error);
-    reel.status = 'blocks_created'; // Возвращаем к предыдущему статусу
-    await reel.save();
+    
+    // Обновляем статус и прогресс при ошибке
+    try {
+      reel.status = 'blocks_created'; // Возвращаем к предыдущему статусу
+      reel.generationProgress = {
+        currentStep: 'Ошибка генерации видео',
+        stepProgress: 0,
+        totalProgress: 0,
+        estimatedTimeRemaining: 0,
+        logs: ['❌ Произошла ошибка при генерации видео'],
+        error: error instanceof Error ? error.message : 'Неизвестная ошибка'
+      };
+      await reel.save();
+    } catch (saveError) {
+      console.error(`❌ Error saving reel status after video generation failure:`, saveError);
+    }
   }
 }
 
@@ -857,5 +901,272 @@ export const generateScenario = async (req: AuthRequest, res: Response) => {
       error: 'Failed to generate scenario', 
       details: error.message 
     });
+  }
+};
+
+// Получить статистику очередей генерации
+export const getQueueStats = async (req: AuthRequest, res: Response) => {
+  try {
+    const stats = queueService.getStats();
+    res.status(200).json(stats);
+  } catch (error: any) {
+    console.error('Error getting queue stats:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+// Получить статистику пула потоков
+export const getThreadPoolStats = async (req: AuthRequest, res: Response) => {
+  try {
+    const threadPoolService = require('../services/threadPool.service').default;
+    const stats = threadPoolService.getStats();
+    res.status(200).json(stats);
+  } catch (error: any) {
+    console.error('Error getting thread pool stats:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+// Отменить задачу генерации
+export const cancelGenerationTask = async (req: AuthRequest, res: Response) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user?.customerId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const cancelled = queueService.cancelTask(taskId);
+    
+    if (cancelled) {
+      res.status(200).json({ message: 'Task cancelled successfully' });
+    } else {
+      res.status(404).json({ error: 'Task not found or already completed' });
+    }
+  } catch (error: any) {
+    console.error('Error cancelling task:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+// Генерировать изображения для конкретного блока
+export const generateBlockImages = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, blockIndex } = req.params;
+    const { imageCount } = req.body;
+    const userId = req.user?.customerId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const reel = await Reel.findOne({ _id: id, userId });
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+
+    const blockIdx = parseInt(blockIndex);
+    if (!reel.blocks || blockIdx < 0 || blockIdx >= reel.blocks.length) {
+      return res.status(400).json({ error: 'Invalid block index' });
+    }
+
+    const block = reel.blocks[blockIdx];
+    if (!block.imagePrompts || block.imagePrompts.length === 0) {
+      return res.status(400).json({ error: 'No image prompts found for this block' });
+    }
+
+    // Проверяем, не генерируются ли уже изображения для этого блока
+    if (block.imageGenerationStatus === 'generating') {
+      return res.status(400).json({ error: 'Images are already being generated for this block' });
+    }
+
+    // Обновляем количество изображений если указано
+    const targetImageCount = imageCount || block.imagePrompts.length;
+    if (targetImageCount !== block.imagePrompts.length) {
+      // Обрезаем или дублируем промпты до нужного количества
+      const adjustedPrompts = [];
+      for (let i = 0; i < targetImageCount; i++) {
+        adjustedPrompts.push(block.imagePrompts[i % block.imagePrompts.length]);
+      }
+      block.imagePrompts = adjustedPrompts;
+    }
+
+    // Устанавливаем статус генерации
+    block.imageGenerationStatus = 'generating';
+    block.imageGenerationProgress = 0;
+    await reel.save();
+
+    console.log(`🎨 Starting image generation for block ${blockIdx} of reel ${id} (${targetImageCount} images)`);
+    console.log(`🔍 Reel ID for generation: ${reel._id} (type: ${typeof reel._id})`);
+
+    // Генерируем изображения в фоне
+    imageGeneratorService.generateImagesForBlock(
+      block.imagePrompts, 
+      blockIdx, 
+      String(reel._id),
+      targetImageCount
+    ).then(async (images) => {
+      // Используем findByIdAndUpdate для безопасного обновления
+      await Reel.findByIdAndUpdate(
+        reel._id,
+        {
+          $set: {
+            [`blocks.${blockIdx}.images`]: images,
+            [`blocks.${blockIdx}.imageGenerationStatus`]: 'completed',
+            [`blocks.${blockIdx}.imageGenerationProgress`]: 100
+          }
+        },
+        { new: true }
+      );
+      
+      console.log(`✅ Image generation completed for block ${blockIdx}: ${images.length} images`);
+    }).catch(async (error) => {
+      console.error(`❌ Image generation failed for block ${blockIdx}:`, error);
+      // Используем findByIdAndUpdate для безопасного обновления ошибки
+      await Reel.findByIdAndUpdate(
+        reel._id,
+        {
+          $set: {
+            [`blocks.${blockIdx}.imageGenerationStatus`]: 'failed',
+            [`blocks.${blockIdx}.imageGenerationError`]: error.message
+          }
+        },
+        { new: true }
+      );
+    });
+
+    res.status(202).json({ 
+      message: 'Image generation started',
+      blockIndex: blockIdx,
+      targetImageCount,
+      status: 'generating'
+    });
+
+  } catch (error: any) {
+    console.error('Error generating block images:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+// Обновление промптов блока
+export const updateBlockPrompts = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, blockIndex } = req.params;
+    const { imagePrompts } = req.body;
+    const userId = req.user?.customerId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const reel = await Reel.findOne({ _id: id, userId });
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+
+    const blockIdx = parseInt(blockIndex);
+    if (!reel.blocks || blockIdx < 0 || blockIdx >= reel.blocks.length) {
+      return res.status(400).json({ error: 'Invalid block index' });
+    }
+
+    if (!imagePrompts || !Array.isArray(imagePrompts)) {
+      return res.status(400).json({ error: 'imagePrompts must be an array' });
+    }
+
+    // Обновляем промпты блока
+    await Reel.findByIdAndUpdate(
+      reel._id,
+      {
+        $set: {
+          [`blocks.${blockIdx}.imagePrompts`]: imagePrompts
+        }
+      },
+      { new: true }
+    );
+
+    console.log(`✅ Updated prompts for block ${blockIdx} of reel ${id}: ${imagePrompts.length} prompts`);
+
+    res.status(200).json({ 
+      message: 'Block prompts updated successfully',
+      blockIndex: blockIdx,
+      imagePrompts
+    });
+
+  } catch (error: any) {
+    console.error('Error updating block prompts:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+// Обновление всего блока
+export const updateBlock = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, blockIndex } = req.params;
+    const { blockData } = req.body;
+    const userId = req.user?.customerId;
+
+    console.log(`🔍 updateBlock called with id: ${id}, blockIndex: ${blockIndex}, userId: ${userId}`);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Валидация ID
+    if (!id || typeof id !== 'string' || id.length !== 24) {
+      console.error(`❌ Invalid reel ID: ${id}`);
+      return res.status(400).json({ error: 'Invalid reel ID format' });
+    }
+
+    const reel = await Reel.findOne({ _id: id, userId });
+    if (!reel) {
+      console.error(`❌ Reel not found: ${id} for user: ${userId}`);
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+
+    console.log(`✅ Found reel: ${reel._id}`);
+
+    const blockIdx = parseInt(blockIndex);
+    if (isNaN(blockIdx) || !reel.blocks || blockIdx < 0 || blockIdx >= reel.blocks.length) {
+      console.error(`❌ Invalid block index: ${blockIndex}, blocks length: ${reel.blocks?.length || 0}`);
+      console.error(`❌ Available block indices: 0-${(reel.blocks?.length || 1) - 1}`);
+      return res.status(400).json({ error: 'Invalid block index' });
+    }
+
+    console.log(`✅ Block index ${blockIdx} is valid. Block exists:`, !!reel.blocks[blockIdx]);
+    console.log(`🔍 Block ${blockIdx} content:`, reel.blocks[blockIdx]);
+
+    if (!blockData) {
+      return res.status(400).json({ error: 'blockData is required' });
+    }
+
+    // Обновляем данные блока
+    const updateFields: any = {};
+    Object.keys(blockData).forEach(key => {
+      updateFields[`blocks.${blockIdx}.${key}`] = blockData[key];
+    });
+
+    console.log(`🔄 Updating block ${blockIdx} with fields:`, Object.keys(updateFields));
+
+    const updateResult = await Reel.findByIdAndUpdate(
+      reel._id,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    console.log(`✅ Update result:`, updateResult ? 'Success' : 'Failed');
+    console.log(`🔍 Updated block ${blockIdx}:`, updateResult?.blocks?.[blockIdx]);
+
+    console.log(`✅ Updated block ${blockIdx} of reel ${id}:`, Object.keys(blockData));
+
+    res.status(200).json({ 
+      message: 'Block updated successfully',
+      blockIndex: blockIdx,
+      updatedFields: Object.keys(blockData)
+    });
+
+  } catch (error: any) {
+    console.error('Error updating block:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };

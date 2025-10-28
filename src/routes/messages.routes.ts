@@ -4,7 +4,8 @@ import {
   sendMessage,
   sendMassMessage,
   sendBroadcastMessage,
-  getMessageHistory
+  getMessageHistory,
+  toggleAdminChatMode
 } from '../controllers/messages.controller';
 
 const router = Router();
@@ -23,6 +24,9 @@ router.post('/broadcast', sendBroadcastMessage);
 
 // GET /api/messages/history/:chatId - получить историю сообщений
 router.get('/history/:chatId', getMessageHistory);
+
+// PUT /api/messages/admin-chat-mode - включить/выключить режим прямого общения с админом
+router.put('/admin-chat-mode', toggleAdminChatMode);
 
 export default router;
 

@@ -12,6 +12,7 @@ export interface IUser extends Document {
   city_name?: string;
   messages?: string[];
   customerId: Schema.Types.ObjectId;
+  adminChatMode?: boolean; // Режим прямого общения с админом
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,6 +29,7 @@ const userSchema = new Schema<IUser>({
   city_name: { type: String },
   messages: { type: [String] },
   customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
+  adminChatMode: { type: Boolean, default: false }, // Режим прямого общения с админом
 }, {
   timestamps: true,
   collection: 'Users'

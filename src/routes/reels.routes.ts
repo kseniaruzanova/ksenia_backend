@@ -12,6 +12,12 @@ import {
   getVideoGenerationProgress,
   regenerateFinalVideo,
   regenerateImage,
+  getQueueStats,
+  getThreadPoolStats,
+  cancelGenerationTask,
+  generateBlockImages,
+  updateBlockPrompts,
+  updateBlock,
 } from '../controllers/reels.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { catchAsync } from '../lib/catchAsync';
@@ -56,6 +62,24 @@ router.put('/:id', catchAsync(updateReel));
 
 // DELETE /api/reels/:id - удалить рилс
 router.delete('/:id', catchAsync(deleteReel));
+
+// GET /api/reels/stats/queue - получить статистику очередей
+router.get('/stats/queue', catchAsync(getQueueStats));
+
+// GET /api/reels/stats/thread-pool - получить статистику пула потоков
+router.get('/stats/thread-pool', catchAsync(getThreadPoolStats));
+
+// DELETE /api/reels/tasks/:taskId - отменить задачу генерации
+router.delete('/tasks/:taskId', catchAsync(cancelGenerationTask));
+
+// POST /api/reels/:id/blocks/:blockIndex/generate-images - сгенерировать изображения для блока
+router.post('/:id/blocks/:blockIndex/generate-images', catchAsync(generateBlockImages));
+
+// PUT /api/reels/:id/blocks/:blockIndex/prompts - обновить промпты блока
+router.put('/:id/blocks/:blockIndex/prompts', catchAsync(updateBlockPrompts));
+
+// PUT /api/reels/:id/blocks/:blockIndex - обновить весь блок
+router.put('/:id/blocks/:blockIndex', catchAsync(updateBlock));
 
 export default router;
 

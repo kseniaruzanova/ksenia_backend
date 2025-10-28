@@ -14,6 +14,7 @@ export interface ICustomer extends Document {
   otherCountries?: string;
   sendTo?: string;
   paymentInstructions?: string;
+  willGuideToken?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +35,7 @@ const customerSchema = new Schema<ICustomer>({
   otherCountries: { type: String },
   sendTo: { type: String },
   paymentInstructions: { type: String },
+  willGuideToken: { type: String },
 }, {
   timestamps: true,
 });

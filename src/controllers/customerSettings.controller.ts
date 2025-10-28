@@ -19,6 +19,7 @@ export const getCustomerSettings: RequestHandler<{ id: string }> = async (req, r
       cardHolderName: customer.cardHolderName,
       otherCountries: customer.otherCountries,
       sendTo: customer.sendTo,
+      willGuideToken: customer.willGuideToken,
     };
 
     res.status(200).json(settings);
@@ -50,6 +51,7 @@ export const updateCustomerSettings: RequestHandler<{ id: string }> = async (req
       cardHolderName: updatedCustomer.cardHolderName,
       otherCountries: updatedCustomer.otherCountries,
       sendTo: updatedCustomer.sendTo,
+      willGuideToken: updatedCustomer.willGuideToken,
     };
 
     res.status(200).json(settings);

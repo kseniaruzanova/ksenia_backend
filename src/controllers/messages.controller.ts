@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../interfaces/authRequest';
 import { Chat } from '../models/chat.model';
 import { Message } from '../models/messages.model';
+import User from '../models/user.model';
 import botManager from '../services/botManager.service';
 
 /**
@@ -211,6 +212,55 @@ export const getMessageHistory = async (req: AuthRequest, res: Response) => {
     console.error('Error fetching message history:', error);
     res.status(500).json({ 
       message: 'Failed to fetch message history', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+};
+
+/**
+ * Включить/выключить режим прямого общения с админом
+ * PUT /api/messages/admin-chat-mode
+ */
+export const toggleAdminChatMode = async (req: AuthRequest, res: Response) => {
+  try {
+    const { customerId, role } = req.user!;
+    const { chatId, enabled } = req.body;
+
+    if (role !== 'customer') {
+      res.status(403).json({ message: 'Access denied' });
+      return;
+    }
+
+    if (!chatId || enabled === undefined) {
+      res.status(400).json({ message: 'chatId and enabled are required' });
+      return;
+    }
+
+    // Находим пользователя
+    const user = await User.findOne({ 
+      chat_id: chatId, 
+      customerId: customerId 
+    });
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Обновляем режим админа
+    user.adminChatMode = enabled as boolean;
+    await user.save();
+
+    console.log(`🔧 Admin chat mode ${enabled ? 'ENABLED' : 'DISABLED'} for chat ${chatId}`);
+
+    res.json({ 
+      message: `Admin chat mode ${enabled ? 'enabled' : 'disabled'} successfully`,
+      adminChatMode: user.adminChatMode 
+    });
+  } catch (error) {
+    console.error('Error toggling admin chat mode:', error);
+    res.status(500).json({ 
+      message: 'Failed to toggle admin chat mode', 
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
   }

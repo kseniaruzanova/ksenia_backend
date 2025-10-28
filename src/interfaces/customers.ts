@@ -16,4 +16,5 @@ export interface CustomerSettings {
   cardHolderName?: string;
   otherCountries?: string;
   sendTo?: string;
+  willGuideToken?: string;
 };
