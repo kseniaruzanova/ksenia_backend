@@ -754,7 +754,7 @@ class BotManager extends EventEmitter {
       try {
         const menuText = "🔮 *Главное меню*\n\nВыберите, что вас интересует:";
         
-        const options: any = {
+        const keyboard: any = {
           parse_mode: 'Markdown',
           reply_markup: {
             inline_keyboard: [
@@ -768,7 +768,7 @@ class BotManager extends EventEmitter {
           }
         };
         
-        const result = await bot.telegram.sendMessage(chatId, menuText, options);
+        const result = await bot.telegram.sendMessage(chatId, menuText, keyboard);
 
         const chat = await Chat.findOne({ customerId, chatId });
         if (chat) {
@@ -1119,14 +1119,24 @@ class BotManager extends EventEmitter {
       try {
         await ctx.answerCbQuery();
 
-        await this.sendMessage(
-          customerId,
-          chatId,
-          "🔮 *Гадалка*\n\nДанная функция находится в разработке и скоро будет доступна!",
-          false,
-          false,
-          false,
-          "Markdown"
+        const message = "🔮 *Гадалка*\n\nДанная функция находится в разработке и скоро будет доступна!";
+
+        await this.editOrSendMessage(
+          ctx,
+          message,
+          undefined,
+          { parse_mode: 'Markdown' },
+          async () => {
+            await this.sendMessage(
+              customerId,
+              chatId,
+              message,
+              false,
+              false,
+              false,
+              "Markdown"
+            );
+          }
         );
 
         this.emit('message:received', {
@@ -1205,22 +1215,43 @@ class BotManager extends EventEmitter {
       try {
         await ctx.answerCbQuery();
 
-        await this.sendMessage(
-          customerId,
-          chatId,
-          "🃏 *Таронумеролог*\n\nВыберите нужный расчет для генерации персонального результата:",
-          false,
-          false,
-          false,
-          "Markdown",
-          [
-            "🔮 Тароскоп на любые месяцы",
-            "💰 Расчет 4 кода денег",
-            "🕰️ Ошибки прошлого воплощения",
-            "✨ Аркан самореализации",
-            "✨ Три кода пробуждения"
-          ],
-          true
+        const message = "🃏 *Таронумеролог*\n\nВыберите нужный расчет для генерации персонального результата:";
+        const keyboard = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🔮 Тароскоп на любые месяцы', callback_data: 'product_forecast' }],
+              [{ text: '💰 Расчет 4 кода денег', callback_data: 'product_financialcast' }],
+              [{ text: '🕰️ Ошибки прошлого воплощения', callback_data: 'product_mistakes' }],
+              [{ text: '✨ Аркан самореализации', callback_data: 'product_arcanum' }],
+              [{ text: '✨ Три кода пробуждения', callback_data: 'product_awakening' }]
+            ]
+          }
+        };
+
+        await this.editOrSendMessage(
+          ctx,
+          message,
+          keyboard,
+          { parse_mode: 'Markdown' },
+          async () => {
+            await this.sendMessage(
+              customerId,
+              chatId,
+              message,
+              false,
+              false,
+              false,
+              "Markdown",
+              [
+                "🔮 Тароскоп на любые месяцы",
+                "💰 Расчет 4 кода денег",
+                "🕰️ Ошибки прошлого воплощения",
+                "✨ Аркан самореализации",
+                "✨ Три кода пробуждения"
+              ],
+              true
+            );
+          }
         );
 
         this.emit('message:received', {
@@ -1269,14 +1300,22 @@ class BotManager extends EventEmitter {
           "`/podpiska` — Оформить подписку\n\n" +
           "Выберите нужный раздел в меню, и я помогу вам раскрыть тайны вашей судьбы! ✨";
 
-        await this.sendMessage(
-          customerId,
-          chatId,
+        await this.editOrSendMessage(
+          ctx,
           instructions,
-          false,
-          false,
-          false,
-          "Markdown"
+          undefined,
+          { parse_mode: 'Markdown' },
+          async () => {
+            await this.sendMessage(
+              customerId,
+              chatId,
+              instructions,
+              false,
+              false,
+              false,
+              "Markdown"
+            );
+          }
         );
 
         this.emit('message:received', {
@@ -1302,15 +1341,26 @@ class BotManager extends EventEmitter {
       console.log(`💎 Menu: Подписка from ${firstName} ${lastName} (@${telegramUsername}) in chat ${chatId} for customer ${username}`);
 
       try {
+        await ctx.answerCbQuery();
 
-        await this.sendMessage(
-          customerId,
-          chatId,
-          "💎 *Подписка*\n\nДанная функция находится в разработке и скоро будет доступна!",
-          false,
-          false,
-          false,
-          "Markdown"
+        const message = "💎 *Подписка*\n\nДанная функция находится в разработке и скоро будет доступна!";
+
+        await this.editOrSendMessage(
+          ctx,
+          message,
+          undefined,
+          { parse_mode: 'Markdown' },
+          async () => {
+            await this.sendMessage(
+              customerId,
+              chatId,
+              message,
+              false,
+              false,
+              false,
+              "Markdown"
+            );
+          }
         );
         
         this.emit('message:received', {
@@ -1537,8 +1587,7 @@ class BotManager extends EventEmitter {
         
         const menuText = "🔮 *Главное меню*\n\nВыберите, что вас интересует:";
         
-        await ctx.editMessageText(menuText, {
-          parse_mode: 'Markdown',
+        const keyboard = {
           reply_markup: {
             inline_keyboard: [
               [{ text: '🌟 Астролог', callback_data: 'menu_astrolog' }],
@@ -1549,7 +1598,17 @@ class BotManager extends EventEmitter {
               [{ text: '💎 Подписка', callback_data: 'menu_subscription' }]
             ]
           }
-        });
+        };
+        
+        await this.editOrSendMessage(
+          ctx,
+          menuText,
+          keyboard,
+          { parse_mode: 'Markdown' },
+          async () => {
+            await bot.telegram.sendMessage(chatId, menuText, keyboard);
+          }
+        );
       } catch (error) {
         console.error('❌ Error handling show_main_menu:', error);
       }
@@ -3294,6 +3353,42 @@ class BotManager extends EventEmitter {
     cleaned = cleaned.replace(/[ \t]+$/gm, '');
     
     return cleaned;
+  }
+
+  /**
+   * Пытается отредактировать сообщение через callback, если не получается - удаляет и отправляет новое
+   * @param ctx - Telegram context
+   * @param message - Текст сообщения
+   * @param keyboard - Клавиатура (inline)
+   * @param options - Дополнительные опции для редактирования
+   * @param sendMessageFn - Функция для отправки нового сообщения (вызывается если редактирование не удалось)
+   */
+  private async editOrSendMessage(
+    ctx: any,
+    message: string,
+    keyboard?: any,
+    options?: { parse_mode?: string },
+    sendMessageFn?: () => Promise<void>
+  ): Promise<void> {
+    try {
+      if (keyboard) {
+        await ctx.editMessageText(message, { ...keyboard, ...options });
+      } else {
+        await ctx.editMessageText(message, options);
+      }
+    } catch (editError) {
+      // Если сообщение слишком старое или другое сообщение - удаляем и отправляем новое
+      try {
+        await ctx.deleteMessage();
+      } catch (deleteError) {
+        console.log('Could not delete message:', deleteError);
+      }
+      
+      // Отправляем новое сообщение если есть функция
+      if (sendMessageFn) {
+        await sendMessageFn();
+      }
+    }
   }
 
   /**
