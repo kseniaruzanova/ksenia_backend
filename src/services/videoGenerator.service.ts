@@ -863,13 +863,27 @@ class VideoGeneratorService {
     }
     commandParts.push('-filter_complex', filterComplex);
     // Кодеки и параметры
+    // Убеждаемся, что длительность видео точно соответствует block.duration
+    commandParts.push('-t', block.duration.toString());
     commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', `"${outputPath}"`);
     
     const command = commandParts.join(' ');
     
     console.log(`  ⚫ Creating ${block.duration}s video with black background and text`);
     await execPromise(command);
-    console.log(`  ✅ Black background video created`);
+    
+    // Проверяем длительность созданного видео
+    const videoInfo = await this.getVideoInfo(outputPath);
+    const actualDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : 0;
+    console.log(`  ✅ Black background video created (duration: ${actualDuration.toFixed(2)}s, expected: ${block.duration}s)`);
+    
+    // Если длительность не совпадает, исправляем
+    if (Math.abs(actualDuration - block.duration) > 0.1) {
+      console.warn(`  ⚠️ Duration mismatch detected, fixing...`);
+      await execPromise(`ffmpeg -y -i "${outputPath}" -t ${block.duration} -c:v libx264 -pix_fmt yuv420p -r 25 -c:a copy "${outputPath}.fixed"`);
+      fs.renameSync(`${outputPath}.fixed`, outputPath);
+      console.log(`  ✅ Duration fixed to ${block.duration}s`);
+    }
   }
 
   /**
@@ -1003,13 +1017,21 @@ class VideoGeneratorService {
     
     if (blockAudioPath && fs.existsSync(blockAudioPath)) {
       console.log(`  🎙️ Adding real audio from: ${path.basename(blockAudioPath)}`);
-      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -i "${blockAudioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`);
+      // Используем длительность видео для правильного выравнивания аудио (НЕ используем -shortest!)
+      const videoInfo = await this.getVideoInfo(finalVideoPath);
+      const videoDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : block.duration;
+      
+      // Обрезаем или растягиваем аудио до длительности видео
+      const filterComplex = `[1:a]asetrate=44100,aresample=44100,atrim=duration=${videoDuration}[a]`;
+      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -i "${blockAudioPath}" -filter_complex "${filterComplex}" -map 0:v -map "[a]" -c:v copy -c:a aac -t ${videoDuration} "${outputPath}"`);
       if (finalVideoPath !== concatVideoPath) {
         fs.unlinkSync(finalVideoPath);
       }
     } else {
       console.log(`  🔇 No audio file found, using silence`);
-      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -f lavfi -t ${block.duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac "${outputPath}"`);
+      const videoInfo = await this.getVideoInfo(finalVideoPath);
+      const videoDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : block.duration;
+      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac -t ${videoDuration} "${outputPath}"`);
       if (finalVideoPath !== concatVideoPath) {
         fs.unlinkSync(finalVideoPath);
       }
@@ -1020,6 +1042,19 @@ class VideoGeneratorService {
     fs.existsSync(listPath) && fs.unlinkSync(listPath);
     
     console.log(`  ✅ Slideshow created: ${images.length} images, ${block.duration}s total (${durationPerImage.toFixed(2)}s per image), with audio`);
+    
+    // Проверяем финальную длительность
+    const finalVideoInfo = await this.getVideoInfo(outputPath);
+    const finalDuration = finalVideoInfo?.format?.duration ? parseFloat(finalVideoInfo.format.duration) : 0;
+    console.log(`  📊 Final video duration: ${finalDuration.toFixed(2)}s (expected: ${block.duration}s)`);
+    
+    // Если длительность не совпадает, исправляем
+    if (Math.abs(finalDuration - block.duration) > 0.1) {
+      console.warn(`  ⚠️ Duration mismatch detected (${finalDuration.toFixed(2)}s vs ${block.duration}s), fixing...`);
+      await execPromise(`ffmpeg -y -i "${outputPath}" -t ${block.duration} -c:v libx264 -pix_fmt yuv420p -r 25 -c:a copy "${outputPath}.fixed"`);
+      fs.renameSync(`${outputPath}.fixed`, outputPath);
+      console.log(`  ✅ Duration fixed to ${block.duration}s`);
+    }
   }
 
   /**
