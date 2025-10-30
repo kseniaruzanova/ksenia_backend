@@ -8,14 +8,17 @@ export interface IVideoBlock {
   duration: number;          // Продолжительность в секундах
   images: string[];          // URL загруженных изображений
   imagePrompts?: string[];   // Промпты для генерации изображений
-  imageAnimation?: string;   // Тип анимации для изображений (zoom-in, zoom-out, pan-left, pan-right, none)
-  transition?: string;       // Переход к следующему блоку (fade, dissolve, wipe, none)
+  imageAnimation?: string;   // Тип анимации для изображений (zoom-in, swipe)
+  transition?: string;       // Переход к следующему блоку (fade)
   scrollingText?: boolean;   // Бегущий текст
   audioUrl?: string;         // URL сгенерированной озвучки
   order: number;             // Порядок блока
   imageGenerationStatus?: 'pending' | 'generating' | 'completed' | 'failed'; // Статус генерации изображений
   imageGenerationProgress?: number; // Прогресс генерации изображений (0-100)
   imageGenerationError?: string; // Ошибка генерации изображений
+  textFontSize?: number;     // Размер шрифта текста (20-100)
+  textPosition?: string;     // Расположение текста (top, center, bottom)
+  textFont?: string;         // Шрифт текста (Arial, Arial Black, Impact, Times New Roman, Verdana)
 }
 
 // Настройки аудио
@@ -23,6 +26,7 @@ export interface IAudioSettings {
   voiceVolume: number;       // Громкость голоса (0-100)
   musicVolume: number;       // Громкость музыки (0-100)
   voiceSpeed: number;        // Скорость речи (0.5-2.0)
+  voice?: string;            // Голос для озвучки (alloy, echo, fable, onyx, nova, shimmer)
 }
 
 // Интерфейс для отслеживания прогресса генерации видео
@@ -59,12 +63,12 @@ const VideoBlockSchema = new Schema({
   imagePrompts: { type: [String], default: [] },
   imageAnimation: { 
     type: String, 
-    enum: ['zoom-in', 'zoom-out', 'pan-left', 'pan-right', 'none'],
+    enum: ['zoom-in', 'swipe'],
     default: 'zoom-in'
   },
   transition: { 
     type: String, 
-    enum: ['fade', 'dissolve', 'wipe', 'none'],
+    enum: ['fade'],
     default: 'fade'
   },
   scrollingText: { type: Boolean, default: false },
@@ -76,13 +80,25 @@ const VideoBlockSchema = new Schema({
     default: 'pending'
   },
   imageGenerationProgress: { type: Number, default: 0, min: 0, max: 100 },
-  imageGenerationError: { type: String, required: false }
+  imageGenerationError: { type: String, required: false },
+  textFontSize: { type: Number, default: 50, min: 20, max: 100 },
+  textPosition: { 
+    type: String, 
+    enum: ['top', 'center', 'bottom'],
+    default: 'bottom'
+  },
+  textFont: { 
+    type: String, 
+    enum: ['Arial', 'Arial Black', 'Impact', 'Times New Roman', 'Verdana'],
+    default: 'Arial'
+  }
 }, { _id: false });
 
 const AudioSettingsSchema = new Schema({
   voiceVolume: { type: Number, default: 80, min: 0, max: 100 },
   musicVolume: { type: Number, default: 30, min: 0, max: 100 },
-  voiceSpeed: { type: Number, default: 1.0, min: 0.5, max: 2.0 }
+  voiceSpeed: { type: Number, default: 1.0, min: 0.5, max: 2.0 },
+  voice: { type: String, enum: ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'], default: 'nova' }
 }, { _id: false });
 
 const VideoGenerationProgressSchema = new Schema({
@@ -129,7 +145,8 @@ const ReelSchema = new Schema<IReelDocument>(
       default: () => ({
         voiceVolume: 80,
         musicVolume: 30,
-        voiceSpeed: 1.0
+        voiceSpeed: 1.0,
+        voice: 'nova'
       })
     },
     videoUrl: {

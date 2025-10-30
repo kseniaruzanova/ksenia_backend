@@ -116,6 +116,7 @@ class VideoGeneratorService {
     blockIndex: number, 
     reelId: string, 
     voiceSpeed: number,
+    voice: string,
     apiKey: string,
     fetchAgent: any
   ): Promise<string | null> {
@@ -124,11 +125,11 @@ class VideoGeneratorService {
       const audioFilename = `tts_${reelId}_block${blockIndex}_${Date.now()}.mp3`;
       const audioPath = path.join(audioDir, audioFilename);
       
-      console.log(`🎙️ Generating TTS with OpenAI for block ${blockIndex}...`);
+      console.log(`🎙️ Generating TTS with OpenAI for block ${blockIndex} (voice: ${voice})...`);
       
       const response = await axios.post('https://api.openai.com/v1/audio/speech', {
-        model: 'tts-1-hd', // или tts-1-hd для лучшего качества
-        voice: 'nova', // alloy, echo, fable, onyx, nova, shimmer
+        model: 'tts-1-hd',
+        voice: voice || 'nova', // alloy, echo, fable, onyx, nova, shimmer
         input: text,
         speed: Math.max(0.25, Math.min(4.0, voiceSpeed)) // OpenAI принимает 0.25-4.0
       }, {
@@ -162,7 +163,7 @@ class VideoGeneratorService {
   /**
    * Генерирует TTS озвучку с использованием OpenAI TTS API (публичный метод)
    */
-  async generateTTS(text: string, blockIndex: number, reelId: string, voiceSpeed: number = 1.0): Promise<string | null> {
+  async generateTTS(text: string, blockIndex: number, reelId: string, voiceSpeed: number = 1.0, voice: string = 'nova'): Promise<string | null> {
     try {
       const settings = await AISettings.findOne();
       const apiKey = settings?.openaiApiKey;
@@ -194,7 +195,7 @@ class VideoGeneratorService {
         console.log(`🌐 No proxy configured for OpenAI TTS`);
       }
 
-      return await this.generateSingleTTS(text, blockIndex, reelId, voiceSpeed, apiKey, fetchAgent);
+      return await this.generateSingleTTS(text, blockIndex, reelId, voiceSpeed, voice, apiKey, fetchAgent);
       
     } catch (error) {
       console.error(`❌ Error generating TTS for block ${blockIndex}:`, error);
@@ -246,6 +247,7 @@ class VideoGeneratorService {
       });
       
       const voiceSpeed = reel.audioSettings?.voiceSpeed || 1.0;
+      const voice = reel.audioSettings?.voice || 'nova';
       
       // Получаем настройки API один раз
       const settings = await AISettings.findOne();
@@ -296,7 +298,7 @@ class VideoGeneratorService {
                 logs: [`🎙️ Обрабатываем блок ${index + 1}: "${block.text.substring(0, 30)}..."`]
               });
               
-              const audioPath = await this.generateSingleTTS(block.text, index, reel._id, voiceSpeed, apiKey || '', fetchAgent);
+              const audioPath = await this.generateSingleTTS(block.text, index, reel._id, voiceSpeed, voice, apiKey || '', fetchAgent);
               console.log(`🔍 TTS result for block ${index + 1}:`, { audioPath, exists: audioPath ? fs.existsSync(audioPath) : false });
               if (audioPath) {
                 block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
@@ -603,33 +605,57 @@ class VideoGeneratorService {
 
   /**
    * Создает FFmpeg фильтр для анимации изображения
+   * Только два эффекта: zoom-in и swipe
+   * Для нечетных блоков (1,3,5...) - оригинальный эффект, для четных (0,2,4...) - обратный эффект
    */
-  private getImageAnimationFilter(animation: string, duration: number): string {
+  private getImageAnimationFilter(animation: string, duration: number, blockIndex: number): string {
     const frames = duration * 25;
+    const isEven = blockIndex % 2 === 0; // Четные блоки (0,2,4...) - обратный эффект, нечетные (1,3,5...) - оригинальный
+    
+    console.log(`  🎭 Animation filter: ${animation}, blockIndex: ${blockIndex}, isEven: ${isEven}, duration: ${duration}s, frames: ${frames}`);
     
     switch (animation) {
       case 'zoom-in':
-        // Приближение (zoom in) - начинается с 1.0, заканчивается в 1.2
-        // Сначала масштабируем до нужного размера, затем применяем zoompan
-        return `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z=min(zoom+0.0015\\,1.2):d=${frames}:s=1080x1920:fps=25`;
+        if (isEven) {
+          // Обратный zoom-in для четных (0,2,4...): начинается с большего масштаба и уменьшается (zoom-out эффект)
+          // zoompan: z - формула масштабирования (zoom начинается с 1.0), d - количество кадров, s - размер выхода
+          // Для zoom-out: начинаем с 1.2 и уменьшаем до 1.0
+          // Используем правильный синтаксис для zoompan: z='zoom+0.001' увеличивает, z='1.2-max(zoom-1.0,0)*0.2' уменьшает
+          const filter = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='1.2-max(on/25.0/${duration}*0.2,0)':d=${frames}:s=1080x1920:fps=25`;
+          console.log(`  🔍 Applying reverse zoom-in (zoom-out) filter for even block ${blockIndex}`);
+          return filter;
+        } else {
+          // Оригинальный zoom-in для нечетных (1,3,5...): начинается с меньшего масштаба и увеличивается
+          // zoompan: zoom начинается с 1.0, постепенно увеличиваем до 1.2
+          const filter = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0015,1.2)':d=${frames}:s=1080x1920:fps=25`;
+          console.log(`  🔍 Applying zoom-in filter for odd block ${blockIndex}`);
+          return filter;
+        }
       
-      case 'zoom-out':
-        // Отдаление (zoom out) - начинается с 1.2, заканчивается в 1.0
-        return `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z=max(zoom-0.0015\\,1.0):d=${frames}:s=1080x1920:fps=25`;
+      case 'swipe':
+        if (isEven) {
+          // Обратный swipe для четных (0,2,4...): движение справа налево
+          const filter = `scale=1296:1920:force_original_aspect_ratio=increase,crop=1080:1920:'(iw-1080)-(t/${duration})*(iw-1080)':(ih-1920)/2`;
+          console.log(`  ↔️ Applying reverse swipe (right to left) filter for even block ${blockIndex}`);
+          return filter;
+        } else {
+          // Оригинальный swipe для нечетных (1,3,5...): движение слева направо
+          const filter = `scale=1296:1920:force_original_aspect_ratio=increase,crop=1080:1920:'(t/${duration})*(iw-1080)':(ih-1920)/2`;
+          console.log(`  ↔️ Applying swipe (left to right) filter for odd block ${blockIndex}`);
+          return filter;
+        }
       
-      case 'pan-left':
-        // Движение влево (Ken Burns)
-        // Сначала масштабируем больше целевого размера, затем кадрируем с движением
-        return `scale=1296:1920:force_original_aspect_ratio=increase,crop=1080:1920:(t/${duration})*(iw-1080):(ih-1920)/2`;
-      
-      case 'pan-right':
-        // Движение вправо
-        return `scale=1296:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)-(t/${duration})*(iw-1080):(ih-1920)/2`;
-      
-      case 'none':
       default:
-        // Без анимации - масштабируем и кадрируем до точного размера
-        return 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920';
+        // По умолчанию zoom-in
+        if (isEven) {
+          const filter = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='1.2-max(on/25.0/${duration}*0.2,0)':d=${frames}:s=1080x1920:fps=25`;
+          console.log(`  🔍 Applying default reverse zoom-in filter for even block ${blockIndex}`);
+          return filter;
+        } else {
+          const filter = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0015,1.2)':d=${frames}:s=1080x1920:fps=25`;
+          console.log(`  🔍 Applying default zoom-in filter for odd block ${blockIndex}`);
+          return filter;
+        }
     }
   }
 
@@ -646,36 +672,114 @@ class VideoGeneratorService {
   }
 
   /**
-   * Создает фильтр для текста (обычный или бегущий)
+   * Создает фильтр для текста (обычный или последовательное появление слов)
+   * @param displayText - текст для отображения
+   * @param wordByWord - последовательное появление слов
+   * @param duration - длительность видео в секундах
+   * @param fontPath - путь к шрифту
+   * @param audioDuration - длительность аудио в секундах (для синхронизации)
+   * @param fontSize - размер шрифта (20-100)
+   * @param position - расположение текста (top, center, bottom)
+   * @param fontName - название шрифта (Arial, Arial Black, Impact, Times New Roman, Verdana)
    */
-  private getTextFilter(displayText: string, scrolling: boolean, duration: number, fontPath: string): string {
-    const escapedText = this.escapeFFmpegText(displayText);
+  private getTextFilter(
+    displayText: string, 
+    wordByWord: boolean, 
+    duration: number, 
+    fontPath: string, 
+    audioDuration?: number,
+    fontSize?: number,
+    position?: string,
+    fontName?: string
+  ): string {
+    // Используем указанный шрифт или по умолчанию Arial
+    const font = fontName || 'Arial';
+    
     // На Windows используем font='Arial' (через fontconfig), чтобы избежать проблем с двоеточием в путях C:\
     // На других ОС используем fontfile и экранируем двоеточия для ffmpeg filter_complex
     const useFontFile = process.platform !== 'win32' && !!fontPath;
     const fontSpec = useFontFile
       ? `:fontfile=${fontPath.replace(/:/g, '\\:')}`
-      : `:font='Arial'`;
+      : `:font='${font}'`;
     
-    // Автоматически подбираем размер шрифта в зависимости от длины текста
-    let fontSize = 60;
-    const textLength = displayText.length;
-    if (textLength > 100) {
-      fontSize = 45;
-    } else if (textLength > 70) {
-      fontSize = 50;
-    } else if (textLength > 40) {
-      fontSize = 55;
+    // Используем указанный размер шрифта или автоматически подбираем в зависимости от длины текста
+    let finalFontSize: number;
+    if (fontSize && fontSize >= 20 && fontSize <= 100) {
+      finalFontSize = fontSize;
+    } else {
+      // Автоматический подбор размера
+      const textLength = displayText.length;
+      if (textLength > 100) {
+        finalFontSize = 45;
+      } else if (textLength > 70) {
+        finalFontSize = 50;
+      } else if (textLength > 40) {
+        finalFontSize = 55;
+      } else {
+        finalFontSize = 60;
+      }
     }
     
-    // Внимание: опция text_w не поддерживается в drawtext на нашей сборке FFmpeg.
-    // Поэтому не используем её. Центрируем текст и даём обводку/тень для читаемости.
-    if (scrolling) {
-      // Плавное появление (fade-in) и обводка
-      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:alpha='if(lt(t\\,0.3)\\,t/0.3\\,1)'${fontSpec}`;
+    // Определяем вертикальную позицию текста
+    let yPosition: string;
+    const pos = position || 'bottom';
+    switch (pos) {
+      case 'top':
+        yPosition = 'text_h+80'; // Отступ сверху 80px
+        break;
+      case 'center':
+        yPosition = '(h-text_h)/2'; // По центру
+        break;
+      case 'bottom':
+      default:
+        yPosition = 'h-text_h-120'; // Отступ снизу 120px (чуть выше, чем было раньше)
+        break;
+    }
+    
+    if (wordByWord) {
+      // Последовательное появление слов (слово за словом) синхронизировано с озвучкой
+      const words = displayText.split(/\s+/).filter(w => w.length > 0);
+      if (words.length === 0) {
+        return ''; // Пустой текст
+      }
+      
+      // Используем длительность аудио для синхронизации, если доступна
+      // Это важно для синхронизации с реальной скоростью озвучки
+      const actualDuration = audioDuration && audioDuration > 0 ? audioDuration : duration;
+      
+      // Время на одно слово на основе длительности аудио
+      const wordDuration = actualDuration / words.length;
+      const wordShowDuration = wordDuration * 0.9; // Слово показывается 90% времени
+      const wordFadeDuration = wordDuration * 0.1; // Плавное появление/исчезновение 10% времени
+      
+      console.log(`  📝 Word-by-word: ${words.length} words, ${actualDuration.toFixed(2)}s audio (voiceSpeed affects this), ${wordDuration.toFixed(3)}s per word`);
+      
+      // Создаем несколько drawtext фильтров, один для каждого слова
+      // Все слова показываются в одном месте, но в разное время
+      // В FFmpeg несколько drawtext фильтров применяются последовательно через запятую
+      const textFilters: string[] = [];
+      words.forEach((word, index) => {
+        const escapedWord = this.escapeFFmpegText(word);
+        const startTime = index * wordDuration;
+        const fadeInEnd = startTime + wordFadeDuration;
+        const fadeOutStart = startTime + wordShowDuration - wordFadeDuration;
+        const endTime = startTime + wordShowDuration;
+        
+        // Альфа-канал: плавное появление, показ, плавное исчезновение
+        // Используем правильное экранирование для FFmpeg
+        const alpha = `if(between(t\\,${startTime}\\,${endTime})\\,if(lt(t\\,${fadeInEnd})\\,(t-${startTime})/${wordFadeDuration}\\,if(gt(t\\,${fadeOutStart})\\,(${endTime}-t)/${wordFadeDuration}\\,1))\\,0)`;
+        
+        // Каждый drawtext фильтр применяется последовательно к результату предыдущего
+        textFilters.push(`drawtext=text='${escapedWord}':fontsize=${finalFontSize}:fontcolor=white:x=(w-text_w)/2:y=${yPosition}:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5:alpha='${alpha}'${fontSpec}`);
+      });
+      
+      // Объединяем все drawtext фильтры через запятую для последовательного применения
+      // В FFmpeg несколько фильтров в одной цепочке разделяются запятыми
+      return textFilters.join(',');
     } else {
       // Статичный текст с обводкой и тенью
-      return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:x=(w-text_w)/2:y=h-text_h-80:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5${fontSpec}`;
+      const escapedText = this.escapeFFmpegText(displayText);
+      return `drawtext=text='${escapedText}':fontsize=${finalFontSize}:fontcolor=white:x=(w-text_w)/2:y=${yPosition}:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5${fontSpec}`;
     }
   }
 
@@ -711,12 +815,24 @@ class VideoGeneratorService {
     const blockAudioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
     const fontPath = this.getFontPath();
     
-    // Добавляем текст на экран (обычный или бегущий)
+    // Получаем длительность аудио для синхронизации слов
+    let audioDuration = 0;
+    if (block.scrollingText && blockAudioPath && fs.existsSync(blockAudioPath)) {
+      audioDuration = await this.getAudioDuration(blockAudioPath);
+    }
+    
+    // Добавляем текст на экран (обычный или последовательное появление слов)
+    // Для последовательного появления используем текст озвучки (block.text), иначе displayText
+    const textForDisplay = block.scrollingText ? block.text : block.displayText;
     const textFilter = this.getTextFilter(
-      block.displayText, 
+      textForDisplay, 
       block.scrollingText || false, 
       block.duration, 
-      fontPath
+      fontPath,
+      audioDuration || undefined,
+      block.textFontSize,
+      block.textPosition,
+      block.textFont
     );
     
     // Собираем команду: 0:v = цветной фон, 1:a = аудио (tts или тишина)
@@ -739,7 +855,12 @@ class VideoGeneratorService {
     }
     
     // Фильтр на видео
-    const filterComplex = `"[0:v]${textFilter}[v]"`;
+    let filterComplex: string;
+    if (textFilter) {
+      filterComplex = `"[0:v]${textFilter}[v]"`;
+    } else {
+      filterComplex = `"[0:v]null[v]"`; // Просто копируем видео без текста
+    }
     commandParts.push('-filter_complex', filterComplex);
     // Кодеки и параметры
     commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', `"${outputPath}"`);
@@ -794,35 +915,34 @@ class VideoGeneratorService {
     
     console.log(`  ⏱️ Duration per image: ${durationPerImage.toFixed(2)}s (${block.duration}s total / ${images.length} images)`);
     
-    // Создаем временные видео из каждого изображения
+    // Получаем длительность аудио для синхронизации слов (один раз для всего блока)
+    let audioDuration = 0;
+    if (block.scrollingText && block.audioUrl) {
+      const audioPathForDuration = this.urlToLocalPath(block.audioUrl);
+      if (fs.existsSync(audioPathForDuration)) {
+        audioDuration = await this.getAudioDuration(audioPathForDuration);
+      }
+    }
+    
+    // Создаем временные видео из каждого изображения с анимацией (без текста)
     const imageVideos: string[] = [];
     const fontPath = this.getFontPath();
     
     for (let i = 0; i < images.length; i++) {
       const imageVideoPath = path.join(path.dirname(outputPath), `img_${block.order}_${i}.mp4`);
       
-      // Применяем анимацию изображения
+      // Применяем анимацию изображения (для нечетных блоков - оригинальный эффект, для четных - обратный)
       const animation = block.imageAnimation || 'zoom-in';
-      const animationFilter = this.getImageAnimationFilter(animation, durationPerImage);
+      const animationFilter = this.getImageAnimationFilter(animation, durationPerImage, block.order - 1);
       
-      // Добавляем текст (обычный или бегущий)
-      const textFilter = this.getTextFilter(
-        block.displayText,
-        block.scrollingText || false,
-        durationPerImage,
-        fontPath
-      );
-      
-      // Собираем полную команду
-      const videoFilter = `${animationFilter},${textFilter}`;
-      
+      // Для каждого изображения НЕ добавляем текст здесь - текст добавим позже поверх всего блока
       const imgCommand = [
         'ffmpeg',
         '-y',
         '-loop', '1',
         '-i', `"${images[i]}"`,
         '-t', durationPerImage.toString(),
-        '-vf', `"${videoFilter}"`,
+        '-vf', `"${animationFilter}"`,
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
         '-r', '25',
@@ -831,6 +951,7 @@ class VideoGeneratorService {
       ].join(' ');
       
       console.log(`  🖼️  Image ${i + 1}/${images.length}: ${animation} animation (${durationPerImage.toFixed(2)}s)`);
+      console.log(`  📝 FFmpeg command (first 300 chars): ${imgCommand.substring(0, 300)}...`);
       await execPromise(imgCommand);
       imageVideos.push(imageVideoPath);
     }
@@ -842,17 +963,57 @@ class VideoGeneratorService {
     const concatVideoPath = path.join(path.dirname(outputPath), `concat_${block.order}.mp4`);
     await execPromise(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${concatVideoPath}"`);
     
+    // Теперь добавляем текст поверх всего блока (если нужно)
+    let finalVideoPath = concatVideoPath;
+    if (block.displayText || block.text) {
+      const textForDisplay = block.scrollingText ? block.text : block.displayText;
+      const textFilter = this.getTextFilter(
+        textForDisplay,
+        block.scrollingText || false,
+        block.duration,
+        fontPath,
+        audioDuration || undefined,
+        block.textFontSize,
+        block.textPosition,
+        block.textFont
+      );
+      
+      if (textFilter) {
+        const textVideoPath = path.join(path.dirname(outputPath), `text_${block.order}.mp4`);
+        const textCommand = [
+          'ffmpeg',
+          '-y',
+          '-i', `"${concatVideoPath}"`,
+          '-vf', `"${textFilter}"`,
+          '-c:v', 'libx264',
+          '-pix_fmt', 'yuv420p',
+          '-c:a', 'copy',
+          `"${textVideoPath}"`
+        ].join(' ');
+        
+        console.log(`  📝 Adding text overlay to block ${block.order}`);
+        await execPromise(textCommand);
+        finalVideoPath = textVideoPath;
+        fs.unlinkSync(concatVideoPath);
+      }
+    }
+    
     // Добавляем аудио - используем реальное аудио если есть, иначе тишину
     const blockAudioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
     
     if (blockAudioPath && fs.existsSync(blockAudioPath)) {
       console.log(`  🎙️ Adding real audio from: ${path.basename(blockAudioPath)}`);
-      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -i "${blockAudioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`);
+      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -i "${blockAudioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`);
+      if (finalVideoPath !== concatVideoPath) {
+        fs.unlinkSync(finalVideoPath);
+      }
     } else {
       console.log(`  🔇 No audio file found, using silence`);
-      await execPromise(`ffmpeg -y -i "${concatVideoPath}" -f lavfi -t ${block.duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac "${outputPath}"`);
+      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -f lavfi -t ${block.duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v copy -c:a aac "${outputPath}"`);
+      if (finalVideoPath !== concatVideoPath) {
+        fs.unlinkSync(finalVideoPath);
+      }
     }
-    fs.unlinkSync(concatVideoPath);
     
     // Удаляем временные файлы
     imageVideos.forEach(v => fs.existsSync(v) && fs.unlinkSync(v));
@@ -863,19 +1024,10 @@ class VideoGeneratorService {
 
   /**
    * Получает FFmpeg xfade фильтр для перехода
+   * Только fade переход
    */
   private getTransitionFilter(transition: string): string {
-    switch (transition) {
-      case 'fade':
-        return 'fade';
-      case 'dissolve':
-        return 'dissolve';
-      case 'wipe':
-        return 'wiperight';
-      case 'none':
-      default:
-        return null as any; // Без перехода
-    }
+    return 'fade'; // Всегда используем fade
   }
 
   /**
@@ -909,28 +1061,20 @@ class VideoGeneratorService {
     let currentVideoLabel = '0:v';
     let offset = 0;
     
-    for (let i = 0; i < blockVideos.length - 1; i++) {
-      const transition = this.getTransitionFilter(blocks[i].transition || 'fade');
+      for (let i = 0; i < blockVideos.length - 1; i++) {
+      const transition = 'fade'; // Всегда используем fade
       const nextLabel = i === blockVideos.length - 2 ? 'vout' : `v${i}`;
       
       // Рассчитываем offset для перехода
-      // Offset = начало второго видео относительно начала результата
-      // Для первого перехода: duration[0] - transitionDuration
-      // Для последующих: предыдущий offset + duration[i] - transitionDuration
       if (i === 0) {
         offset = durations[0] - transitionDuration;
       } else {
         offset += durations[i] - transitionDuration;
       }
       
-      console.log(`🔀 Transition ${i + 1}: ${blocks[i].transition || 'fade'} at offset ${offset.toFixed(2)}s`);
+      console.log(`🔀 Transition ${i + 1}: fade at offset ${offset.toFixed(2)}s`);
       
-      if (transition) {
-        videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
-      } else {
-        // Без перехода - просто конкатенация
-        videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]concat=n=2:v=1[${nextLabel}]`;
-      }
+      videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
       
       if (i < blockVideos.length - 2) {
         videoFilterComplex += ';';
@@ -980,12 +1124,10 @@ class VideoGeneratorService {
   ): Promise<void> {
     const tempOutputPath = path.join(path.dirname(outputPath), 'temp_concat.mp4');
     
-    // Проверяем есть ли переходы между блоками
-    const hasTransitions = blocks && blocks.some(b => b.transition && b.transition !== 'none');
-    
-    if (hasTransitions && blockVideos.length > 1) {
+    // Всегда используем fade переходы между блоками
+    if (blockVideos.length > 1) {
       console.log('🎞️ Applying transitions between blocks...');
-      await this.concatenateWithTransitions(blockVideos, tempOutputPath, blocks);
+      await this.concatenateWithTransitions(blockVideos, tempOutputPath, blocks || []);
     } else {
       // Простое объединение без переходов (сохраняет видео и аудио)
       const tempConcatList = path.join(path.dirname(outputPath), 'concat_list.txt');
@@ -1101,6 +1243,31 @@ class VideoGeneratorService {
     } catch (error) {
       console.error('❌ Error getting video info:', error);
       return null;
+    }
+  }
+
+  /**
+   * Получает длительность аудио файла в секундах
+   */
+  private async getAudioDuration(audioPath: string): Promise<number> {
+    try {
+      const { stdout } = await execPromise(
+        `ffprobe -v quiet -print_format json -show_format -show_streams "${audioPath}"`
+      );
+      
+      const info = JSON.parse(stdout);
+      const duration = parseFloat(info.format?.duration || '0');
+      
+      if (duration > 0) {
+        console.log(`  🎵 Audio duration: ${duration.toFixed(2)}s`);
+        return duration;
+      }
+      
+      // Fallback: используем block.duration если не удалось получить
+      return 0;
+    } catch (error) {
+      console.error(`  ⚠️ Error getting audio duration: ${error}`);
+      return 0;
     }
   }
 }
