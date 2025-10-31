@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   getUserReels,
   createReel,
@@ -18,11 +19,14 @@ import {
   generateBlockImages,
   updateBlockPrompts,
   updateBlock,
+  uploadBlockAudio,
 } from '../controllers/reels.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { catchAsync } from '../lib/catchAsync';
 
 const router = Router();
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 // Все роуты требуют аутентификацию
 router.use(authMiddleware);
@@ -80,6 +84,13 @@ router.put('/:id/blocks/:blockIndex/prompts', catchAsync(updateBlockPrompts));
 
 // PUT /api/reels/:id/blocks/:blockIndex - обновить весь блок
 router.put('/:id/blocks/:blockIndex', catchAsync(updateBlock));
+
+// POST /api/reels/:id/blocks/:blockIndex/upload-audio - загрузить аудио для блока
+router.post(
+  '/:id/blocks/:blockIndex/upload-audio',
+  upload.single('audio'),
+  catchAsync(uploadBlockAudio)
+);
 
 export default router;
 

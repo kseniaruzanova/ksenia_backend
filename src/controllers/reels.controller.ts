@@ -7,6 +7,7 @@ import videoGeneratorService from '../services/videoGenerator.service';
 import imageGeneratorService from '../services/imageGenerator.service';
 import queueService from '../services/queue.service';
 import path from 'path';
+import fs from 'fs';
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
@@ -389,6 +390,7 @@ export const generateVideoBlocks = async (req: AuthRequest, res: Response) => {
         transition: 'fade',                                           // Всегда fade между блоками
         scrollingText: false,                                         // По умолчанию обычный текст
         audioUrl: undefined,
+        audioType: 'ai',                                              // По умолчанию AI озвучка
         order: index + 1
       };
     });
@@ -1164,6 +1166,98 @@ export const updateBlock = async (req: AuthRequest, res: Response) => {
 
   } catch (error: any) {
     console.error('Error updating block:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+// Загрузить аудио файл для блока
+export const uploadBlockAudio = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, blockIndex } = req.params;
+    const userId = req.user?.customerId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!id || typeof id !== 'string' || id.length !== 24) {
+      return res.status(400).json({ error: 'Invalid reel ID format' });
+    }
+
+    const reel = await Reel.findOne({ _id: id, userId });
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+
+    const blockIdx = parseInt(blockIndex);
+    if (isNaN(blockIdx) || !reel.blocks || blockIdx < 0 || blockIdx >= reel.blocks.length) {
+      return res.status(400).json({ error: 'Invalid block index' });
+    }
+
+    // Проверяем наличие файла
+    if (!req.file) {
+      return res.status(400).json({ error: 'Audio file is required' });
+    }
+
+    const audioFile = req.file;
+    if (!audioFile.buffer) {
+      return res.status(400).json({ error: 'Invalid audio file' });
+    }
+
+    // Проверяем формат файла
+    const allowedMimeTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/ogg', 'audio/webm'];
+    if (!allowedMimeTypes.includes(audioFile.mimetype)) {
+      return res.status(400).json({ error: 'Invalid audio file format. Allowed formats: MP3, WAV, M4A, OGG, WEBM' });
+    }
+
+    // Создаем директорию для аудио если её нет
+    const audioDir = path.join(process.cwd(), 'uploads', 'audio');
+    if (!fs.existsSync(audioDir)) {
+      fs.mkdirSync(audioDir, { recursive: true });
+    }
+
+    // Генерируем уникальное имя файла
+    const fileExtension = audioFile.originalname.split('.').pop() || 'mp3';
+    const uniqueFileName = `audio_${id}_block${blockIdx}_${Date.now()}.${fileExtension}`;
+    const filePath = path.join(audioDir, uniqueFileName);
+
+    // Сохраняем файл
+    fs.writeFileSync(filePath, audioFile.buffer);
+
+    // Формируем URL
+    const audioUrl = `/api/uploads/audio/${uniqueFileName}`;
+
+    // Удаляем старое аудио если оно было загружено пользователем
+    const oldBlock = reel.blocks[blockIdx];
+    if (oldBlock?.uploadedAudioUrl) {
+      const oldAudioPath = path.join(audioDir, path.basename(oldBlock.uploadedAudioUrl.replace('/api/uploads/audio/', '')));
+      if (fs.existsSync(oldAudioPath)) {
+        fs.unlinkSync(oldAudioPath);
+      }
+    }
+
+    // Обновляем блок
+    await Reel.findByIdAndUpdate(
+      reel._id,
+      {
+        $set: {
+          [`blocks.${blockIdx}.uploadedAudioUrl`]: audioUrl,
+          [`blocks.${blockIdx}.audioType`]: 'user'
+        }
+      },
+      { new: true }
+    );
+
+    console.log(`✅ Audio uploaded for block ${blockIdx} of reel ${id}: ${audioUrl}`);
+
+    res.status(200).json({
+      message: 'Audio uploaded successfully',
+      audioUrl,
+      blockIndex: blockIdx
+    });
+
+  } catch (error: any) {
+    console.error('Error uploading block audio:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };

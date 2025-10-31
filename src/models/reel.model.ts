@@ -11,7 +11,9 @@ export interface IVideoBlock {
   imageAnimation?: string;   // Тип анимации для изображений (zoom-in, swipe)
   transition?: string;       // Переход к следующему блоку (fade)
   scrollingText?: boolean;   // Бегущий текст
-  audioUrl?: string;         // URL сгенерированной озвучки
+  audioUrl?: string;         // URL сгенерированной озвучки (для AI)
+  audioType?: 'ai' | 'user'; // Тип аудио: 'ai' - озвучка ИИ, 'user' - пользовательская запись
+  uploadedAudioUrl?: string; // URL загруженной пользователем аудио записи
   order: number;             // Порядок блока
   imageGenerationStatus?: 'pending' | 'generating' | 'completed' | 'failed'; // Статус генерации изображений
   imageGenerationProgress?: number; // Прогресс генерации изображений (0-100)
@@ -73,6 +75,12 @@ const VideoBlockSchema = new Schema({
   },
   scrollingText: { type: Boolean, default: false },
   audioUrl: { type: String, required: false },
+  audioType: { 
+    type: String, 
+    enum: ['ai', 'user'],
+    default: 'ai'
+  },
+  uploadedAudioUrl: { type: String, required: false },
   order: { type: Number, required: true },
   imageGenerationStatus: { 
     type: String, 

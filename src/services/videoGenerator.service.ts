@@ -276,6 +276,11 @@ class VideoGeneratorService {
       const blocksNeedingTTS = reel.blocks
         .map((block: any, index: number) => ({ block, index }))
         .filter(({ block }: any) => {
+          // Генерируем TTS только для блоков с типом 'ai' и без существующего аудио
+          const audioType = block.audioType || 'ai';
+          if (audioType !== 'ai') {
+            return false; // Пропускаем блоки с пользовательским аудио
+          }
           const audioPathLocal = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
           return !audioPathLocal || !fs.existsSync(audioPathLocal);
         });
@@ -812,7 +817,10 @@ class VideoGeneratorService {
    * Создает видео блока с черным фоном
    */
   private async createVideoWithBlackBackground(block: any, outputPath: string, reel: any): Promise<void> {
-    const blockAudioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    // Проверяем тип аудио: 'ai' - используем audioUrl, 'user' - используем uploadedAudioUrl
+    const audioType = block.audioType || 'ai';
+    const audioUrl = audioType === 'user' ? block.uploadedAudioUrl : block.audioUrl;
+    const blockAudioPath = audioUrl ? this.urlToLocalPath(audioUrl) : null;
     const fontPath = this.getFontPath();
     
     // Получаем длительность аудио для синхронизации слов
@@ -841,7 +849,7 @@ class VideoGeneratorService {
     commandParts.push('-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${block.duration}`);
     
     if (blockAudioPath && fs.existsSync(blockAudioPath)) {
-      console.log(`  🎙️ Adding real audio from: ${path.basename(blockAudioPath)}`);
+      console.log(`  🎙️ Adding ${audioType === 'user' ? 'user' : 'AI'} audio from: ${path.basename(blockAudioPath)}`);
       // Аудио-вход - используем реальное аудио
       commandParts.push('-i', `"${blockAudioPath}"`);
       // Маппинг
@@ -916,7 +924,10 @@ class VideoGeneratorService {
    * Создает видео блока с изображениями (слайдшоу)
    */
   private async createVideoWithImages(block: any, outputPath: string, reel: any): Promise<void> {
-    const audioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    // Проверяем тип аудио: 'ai' - используем audioUrl, 'user' - используем uploadedAudioUrl
+    const audioType = block.audioType || 'ai';
+    const audioUrl = audioType === 'user' ? block.uploadedAudioUrl : block.audioUrl;
+    const audioPath = audioUrl ? this.urlToLocalPath(audioUrl) : null;
     const images = block.images.map((img: string) => this.urlToLocalPath(img));
     
     console.log(`  📸 Creating slideshow with ${images.length} images (${block.duration}s total)`);
@@ -931,10 +942,14 @@ class VideoGeneratorService {
     
     // Получаем длительность аудио для синхронизации слов (один раз для всего блока)
     let audioDuration = 0;
-    if (block.scrollingText && block.audioUrl) {
-      const audioPathForDuration = this.urlToLocalPath(block.audioUrl);
-      if (fs.existsSync(audioPathForDuration)) {
-        audioDuration = await this.getAudioDuration(audioPathForDuration);
+    if (block.scrollingText) {
+      const audioType = block.audioType || 'ai';
+      const audioUrl = audioType === 'user' ? block.uploadedAudioUrl : block.audioUrl;
+      if (audioUrl) {
+        const audioPathForDuration = this.urlToLocalPath(audioUrl);
+        if (fs.existsSync(audioPathForDuration)) {
+          audioDuration = await this.getAudioDuration(audioPathForDuration);
+        }
       }
     }
     
@@ -1013,10 +1028,11 @@ class VideoGeneratorService {
     }
     
     // Добавляем аудио - используем реальное аудио если есть, иначе тишину
-    const blockAudioPath = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
+    // Используем уже определенные audioType и audioUrl выше
+    const blockAudioPath = audioUrl ? this.urlToLocalPath(audioUrl) : null;
     
     if (blockAudioPath && fs.existsSync(blockAudioPath)) {
-      console.log(`  🎙️ Adding real audio from: ${path.basename(blockAudioPath)}`);
+      console.log(`  🎙️ Adding ${audioType === 'user' ? 'user' : 'AI'} audio from: ${path.basename(blockAudioPath)}`);
       // Используем длительность видео для правильного выравнивания аудио (НЕ используем -shortest!)
       const videoInfo = await this.getVideoInfo(finalVideoPath);
       const videoDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : block.duration;
