@@ -1176,79 +1176,162 @@ export const uploadBlockAudio = async (req: AuthRequest, res: Response) => {
     const { id, blockIndex } = req.params;
     const userId = req.user?.customerId;
 
+    console.log(`🎵 Starting audio upload for reel ${id}, block ${blockIndex}, user ${userId}`);
+
     if (!userId) {
+      console.error('❌ Unauthorized: userId is missing');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     if (!id || typeof id !== 'string' || id.length !== 24) {
+      console.error(`❌ Invalid reel ID format: ${id}`);
       return res.status(400).json({ error: 'Invalid reel ID format' });
     }
 
     const reel = await Reel.findOne({ _id: id, userId });
     if (!reel) {
+      console.error(`❌ Reel not found: ${id} for user ${userId}`);
       return res.status(404).json({ error: 'Reel not found' });
     }
 
     const blockIdx = parseInt(blockIndex);
     if (isNaN(blockIdx) || !reel.blocks || blockIdx < 0 || blockIdx >= reel.blocks.length) {
+      console.error(`❌ Invalid block index: ${blockIndex}, blocks length: ${reel.blocks?.length || 0}`);
       return res.status(400).json({ error: 'Invalid block index' });
     }
 
     // Проверяем наличие файла
     if (!req.file) {
+      console.error('❌ No audio file in request');
       return res.status(400).json({ error: 'Audio file is required' });
     }
 
     const audioFile = req.file;
+    console.log(`📦 Audio file received:`, {
+      originalname: audioFile.originalname,
+      mimetype: audioFile.mimetype,
+      size: audioFile.size,
+      hasBuffer: !!audioFile.buffer,
+      bufferLength: audioFile.buffer?.length || 0
+    });
+
     if (!audioFile.buffer) {
+      console.error('❌ Audio file buffer is missing');
       return res.status(400).json({ error: 'Invalid audio file' });
+    }
+
+    // Проверяем размер файла (максимум 20MB)
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    if (audioFile.buffer.length > maxSize) {
+      console.error(`❌ Audio file too large: ${audioFile.buffer.length} bytes (max: ${maxSize})`);
+      return res.status(400).json({ error: 'Audio file is too large. Maximum size is 20MB' });
     }
 
     // Проверяем формат файла
     const allowedMimeTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/ogg', 'audio/webm'];
     if (!allowedMimeTypes.includes(audioFile.mimetype)) {
+      console.error(`❌ Invalid audio file format: ${audioFile.mimetype}`);
       return res.status(400).json({ error: 'Invalid audio file format. Allowed formats: MP3, WAV, M4A, OGG, WEBM' });
     }
 
     // Создаем директорию для аудио если её нет
     const audioDir = path.join(process.cwd(), 'uploads', 'audio');
+    console.log(`📁 Audio directory: ${audioDir}`);
+    
     if (!fs.existsSync(audioDir)) {
-      fs.mkdirSync(audioDir, { recursive: true });
+      console.log(`📁 Creating audio directory: ${audioDir}`);
+      try {
+        fs.mkdirSync(audioDir, { recursive: true });
+        console.log(`✅ Audio directory created`);
+      } catch (dirError: any) {
+        console.error(`❌ Failed to create audio directory:`, dirError);
+        return res.status(500).json({ error: `Failed to create audio directory: ${dirError.message}` });
+      }
+    }
+
+    // Проверяем права на запись
+    try {
+      fs.accessSync(audioDir, fs.constants.W_OK);
+    } catch (accessError: any) {
+      console.error(`❌ No write permission for audio directory:`, accessError);
+      return res.status(500).json({ error: `No write permission for audio directory: ${accessError.message}` });
     }
 
     // Генерируем уникальное имя файла
     const fileExtension = audioFile.originalname.split('.').pop() || 'mp3';
     const uniqueFileName = `audio_${id}_block${blockIdx}_${Date.now()}.${fileExtension}`;
     const filePath = path.join(audioDir, uniqueFileName);
+    
+    console.log(`💾 Saving audio file to: ${filePath} (${(audioFile.buffer.length / 1024).toFixed(2)} KB)`);
 
     // Сохраняем файл
-    fs.writeFileSync(filePath, audioFile.buffer);
+    try {
+      fs.writeFileSync(filePath, audioFile.buffer);
+      console.log(`✅ File written successfully`);
+    } catch (writeError: any) {
+      console.error(`❌ Failed to write audio file:`, writeError);
+      return res.status(500).json({ error: `Failed to save audio file: ${writeError.message}` });
+    }
+
+    // Проверяем, что файл действительно сохранен
+    if (!fs.existsSync(filePath)) {
+      console.error(`❌ File was not saved: ${filePath}`);
+      return res.status(500).json({ error: 'File was not saved on disk' });
+    }
+
+    const stats = fs.statSync(filePath);
+    console.log(`✅ File verified: ${filePath} (${(stats.size / 1024).toFixed(2)} KB)`);
+    
+    if (stats.size === 0) {
+      console.error(`❌ Saved file is empty`);
+      fs.unlinkSync(filePath); // Удаляем пустой файл
+      return res.status(500).json({ error: 'Saved file is empty' });
+    }
 
     // Формируем URL
     const audioUrl = `/api/uploads/audio/${uniqueFileName}`;
+    console.log(`🔗 Audio URL: ${audioUrl}`);
 
     // Удаляем старое аудио если оно было загружено пользователем
     const oldBlock = reel.blocks[blockIdx];
     if (oldBlock?.uploadedAudioUrl) {
       const oldAudioPath = path.join(audioDir, path.basename(oldBlock.uploadedAudioUrl.replace('/api/uploads/audio/', '')));
       if (fs.existsSync(oldAudioPath)) {
-        fs.unlinkSync(oldAudioPath);
+        try {
+          fs.unlinkSync(oldAudioPath);
+          console.log(`🗑️ Old audio file deleted: ${oldAudioPath}`);
+        } catch (unlinkError: any) {
+          console.warn(`⚠️ Failed to delete old audio file:`, unlinkError);
+          // Не критично, продолжаем
+        }
       }
     }
 
     // Обновляем блок
-    await Reel.findByIdAndUpdate(
-      reel._id,
-      {
-        $set: {
-          [`blocks.${blockIdx}.uploadedAudioUrl`]: audioUrl,
-          [`blocks.${blockIdx}.audioType`]: 'user'
-        }
-      },
-      { new: true }
-    );
+    try {
+      await Reel.findByIdAndUpdate(
+        reel._id,
+        {
+          $set: {
+            [`blocks.${blockIdx}.uploadedAudioUrl`]: audioUrl,
+            [`blocks.${blockIdx}.audioType`]: 'user'
+          }
+        },
+        { new: true }
+      );
+      console.log(`✅ Database updated with audio URL`);
+    } catch (dbError: any) {
+      console.error(`❌ Failed to update database:`, dbError);
+      // Удаляем файл, если не удалось сохранить в БД
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError: any) {
+        console.error(`❌ Failed to cleanup file after DB error:`, cleanupError);
+      }
+      return res.status(500).json({ error: `Failed to update database: ${dbError.message}` });
+    }
 
-    console.log(`✅ Audio uploaded for block ${blockIdx} of reel ${id}: ${audioUrl}`);
+    console.log(`✅ Audio uploaded successfully for block ${blockIdx} of reel ${id}: ${audioUrl}`);
 
     res.status(200).json({
       message: 'Audio uploaded successfully',
@@ -1257,7 +1340,8 @@ export const uploadBlockAudio = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('Error uploading block audio:', error);
+    console.error('❌ Error uploading block audio:', error);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };

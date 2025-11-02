@@ -26,7 +26,24 @@ import { catchAsync } from '../lib/catchAsync';
 
 const router = Router();
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+
+// Фильтр для аудио файлов
+const audioFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedMimeTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/ogg', 'audio/webm'];
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid audio file format. Allowed formats: MP3, WAV, M4A, OGG, WEBM'));
+  }
+};
+
+const upload = multer({ 
+  storage,
+  fileFilter: audioFileFilter,
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB
+  }
+});
 
 // Все роуты требуют аутентификацию
 router.use(authMiddleware);
@@ -88,7 +105,21 @@ router.put('/:id/blocks/:blockIndex', catchAsync(updateBlock));
 // POST /api/reels/:id/blocks/:blockIndex/upload-audio - загрузить аудио для блока
 router.post(
   '/:id/blocks/:blockIndex/upload-audio',
-  upload.single('audio'),
+  (req, res, next) => {
+    upload.single('audio')(req, res, (err: any) => {
+      if (err) {
+        console.error('❌ Multer error:', err);
+        if (err instanceof multer.MulterError) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'Audio file is too large. Maximum size is 20MB' });
+          }
+          return res.status(400).json({ error: `Multer error: ${err.message}` });
+        }
+        return res.status(500).json({ error: `Upload error: ${err.message}` });
+      }
+      next();
+    });
+  },
   catchAsync(uploadBlockAudio)
 );
 
