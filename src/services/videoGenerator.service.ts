@@ -122,6 +122,10 @@ class VideoGeneratorService {
   ): Promise<string | null> {
     try {
       const audioDir = path.join(process.cwd(), 'uploads', 'audio');
+      if (!fs.existsSync(audioDir)) {
+        fs.mkdirSync(audioDir, { recursive: true });
+      }
+      
       const audioFilename = `tts_${reelId}_block${blockIndex}_${Date.now()}.mp3`;
       const audioPath = path.join(audioDir, audioFilename);
       
@@ -149,7 +153,8 @@ class VideoGeneratorService {
       
       fs.writeFileSync(audioPath, response.data);
       
-      console.log(`✅ TTS generated: ${audioFilename}`);
+      const stats = fs.statSync(audioPath);
+      console.log(`✅ TTS generated: ${audioFilename} (${(stats.size / 1024).toFixed(2)} KB)`);
       
       return audioPath;
       
@@ -281,6 +286,10 @@ class VideoGeneratorService {
           if (audioType !== 'ai') {
             return false; // Пропускаем блоки с пользовательским аудио
           }
+          // Также пропускаем блоки с загруженным пользовательским аудио
+          if (block.uploadedAudioUrl) {
+            return false;
+          }
           const audioPathLocal = block.audioUrl ? this.urlToLocalPath(block.audioUrl) : null;
           return !audioPathLocal || !fs.existsSync(audioPathLocal);
         });
@@ -298,12 +307,20 @@ class VideoGeneratorService {
               await this.updateProgress(reel._id, {
                 currentStep: `Генерация озвучки блока ${index + 1}/${reel.blocks.length}`,
                 stepProgress: Math.round((index / reel.blocks.length) * 100),
-                totalProgress: 20,
+                totalProgress: Math.round(10 + (index / blocksNeedingTTS.length) * 10),
                 estimatedTimeRemaining: 150 - (index * 10),
-                logs: [`🎙️ Обрабатываем блок ${index + 1}: "${block.text.substring(0, 30)}..."`]
+                logs: [`🎙️ Начинаем генерацию TTS для блока ${index + 1}: "${block.text.substring(0, 30)}..."`]
               });
               
               const audioPath = await this.generateSingleTTS(block.text, index, reel._id, voiceSpeed, voice, apiKey || '', fetchAgent);
+              
+              await this.updateProgress(reel._id, {
+                currentStep: `Озвучка блока ${index + 1}/${reel.blocks.length} завершена`,
+                stepProgress: Math.round(((index + 1) / reel.blocks.length) * 100),
+                totalProgress: Math.round(10 + ((index + 1) / blocksNeedingTTS.length) * 10),
+                logs: [`✅ TTS для блока ${index + 1} успешно создан`]
+              });
+              
               console.log(`🔍 TTS result for block ${index + 1}:`, { audioPath, exists: audioPath ? fs.existsSync(audioPath) : false });
               if (audioPath) {
                 block.audioUrl = `/api/uploads/audio/${path.basename(audioPath)}`;
@@ -315,9 +332,17 @@ class VideoGeneratorService {
               
               return { success: true, blockIndex: index };
             } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
               console.error(`❌ Failed to generate TTS for block ${index + 1}:`, error);
+              console.error(`   Error details:`, error instanceof Error ? error.stack : error);
+              
+              await this.updateProgress(reel._id, {
+                currentStep: `Ошибка генерации озвучки блока ${index + 1}`,
+                logs: [`❌ Ошибка TTS для блока ${index + 1}: ${errorMessage}`]
+              });
+              
               block.audioUrl = null; // Fallback to silence
-              return { success: false, blockIndex: index, error: error instanceof Error ? error.message : 'Unknown error' };
+              return { success: false, blockIndex: index, error: errorMessage };
             }
           })
         );
@@ -623,15 +648,11 @@ class VideoGeneratorService {
       case 'zoom-in':
         if (isEven) {
           // Обратный zoom-in для четных (0,2,4...): начинается с большего масштаба и уменьшается (zoom-out эффект)
-          // zoompan: z - формула масштабирования (zoom начинается с 1.0), d - количество кадров, s - размер выхода
-          // Для zoom-out: начинаем с 1.2 и уменьшаем до 1.0
-          // Используем правильный синтаксис для zoompan: z='zoom+0.001' увеличивает, z='1.2-max(zoom-1.0,0)*0.2' уменьшает
           const filter = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='1.2-max(on/25.0/${duration}*0.2,0)':d=${frames}:s=1080x1920:fps=25`;
           console.log(`  🔍 Applying reverse zoom-in (zoom-out) filter for even block ${blockIndex}`);
           return filter;
         } else {
           // Оригинальный zoom-in для нечетных (1,3,5...): начинается с меньшего масштаба и увеличивается
-          // zoompan: zoom начинается с 1.0, постепенно увеличиваем до 1.2
           const filter = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.0015,1.2)':d=${frames}:s=1080x1920:fps=25`;
           console.log(`  🔍 Applying zoom-in filter for odd block ${blockIndex}`);
           return filter;
@@ -678,14 +699,6 @@ class VideoGeneratorService {
 
   /**
    * Создает фильтр для текста (обычный или последовательное появление слов)
-   * @param displayText - текст для отображения
-   * @param wordByWord - последовательное появление слов
-   * @param duration - длительность видео в секундах
-   * @param fontPath - путь к шрифту
-   * @param audioDuration - длительность аудио в секундах (для синхронизации)
-   * @param fontSize - размер шрифта (20-100)
-   * @param position - расположение текста (top, center, bottom)
-   * @param fontName - название шрифта (Arial, Arial Black, Impact, Times New Roman, Verdana)
    */
   private getTextFilter(
     displayText: string, 
@@ -760,8 +773,6 @@ class VideoGeneratorService {
       console.log(`  📝 Word-by-word: ${words.length} words, ${actualDuration.toFixed(2)}s audio (voiceSpeed affects this), ${wordDuration.toFixed(3)}s per word`);
       
       // Создаем несколько drawtext фильтров, один для каждого слова
-      // Все слова показываются в одном месте, но в разное время
-      // В FFmpeg несколько drawtext фильтров применяются последовательно через запятую
       const textFilters: string[] = [];
       words.forEach((word, index) => {
         const escapedWord = this.escapeFFmpegText(word);
@@ -771,15 +782,11 @@ class VideoGeneratorService {
         const endTime = startTime + wordShowDuration;
         
         // Альфа-канал: плавное появление, показ, плавное исчезновение
-        // Используем правильное экранирование для FFmpeg
         const alpha = `if(between(t\\,${startTime}\\,${endTime})\\,if(lt(t\\,${fadeInEnd})\\,(t-${startTime})/${wordFadeDuration}\\,if(gt(t\\,${fadeOutStart})\\,(${endTime}-t)/${wordFadeDuration}\\,1))\\,0)`;
         
-        // Каждый drawtext фильтр применяется последовательно к результату предыдущего
         textFilters.push(`drawtext=text='${escapedWord}':fontsize=${finalFontSize}:fontcolor=white:x=(w-text_w)/2:y=${yPosition}:borderw=3:bordercolor=black@0.8:shadowx=2:shadowy=2:shadowcolor=black@0.5:alpha='${alpha}'${fontSpec}`);
       });
       
-      // Объединяем все drawtext фильтры через запятую для последовательного применения
-      // В FFmpeg несколько фильтров в одной цепочке разделяются запятыми
       return textFilters.join(',');
     } else {
       // Статичный текст с обводкой и тенью
@@ -823,19 +830,34 @@ class VideoGeneratorService {
     const blockAudioPath = audioUrl ? this.urlToLocalPath(audioUrl) : null;
     const fontPath = this.getFontPath();
     
-    // Получаем длительность аудио для синхронизации слов
+    // Получаем длительность аудио (для пользовательского аудио - используем его длительность)
     let audioDuration = 0;
-    if (block.scrollingText && blockAudioPath && fs.existsSync(blockAudioPath)) {
+    let finalDuration = block.duration;
+    
+    if (blockAudioPath && fs.existsSync(blockAudioPath)) {
       audioDuration = await this.getAudioDuration(blockAudioPath);
+      
+      if (audioType === 'user' && audioDuration > 0) {
+        // Для пользовательского аудио используем его длительность или block.duration (берем максимум)
+        if (audioDuration > block.duration * 1.2) {
+          finalDuration = block.duration;
+          console.log(`  🎙️ User audio too long (${audioDuration.toFixed(2)}s > ${block.duration * 1.2}s), using block duration: ${finalDuration.toFixed(2)}s`);
+        } else {
+          finalDuration = Math.max(block.duration, audioDuration);
+          console.log(`  🎙️ User audio duration: ${audioDuration.toFixed(2)}s, block duration: ${block.duration}s, using: ${finalDuration.toFixed(2)}s`);
+        }
+      } else if (audioDuration > 0) {
+        // Для AI аудио используем block.duration
+        finalDuration = block.duration;
+      }
     }
     
     // Добавляем текст на экран (обычный или последовательное появление слов)
-    // Для последовательного появления используем текст озвучки (block.text), иначе displayText
     const textForDisplay = block.scrollingText ? block.text : block.displayText;
     const textFilter = this.getTextFilter(
       textForDisplay, 
       block.scrollingText || false, 
-      block.duration, 
+      finalDuration, 
       fontPath,
       audioDuration || undefined,
       block.textFontSize,
@@ -845,52 +867,61 @@ class VideoGeneratorService {
     
     // Собираем команду: 0:v = цветной фон, 1:a = аудио (tts или тишина)
     const commandParts = ['ffmpeg', '-y'];
-    // Видео-вход (чёрный фон)
-    commandParts.push('-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${block.duration}`);
+    // Видео-вход (чёрный фон) - используем финальную длительность
+    commandParts.push('-f', 'lavfi', '-i', `color=c=black:s=1080x1920:d=${finalDuration}`);
     
     if (blockAudioPath && fs.existsSync(blockAudioPath)) {
       console.log(`  🎙️ Adding ${audioType === 'user' ? 'user' : 'AI'} audio from: ${path.basename(blockAudioPath)}`);
       // Аудио-вход - используем реальное аудио
       commandParts.push('-i', `"${blockAudioPath}"`);
-      // Маппинг
-      commandParts.push('-map', '[v]', '-map', '1:a');
+      
+      // Для пользовательского аудио: если оно короче finalDuration - добавляем тишину в конце
+      if (audioType === 'user' && audioDuration > 0 && audioDuration < finalDuration) {
+        // Используем фильтр для добавления тишины в конце аудио
+        const silenceDuration = finalDuration - audioDuration;
+        const audioFilter = `[1:a]apad=pad_dur=${silenceDuration}[a]`;
+        const videoFilter = textFilter || 'null';
+        commandParts.push('-filter_complex', `"[0:v]${videoFilter}[v];${audioFilter}"`);
+        commandParts.push('-map', '[v]', '-map', '[a]');
+      } else {
+        // Обычный маппинг: видео + аудио
+        const filterComplex = textFilter ? `"[0:v]${textFilter}[v]"` : `"[0:v]null[v]"`;
+        commandParts.push('-filter_complex', filterComplex);
+        commandParts.push('-map', '[v]', '-map', '1:a');
+        // Обрезаем аудио до finalDuration если оно длиннее
+        if (audioDuration > finalDuration) {
+          commandParts.push('-t', finalDuration.toString());
+        }
+      }
     } else {
       console.log(`  🔇 No audio file found, using silence`);
       // Аудио-вход - используем тишину
-      commandParts.push('-f', 'lavfi', '-t', block.duration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
-      // Маппинг
+      commandParts.push('-f', 'lavfi', '-t', finalDuration.toString(), '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
+      // Фильтр на видео
+      const filterComplex = textFilter ? `"[0:v]${textFilter}[v]"` : `"[0:v]null[v]"`;
+      commandParts.push('-filter_complex', filterComplex);
       commandParts.push('-map', '[v]', '-map', '1:a');
     }
     
-    // Фильтр на видео
-    let filterComplex: string;
-    if (textFilter) {
-      filterComplex = `"[0:v]${textFilter}[v]"`;
-    } else {
-      filterComplex = `"[0:v]null[v]"`; // Просто копируем видео без текста
-    }
-    commandParts.push('-filter_complex', filterComplex);
     // Кодеки и параметры
-    // Убеждаемся, что длительность видео точно соответствует block.duration
-    commandParts.push('-t', block.duration.toString());
     commandParts.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '25', '-c:a', 'aac', `"${outputPath}"`);
     
     const command = commandParts.join(' ');
     
-    console.log(`  ⚫ Creating ${block.duration}s video with black background and text`);
+    console.log(`  ⚫ Creating ${finalDuration.toFixed(2)}s video with black background and text`);
     await execPromise(command);
     
     // Проверяем длительность созданного видео
     const videoInfo = await this.getVideoInfo(outputPath);
     const actualDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : 0;
-    console.log(`  ✅ Black background video created (duration: ${actualDuration.toFixed(2)}s, expected: ${block.duration}s)`);
+    console.log(`  ✅ Black background video created (duration: ${actualDuration.toFixed(2)}s, expected: ${finalDuration.toFixed(2)}s)`);
     
-    // Если длительность не совпадает, исправляем
-    if (Math.abs(actualDuration - block.duration) > 0.1) {
-      console.warn(`  ⚠️ Duration mismatch detected, fixing...`);
-      await execPromise(`ffmpeg -y -i "${outputPath}" -t ${block.duration} -c:v libx264 -pix_fmt yuv420p -r 25 -c:a copy "${outputPath}.fixed"`);
+    // Если длительность не совпадает (допускаем погрешность 0.2 секунды)
+    if (Math.abs(actualDuration - finalDuration) > 0.2) {
+      console.warn(`  ⚠️ Duration mismatch detected (${actualDuration.toFixed(2)}s vs ${finalDuration.toFixed(2)}s), fixing...`);
+      await execPromise(`ffmpeg -y -i "${outputPath}" -t ${finalDuration} -c:v libx264 -pix_fmt yuv420p -r 25 -c:a copy "${outputPath}.fixed"`);
       fs.renameSync(`${outputPath}.fixed`, outputPath);
-      console.log(`  ✅ Duration fixed to ${block.duration}s`);
+      console.log(`  ✅ Duration fixed to ${finalDuration.toFixed(2)}s`);
     }
   }
 
@@ -1028,18 +1059,40 @@ class VideoGeneratorService {
     }
     
     // Добавляем аудио - используем реальное аудио если есть, иначе тишину
-    // Используем уже определенные audioType и audioUrl выше
     const blockAudioPath = audioUrl ? this.urlToLocalPath(audioUrl) : null;
     
     if (blockAudioPath && fs.existsSync(blockAudioPath)) {
       console.log(`  🎙️ Adding ${audioType === 'user' ? 'user' : 'AI'} audio from: ${path.basename(blockAudioPath)}`);
-      // Используем длительность видео для правильного выравнивания аудио (НЕ используем -shortest!)
+      
+      // Получаем длительность видео и аудио
       const videoInfo = await this.getVideoInfo(finalVideoPath);
       const videoDuration = videoInfo?.format?.duration ? parseFloat(videoInfo.format.duration) : block.duration;
+      const userAudioDuration = await this.getAudioDuration(blockAudioPath);
       
-      // Обрезаем или растягиваем аудио до длительности видео
-      const filterComplex = `[1:a]asetrate=44100,aresample=44100,atrim=duration=${videoDuration}[a]`;
-      await execPromise(`ffmpeg -y -i "${finalVideoPath}" -i "${blockAudioPath}" -filter_complex "${filterComplex}" -map 0:v -map "[a]" -c:v copy -c:a aac -t ${videoDuration} "${outputPath}"`);
+      let finalDuration = videoDuration;
+      
+      // Для пользовательского аудио: используем максимум из videoDuration и audioDuration
+      if (audioType === 'user' && userAudioDuration > 0) {
+        if (userAudioDuration > videoDuration * 1.2) {
+          finalDuration = videoDuration;
+          console.log(`  🎙️ User audio too long (${userAudioDuration.toFixed(2)}s > ${videoDuration * 1.2}s), using video duration: ${finalDuration.toFixed(2)}s`);
+        } else {
+          finalDuration = Math.max(videoDuration, userAudioDuration);
+          console.log(`  🎙️ User audio: ${userAudioDuration.toFixed(2)}s, video: ${videoDuration.toFixed(2)}s, final: ${finalDuration.toFixed(2)}s`);
+        }
+      }
+      
+      // Если пользовательское аудио короче видео - добавляем тишину в конце
+      if (audioType === 'user' && userAudioDuration > 0 && userAudioDuration < finalDuration) {
+        const silenceDuration = finalDuration - userAudioDuration;
+        const filterComplex = `[1:a]apad=pad_dur=${silenceDuration}[a]`;
+        await execPromise(`ffmpeg -y -i "${finalVideoPath}" -i "${blockAudioPath}" -filter_complex "${filterComplex}" -map 0:v -map "[a]" -c:v copy -c:a aac -t ${finalDuration} "${outputPath}"`);
+      } else {
+        // Обычная обработка: нормализуем аудио и обрезаем если нужно
+        const filterComplex = `[1:a]asetrate=44100,aresample=44100${userAudioDuration > finalDuration ? `,atrim=duration=${finalDuration}` : ''}[a]`;
+        await execPromise(`ffmpeg -y -i "${finalVideoPath}" -i "${blockAudioPath}" -filter_complex "${filterComplex}" -map 0:v -map "[a]" -c:v copy -c:a aac -t ${finalDuration} "${outputPath}"`);
+      }
+      
       if (finalVideoPath !== concatVideoPath) {
         fs.unlinkSync(finalVideoPath);
       }
@@ -1075,10 +1128,34 @@ class VideoGeneratorService {
 
   /**
    * Получает FFmpeg xfade фильтр для перехода
-   * Только fade переход
+   * Поддерживает различные типы переходов
    */
   private getTransitionFilter(transition: string): string {
-    return 'fade'; // Всегда используем fade
+    // Поддерживаемые переходы в FFmpeg xfade
+    const supportedTransitions = [
+      'fade',      // Плавное затемнение/появление
+      'fadeblack', // Плавное затемнение через черный
+      'fadewhite', // Плавное затемнение через белый
+      'distance',  // Эффект расстояния
+      'wipeleft',  // Стирание слева направо
+      'wiperight', // Стирание справа налево
+      'wipeup',    // Стирание снизу вверх
+      'wipedown',  // Стирание сверху вниз
+      'slideleft', // Скольжение слева
+      'slideright',// Скольжение справа
+      'slideup',   // Скольжение снизу
+      'slidedown'  // Скольжение сверху
+    ];
+    
+    // Если переход поддерживается, используем его, иначе fade по умолчанию
+    const normalizedTransition = transition.toLowerCase().trim();
+    if (supportedTransitions.includes(normalizedTransition)) {
+      return normalizedTransition;
+    }
+    
+    // По умолчанию используем fade
+    console.log(`  ⚠️ Unknown transition "${transition}", using fade`);
+    return 'fade';
   }
 
   /**
@@ -1113,7 +1190,9 @@ class VideoGeneratorService {
     let offset = 0;
     
       for (let i = 0; i < blockVideos.length - 1; i++) {
-      const transition = 'fade'; // Всегда используем fade
+      // Используем переход из блока, если указан, иначе fade
+      const blockTransition = blocks[i]?.transition || 'fade';
+      const transition = this.getTransitionFilter(blockTransition);
       const nextLabel = i === blockVideos.length - 2 ? 'vout' : `v${i}`;
       
       // Рассчитываем offset для перехода
@@ -1123,7 +1202,7 @@ class VideoGeneratorService {
         offset += durations[i] - transitionDuration;
       }
       
-      console.log(`🔀 Transition ${i + 1}: fade at offset ${offset.toFixed(2)}s`);
+      console.log(`🔀 Transition ${i + 1}: ${transition} at offset ${offset.toFixed(2)}s`);
       
       videoFilterComplex += `[${currentVideoLabel}][${i + 1}:v]xfade=transition=${transition}:duration=${transitionDuration}:offset=${offset}[${nextLabel}]`;
       
@@ -1325,4 +1404,3 @@ class VideoGeneratorService {
 
 export const videoGeneratorService = new VideoGeneratorService();
 export default videoGeneratorService;
-
