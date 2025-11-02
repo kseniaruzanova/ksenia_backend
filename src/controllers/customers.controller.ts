@@ -4,14 +4,26 @@ import Customer from "../models/customer.model";
 
 import { generatePassword } from "../utils/customers";
 import { AuthRequest } from "../interfaces/authRequest";
-import { CustomerUpdateData } from "../interfaces/customers";
+import { CustomerUpdateData, CustomerCreateData } from "../interfaces/customers";
 import { Types } from "mongoose";
 
 export const createCustomer = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, botToken } = req.body;
+    const { username, botToken, tariff, subscriptionStatus }: CustomerCreateData = req.body;
     if (!username || !botToken) {
       res.status(400).json({ message: "Username and botToken are required" });
+      return;
+    }
+
+    // Валидация tariff если передан
+    if (tariff && !['none', 'basic', 'pro'].includes(tariff)) {
+      res.status(400).json({ message: "Invalid tariff. Must be 'none', 'basic', or 'pro'" });
+      return;
+    }
+
+    // Валидация subscriptionStatus если передан
+    if (subscriptionStatus && !['active', 'inactive', 'expired'].includes(subscriptionStatus)) {
+      res.status(400).json({ message: "Invalid subscriptionStatus. Must be 'active', 'inactive', or 'expired'" });
       return;
     }
 
@@ -23,7 +35,7 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
 
     const password: string = generatePassword();
     
-    // Установка подписки "basic" на месяц
+    // Установка подписки
     const subscriptionEndsAt = new Date();
     subscriptionEndsAt.setMonth(subscriptionEndsAt.getMonth() + 1);
     
@@ -31,9 +43,9 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
       username,
       botToken,
       password,
-      tariff: 'basic',
-      subscriptionStatus: 'active',
-      subscriptionEndsAt
+      tariff: tariff || 'none',
+      subscriptionStatus: subscriptionStatus || 'inactive',
+      subscriptionEndsAt: subscriptionStatus === 'active' ? subscriptionEndsAt : null
     });
 
     await newCustomer.save();

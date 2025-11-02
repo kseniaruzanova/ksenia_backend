@@ -1,3 +1,10 @@
+export interface CustomerCreateData {
+  username: string;
+  botToken: string;
+  tariff?: 'none' | 'basic' | 'pro';
+  subscriptionStatus?: 'active' | 'inactive' | 'expired';
+}
+
 export interface CustomerUpdateData {
   botToken?: string;
   currentPrice?: string;
