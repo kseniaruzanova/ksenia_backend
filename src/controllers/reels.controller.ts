@@ -1237,24 +1237,83 @@ export const uploadBlockAudio = async (req: AuthRequest, res: Response) => {
     // Создаем директорию для аудио если её нет
     const audioDir = path.join(process.cwd(), 'uploads', 'audio');
     console.log(`📁 Audio directory: ${audioDir}`);
+    console.log(`📁 Current working directory: ${process.cwd()}`);
+    console.log(`📁 Process user: ${process.getuid ? process.getuid() : 'N/A'}, Group: ${process.getgid ? process.getgid() : 'N/A'}`);
+    
+    // Создаем все родительские директории если их нет
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      console.log(`📁 Creating uploads directory: ${uploadsDir}`);
+      try {
+        fs.mkdirSync(uploadsDir, { recursive: true, mode: 0o755 });
+        console.log(`✅ Uploads directory created`);
+      } catch (dirError: any) {
+        console.error(`❌ Failed to create uploads directory:`, dirError);
+      }
+    }
     
     if (!fs.existsSync(audioDir)) {
       console.log(`📁 Creating audio directory: ${audioDir}`);
       try {
-        fs.mkdirSync(audioDir, { recursive: true });
+        fs.mkdirSync(audioDir, { recursive: true, mode: 0o755 });
         console.log(`✅ Audio directory created`);
+        
+        // Проверяем, что директория действительно создана
+        if (!fs.existsSync(audioDir)) {
+          console.error(`❌ Directory was not created: ${audioDir}`);
+          return res.status(500).json({ error: `Failed to create audio directory` });
+        }
       } catch (dirError: any) {
         console.error(`❌ Failed to create audio directory:`, dirError);
+        console.error(`❌ Error code: ${dirError.code}, Error path: ${dirError.path}`);
         return res.status(500).json({ error: `Failed to create audio directory: ${dirError.message}` });
+      }
+    } else {
+      console.log(`✓ Audio directory exists`);
+      
+      // Проверяем права доступа к существующей директории
+      try {
+        const stats = fs.statSync(audioDir);
+        console.log(`📊 Directory stats:`, {
+          mode: stats.mode.toString(8),
+          uid: stats.uid,
+          gid: stats.gid,
+          isDirectory: stats.isDirectory()
+        });
+      } catch (statError: any) {
+        console.warn(`⚠️ Could not get directory stats:`, statError);
       }
     }
 
     // Проверяем права на запись
     try {
       fs.accessSync(audioDir, fs.constants.W_OK);
+      console.log(`✅ Write permission confirmed`);
     } catch (accessError: any) {
       console.error(`❌ No write permission for audio directory:`, accessError);
-      return res.status(500).json({ error: `No write permission for audio directory: ${accessError.message}` });
+      console.error(`❌ Trying to fix permissions...`);
+      
+      // Пытаемся исправить права доступа (только на Linux/Unix)
+      if (process.platform !== 'win32') {
+        try {
+          const { execSync } = require('child_process');
+          execSync(`chmod -R 755 "${audioDir}"`, { timeout: 5000 });
+          console.log(`✅ Permissions updated`);
+          
+          // Проверяем снова
+          fs.accessSync(audioDir, fs.constants.W_OK);
+          console.log(`✅ Write permission confirmed after fix`);
+        } catch (chmodError: any) {
+          console.error(`❌ Failed to fix permissions:`, chmodError);
+          return res.status(500).json({ 
+            error: `No write permission for audio directory. Please check permissions on: ${audioDir}` 
+          });
+        }
+      } else {
+        return res.status(500).json({ 
+          error: `No write permission for audio directory: ${accessError.message}` 
+        });
+      }
     }
 
     // Генерируем уникальное имя файла
@@ -1266,26 +1325,69 @@ export const uploadBlockAudio = async (req: AuthRequest, res: Response) => {
 
     // Сохраняем файл
     try {
-      fs.writeFileSync(filePath, audioFile.buffer);
+      console.log(`💾 Attempting to write file to: ${filePath}`);
+      console.log(`💾 Buffer size: ${audioFile.buffer.length} bytes`);
+      
+      // Используем fs.promises для асинхронной записи с лучшей обработкой ошибок
+      fs.writeFileSync(filePath, audioFile.buffer, { mode: 0o644 });
       console.log(`✅ File written successfully`);
+      
+      // Сразу проверяем, что файл существует
+      if (!fs.existsSync(filePath)) {
+        console.error(`❌ File was not created after write operation`);
+        return res.status(500).json({ error: 'File was not saved on disk' });
+      }
+      
     } catch (writeError: any) {
       console.error(`❌ Failed to write audio file:`, writeError);
-      return res.status(500).json({ error: `Failed to save audio file: ${writeError.message}` });
+      console.error(`❌ Error code: ${writeError.code}`);
+      console.error(`❌ Error path: ${writeError.path}`);
+      console.error(`❌ Error syscall: ${writeError.syscall}`);
+      console.error(`❌ Error errno: ${writeError.errno}`);
+      
+      // Если ошибка из-за прав доступа, даем более понятное сообщение
+      if (writeError.code === 'EACCES' || writeError.code === 'EPERM') {
+        return res.status(500).json({ 
+          error: `Permission denied. Please check write permissions for: ${audioDir}. 
+                  You may need to run: sudo chmod -R 755 ${audioDir} or 
+                  sudo chown -R $(whoami) ${audioDir}` 
+        });
+      }
+      
+      return res.status(500).json({ 
+        error: `Failed to save audio file: ${writeError.message} (code: ${writeError.code})` 
+      });
     }
 
-    // Проверяем, что файл действительно сохранен
+    // Проверяем, что файл действительно сохранен и имеет правильный размер
     if (!fs.existsSync(filePath)) {
       console.error(`❌ File was not saved: ${filePath}`);
       return res.status(500).json({ error: 'File was not saved on disk' });
     }
 
-    const stats = fs.statSync(filePath);
-    console.log(`✅ File verified: ${filePath} (${(stats.size / 1024).toFixed(2)} KB)`);
+    let stats;
+    try {
+      stats = fs.statSync(filePath);
+      console.log(`✅ File verified: ${filePath} (${(stats.size / 1024).toFixed(2)} KB)`);
+      console.log(`📊 File permissions: ${stats.mode.toString(8)}, Owner: ${stats.uid}, Group: ${stats.gid}`);
+    } catch (statError: any) {
+      console.error(`❌ Failed to get file stats:`, statError);
+      return res.status(500).json({ error: 'File was saved but could not be verified' });
+    }
     
     if (stats.size === 0) {
       console.error(`❌ Saved file is empty`);
-      fs.unlinkSync(filePath); // Удаляем пустой файл
+      try {
+        fs.unlinkSync(filePath); // Удаляем пустой файл
+      } catch (unlinkError) {
+        console.error(`❌ Failed to delete empty file:`, unlinkError);
+      }
       return res.status(500).json({ error: 'Saved file is empty' });
+    }
+    
+    if (stats.size !== audioFile.buffer.length) {
+      console.error(`❌ File size mismatch: expected ${audioFile.buffer.length}, got ${stats.size}`);
+      return res.status(500).json({ error: 'File size mismatch. File may be corrupted' });
     }
 
     // Формируем URL

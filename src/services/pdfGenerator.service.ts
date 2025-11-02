@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
-import { AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
+import { ArchetypeShadowData, AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
 import tractovkiDataJSON from "../data/matrixLife/tractovki.json";
 
 const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
@@ -617,6 +617,92 @@ export function generateKarmicTailPdf(
     .font("DejaVu-Regular")
     .fontSize(11)
     .text(data.financeCenter.text, { align: "justify" });
+  doc.moveDown(2);
+  
+  doc.end();
+}
+
+export function generateArchetypeShadowPdf(
+  data: ArchetypeShadowData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  console.log(data);
+  
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/archetypeShadow.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Архетип и тень", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(2);
+
+  // Базовый архетип
+  if (doc.y > 650) {
+    doc.addPage();
+  }
+  doc.font("DejaVu-Bold").fontSize(16).fillColor("#1a5490").text("БАЗОВЫЙ АРХЕТИП");
+  doc.fillColor("#000000");
+  doc.moveDown(1);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.first.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Теневой архетип
+  if (doc.y > 600) {
+    doc.addPage();
+  }
+  doc.font("DejaVu-Bold").fontSize(16).fillColor("#8b0000").text("ТЕНЕВОЙ АРХЕТИП");
+  doc.fillColor("#000000");
+  doc.moveDown(1);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.second.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Ограничивающий архетип
+  if (doc.y > 600) {
+    doc.addPage();
+  }
+  doc.font("DejaVu-Bold").fontSize(16).fillColor("#8b4513").text("ОГРАНИЧИВАЮЩИЙ АРХЕТИП");
+  doc.fillColor("#000000");
+  doc.moveDown(1);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.third.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Архетип трансформации
+  if (doc.y > 600) {
+    doc.addPage();
+  }
+  doc.font("DejaVu-Bold").fontSize(16).fillColor("#4b0082").text("АРХЕТИП ТРАНСФОРМАЦИИ");
+  doc.fillColor("#000000");
+  doc.moveDown(1);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.fourth.text, { align: "justify" });
   doc.moveDown(2);
   
   doc.end();

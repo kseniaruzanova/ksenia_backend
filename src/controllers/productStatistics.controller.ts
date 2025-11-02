@@ -4,7 +4,7 @@ import { AppError } from '../interfaces/appError';
 
 // Функция для сохранения запроса продукта
 export const trackProductRequest = async (
-  productType: 'forecast' | 'financialCast' | 'mistakesIncarnation' | 'arcanumRealization' | 'awakeningCodes' | 'matrixLife' | 'karmicTail',
+  productType: 'archetypeShadow' | 'forecast' | 'financialCast' | 'mistakesIncarnation' | 'arcanumRealization' | 'awakeningCodes' | 'matrixLife' | 'karmicTail',
   customerId: string,
   birthDate: string,
   requestType: 'pdf' | 'json'

@@ -30,6 +30,7 @@ import arcanumRealizationRoutes from "./routes/products/arcanumRealization.route
 import mistakesIncarnationRoutes from "./routes/products/mistakesIncarnation.routes";
 import matrixLifeRoutes from "./routes/products/matrixLife.routes";
 import karmicTailRoutes from "./routes/products/karmicTail.routes";
+import archetypeShadowRoutes from "./routes/products/archetypeShadow.routes";
 
 import tarotRoutes from "./routes/tarot.routes";
 import prodamusRoutes from "./routes/prodamus.routes";
@@ -55,14 +56,52 @@ const ensureDirectoriesExist = () => {
   ];
 
   console.log('📁 Checking required directories...');
+  console.log(`📁 Current working directory: ${process.cwd()}`);
+  console.log(`📁 Process platform: ${process.platform}`);
 
   directories.forEach(dir => {
     const dirPath = path.join(process.cwd(), dir);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-      console.log(`✅ Created directory: ${dir}`);
-    } else {
-      console.log(`✓ Directory exists: ${dir}`);
+    try {
+      if (!fs.existsSync(dirPath)) {
+        // Создаем с правами 755 (rwxr-xr-x) для Linux/Unix
+        const mode = process.platform === 'win32' ? undefined : 0o755;
+        fs.mkdirSync(dirPath, { recursive: true, mode });
+        console.log(`✅ Created directory: ${dirPath}`);
+        
+        // Проверяем права доступа после создания
+        if (process.platform !== 'win32') {
+          try {
+            const stats = fs.statSync(dirPath);
+            console.log(`📊 Directory permissions: ${stats.mode.toString(8)}`);
+          } catch (statError) {
+            console.warn(`⚠️ Could not check permissions for ${dirPath}`);
+          }
+        }
+      } else {
+        console.log(`✓ Directory exists: ${dirPath}`);
+        
+        // Проверяем права доступа
+        try {
+          fs.accessSync(dirPath, fs.constants.W_OK);
+          console.log(`✓ Write access confirmed: ${dirPath}`);
+        } catch (accessError) {
+          console.warn(`⚠️ No write access to: ${dirPath}`);
+          
+          // Пытаемся исправить права (только на Linux/Unix)
+          if (process.platform !== 'win32') {
+            try {
+              const { execSync } = require('child_process');
+              execSync(`chmod -R 755 "${dirPath}"`, { timeout: 5000 });
+              console.log(`✅ Fixed permissions for: ${dirPath}`);
+            } catch (chmodError: any) {
+              console.error(`❌ Failed to fix permissions for ${dirPath}:`, chmodError.message);
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error(`❌ Error processing directory ${dirPath}:`, error.message);
+      console.error(`   Error code: ${error.code}`);
     }
   });
 
@@ -197,6 +236,7 @@ app.use('/api/mistakesIncarnation', mistakesIncarnationRoutes);
 app.use('/api/arcanumRealization', arcanumRealizationRoutes);
 app.use('/api/matrixLife', matrixLifeRoutes);
 app.use('/api/karmicTail', karmicTailRoutes);
+app.use('/api/archetypeShadow', archetypeShadowRoutes);
 
 app.use('/api/tarot', tarotRoutes);
 app.use('/api/astro', astroRoutes);

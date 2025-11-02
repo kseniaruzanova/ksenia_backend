@@ -94,3 +94,10 @@ export interface KarmicTailData {
   karmaPast: ArcanumCode;
   financeCenter: ArcanumCode;
 };
+
+export interface ArchetypeShadowData {
+  first: ArcanumCode;
+  second: ArcanumCode;
+  third: ArcanumCode;
+  fourth: ArcanumCode;
+};
