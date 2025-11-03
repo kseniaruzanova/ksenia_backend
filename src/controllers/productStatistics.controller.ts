@@ -52,7 +52,7 @@ export const getProductStatistics = async (req: Request, res: Response) => {
     ]);
 
     // Добавляем нулевые значения для продуктов без запросов
-    const allProducts = ['forecast', 'financialCast', 'mistakesIncarnation', 'arcanumRealization', 'awakeningCodes', 'matrixLife', 'karmicTail'];
+    const allProducts = ['forecast', 'financialCast', 'mistakesIncarnation', 'arcanumRealization', 'awakeningCodes', 'matrixLife', 'karmicTail', 'archetypeShadow'];
     const productMap = new Map(statistics.map(stat => [stat._id, stat]));
     
     const completeStatistics = allProducts.map(product => {
