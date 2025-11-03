@@ -129,13 +129,15 @@ class VideoGeneratorService {
       const audioFilename = `tts_${reelId}_block${blockIndex}_${Date.now()}.mp3`;
       const audioPath = path.join(audioDir, audioFilename);
       
-      console.log(`🎙️ Generating TTS with OpenAI for block ${blockIndex} (voice: ${voice})...`);
+      // Используем скорость озвучки из настроек пользователя, ограниченную диапазоном OpenAI (0.25-4.0)
+      const finalSpeed = Math.max(0.25, Math.min(4.0, voiceSpeed));
+      console.log(`🎙️ Generating TTS with OpenAI for block ${blockIndex} (voice: ${voice}, speed: ${finalSpeed}, original: ${voiceSpeed})...`);
       
       const response = await axios.post('https://api.openai.com/v1/audio/speech', {
         model: 'tts-1-hd',
         voice: voice || 'nova', // alloy, echo, fable, onyx, nova, shimmer
         input: text,
-        speed: Math.max(0.25, Math.min(4.0, voiceSpeed)) // OpenAI принимает 0.25-4.0
+        speed: finalSpeed // Используем скорость из настроек пользователя
       }, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -251,8 +253,11 @@ class VideoGeneratorService {
         logs: ['🎙️ Генерируем озвучку для всех блоков параллельно...']
       });
       
-      const voiceSpeed = reel.audioSettings?.voiceSpeed || 1.0;
+      // Получаем скорость озвучки из настроек пользователя (по умолчанию 1.0)
+      const voiceSpeed = reel.audioSettings?.voiceSpeed ?? 1.0;
       const voice = reel.audioSettings?.voice || 'nova';
+      
+      console.log(`🎙️ Using voice settings: speed=${voiceSpeed}, voice=${voice}`);
       
       // Получаем настройки API один раз
       const settings = await AISettings.findOne();
