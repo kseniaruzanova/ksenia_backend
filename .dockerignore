@@ -10,5 +10,7 @@ Dockerfile
 docker-compose.yml
 
 # Исключаем директории с данными, которые монтируются как volumes
-uploads
-temp
+uploads/
+temp/
+**/uploads/**
+**/temp/**

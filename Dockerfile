@@ -21,12 +21,10 @@ COPY . .
 # Собираем TypeScript
 RUN npm run build
 
-# Создаем структуру директорий для uploads и temp только в образе
-# ВАЖНО: сами папки uploads и temp исключены из образа через .dockerignore,
-# но создаем структуру subdir'ов на случай, если volumes не будут смонтированы
+# Создаем только структуру пустых директорий для uploads и temp в образе
+# ВАЖНО: сами папки uploads и temp с файлами исключены из образа через .dockerignore
 # При запуске контейнера эти директории будут перемонтированы как bind volumes из ./uploads и ./temp
-RUN mkdir -p uploads/images uploads/audio uploads/videos uploads/videos/thumbnails temp && \
-    chmod -R 755 uploads temp
+RUN mkdir -p uploads/images uploads/audio uploads/videos uploads/videos/thumbnails temp
 
 # Открываем порт
 EXPOSE 7000
