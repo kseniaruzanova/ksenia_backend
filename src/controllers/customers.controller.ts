@@ -6,6 +6,7 @@ import { generatePassword } from "../utils/customers";
 import { AuthRequest } from "../interfaces/authRequest";
 import { CustomerUpdateData, CustomerCreateData } from "../interfaces/customers";
 import { Types } from "mongoose";
+import botManager from "../services/botManager.service";
 
 export const createCustomer = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -50,6 +51,17 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
 
     await newCustomer.save();
 
+    // Синхронизируем с botManager, чтобы новый бот сразу заработал
+    if (botToken) {
+      try {
+        await botManager.syncWithDatabase();
+        console.log(`✅ BotManager synced after creating customer: ${username}`);
+      } catch (syncError) {
+        console.error(`⚠️ Failed to sync BotManager after creating customer ${username}:`, syncError);
+        // Не прерываем выполнение, так как клиент уже создан
+      }
+    }
+
     res.status(201).json({
       message: "Customer created successfully",
       customer: {
@@ -83,6 +95,15 @@ export const deleteCustomer = async (req: Request, res: Response): Promise<void>
     if (!customer) {
       res.status(404).json({ message: "Customer not found" });
       return;
+    }
+
+    // Синхронизируем с botManager, чтобы остановить бот удаленного клиента
+    try {
+      await botManager.syncWithDatabase();
+      console.log(`✅ BotManager synced after deleting customer: ${customer.username}`);
+    } catch (syncError) {
+      console.error(`⚠️ Failed to sync BotManager after deleting customer ${customer.username}:`, syncError);
+      // Не прерываем выполнение, так как клиент уже удален
     }
 
     res.status(200).json({ message: "Customer deleted successfully" });
@@ -170,6 +191,17 @@ export const updateMyProfile = async (req: AuthRequest, res: Response): Promise<
     if (!updatedCustomer) {
       res.status(404).json({ message: "Customer not found" });
       return;
+    }
+
+    // Синхронизируем с botManager, если был изменен botToken
+    if (updateData.botToken !== undefined) {
+      try {
+        await botManager.syncWithDatabase();
+        console.log(`✅ BotManager synced after updating botToken for customer: ${updatedCustomer.username}`);
+      } catch (syncError) {
+        console.error(`⚠️ Failed to sync BotManager after updating botToken for ${updatedCustomer.username}:`, syncError);
+        // Не прерываем выполнение, так как профиль уже обновлен
+      }
     }
 
     res.status(200).json({
