@@ -36,55 +36,40 @@ export const getKarmicTail = async (req: AuthRequest, res: Response) => {
     throw new AppError("Invalid day or month in date", 400); 
   }
 
-  // Расчет суммы цифр года
   const yearSum: number = year
     .split("")
     .reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
 
-  // Основные числа
   const personalityPortrait: number = toArcana(day);
   const highestEssence: number = toArcana(month);
   const sumOfTheYear: number = toArcana(yearSum);
   
-  // Общее число (сумма трех предыдущих)
   const totalNumber: number = normalizeToArcana(personalityPortrait + highestEssence + sumOfTheYear);
-  
-  // Центр (зона комфорта и характер)
   const center: number = normalizeToArcana(personalityPortrait + highestEssence + sumOfTheYear + totalNumber);
   
-  // Родовой квадрат
   const fatherTop: number = normalizeToArcana(personalityPortrait + highestEssence);
   const fatherLow: number = normalizeToArcana(sumOfTheYear + totalNumber);
+  
   const motherTop: number = normalizeToArcana(highestEssence + sumOfTheYear);
   const motherLow: number = normalizeToArcana(personalityPortrait + totalNumber);
 
-  // Линии
   const lineSky: number = normalizeToArcana(highestEssence + totalNumber);
   const lineEarth: number = normalizeToArcana(personalityPortrait + sumOfTheYear);
-  
-  // Род отца и матери
   const fatherLineage: number = normalizeToArcana(fatherTop + fatherLow);
   const motherLineage: number = normalizeToArcana(motherTop + motherLow);
 
-  // Предназначения
   const personalPurpose: number = normalizeToArcana(lineSky + lineEarth);
   const socialPurpose: number = normalizeToArcana(fatherLineage + motherLineage);
   const spiritualPurpose: number = normalizeToArcana(personalPurpose + socialPurpose);
   const planetaryPurpose: number = normalizeToArcana(socialPurpose + spiritualPurpose);
 
-  // Кармический хвост (исправленная формула)
-  const karmicTail1: number = normalizeToArcana(totalNumber + center);
-  const karmicTail2: number = normalizeToArcana(karmicTail1 + totalNumber);
-  const karmicTail: string = `${karmicTail1}-${karmicTail2}-${totalNumber}`;
+  const karmicTail: string = `${normalizeToArcana(totalNumber + center)}-${normalizeToArcana(normalizeToArcana(totalNumber + center)+totalNumber)}-${totalNumber}`;
   
-  // Главный кармический урок души
   const lessonSoul: number = totalNumber;
 
-  // Материальная карма прошлого (исправленная формула)
-  const karmaPast: number = normalizeToArcana(fatherLow + center);
+  const karmaPast: number = normalizeToArcana(sumOfTheYear+center);
 
-  // Центр финансов (исправленная формула)
-  const financeCenter: number = normalizeToArcana(karmaPast + normalizeToArcana(karmicTail1 + karmaPast));
+  const financeCenter: number = normalizeToArcana(karmaPast+(normalizeToArcana(totalNumber + center)+karmaPast));
 
   const result: KarmicTail = {
     personalPurpose: purposeMap[personalPurpose] || "Трактовка не найдена",
@@ -129,47 +114,59 @@ export const getKarmicTailAsPdf = async (req: AuthRequest, res: Response) => {
 
   const personalityPortrait: number = toArcana(day);
   const highestEssence: number = toArcana(month);
-  const sumOfTheYear: number = toArcana(yearSum);
-  
-  // Общее число (сумма трех предыдущих)
+  let sumOfTheYear: number = yearSum;
+  if (sumOfTheYear) {
+    sumOfTheYear = normalizeToArcana(yearSum);
+  }
+  console.log(`портрет личности: ${personalityPortrait}`)
+  console.log(`высшая суть (вдохновляет или вгоняет в депрессию): ${highestEssence}`)
+  console.log(`сумма цифр года: ${sumOfTheYear}`)
+
   const totalNumber: number = normalizeToArcana(personalityPortrait + highestEssence + sumOfTheYear);
-  
-  // Центр (зона комфорта и характер)
   const center: number = normalizeToArcana(personalityPortrait + highestEssence + sumOfTheYear + totalNumber);
+  console.log(`общее число (сумма трех предыдущих): ${totalNumber}`)
+  console.log(`центр (зона комфорта и характер ): ${center}`)
   
-  // Родовой квадрат
+
   const fatherTop: number = normalizeToArcana(personalityPortrait + highestEssence);
   const fatherLow: number = normalizeToArcana(sumOfTheYear + totalNumber);
+  console.log(`род отца верх: ${fatherTop}`)
+  console.log(`род отца низ: ${fatherLow}`)
+
   const motherTop: number = normalizeToArcana(highestEssence + sumOfTheYear);
   const motherLow: number = normalizeToArcana(personalityPortrait + totalNumber);
+  console.log(`род матери верх: ${motherTop}`)
+  console.log(`род матери низ: ${motherLow}`)
 
-  // Линии
   const lineSky: number = normalizeToArcana(highestEssence + totalNumber);
   const lineEarth: number = normalizeToArcana(personalityPortrait + sumOfTheYear);
-  
-  // Род отца и матери
   const fatherLineage: number = normalizeToArcana(fatherTop + fatherLow);
   const motherLineage: number = normalizeToArcana(motherTop + motherLow);
+  console.log(`линия неба: ${lineSky}`)
+  console.log(`линия земли: ${lineEarth}`)
+  console.log(`род отца: ${fatherLineage}`)
+  console.log(`род матери: ${motherLineage}`)
 
-  // Предназначения
   const personalPurpose: number = normalizeToArcana(lineSky + lineEarth);
   const socialPurpose: number = normalizeToArcana(fatherLineage + motherLineage);
   const spiritualPurpose: number = normalizeToArcana(personalPurpose + socialPurpose);
   const planetaryPurpose: number = normalizeToArcana(socialPurpose + spiritualPurpose);
+  console.log(`личное предназначение : ${personalPurpose}`)
+  console.log(`соц предназначение: ${socialPurpose}`)
+  console.log(`духовное предназанчение: ${spiritualPurpose}`)
+  console.log(`планетарное предназначение: ${planetaryPurpose}`)
 
-  // Кармический хвост (исправленная формула)
-  const karmicTail1: number = normalizeToArcana(totalNumber + center);
-  const karmicTail2: number = normalizeToArcana(karmicTail1 + totalNumber);
-  const karmicTail: string = `${karmicTail1}-${karmicTail2}-${totalNumber}`;
-  
-  // Главный кармический урок души
+  const karmicTail: string = `${normalizeToArcana(totalNumber + center)}-${normalizeToArcana(normalizeToArcana(totalNumber + center)+totalNumber)}-${totalNumber}`;
+  console.log(`кармический хвост: ${karmicTail}`)
+
   const lessonSoul: number = totalNumber;
+  console.log(`lessonSoul: ${lessonSoul}`)
 
-  // Материальная карма прошлого (исправленная формула)
-  const karmaPast: number = normalizeToArcana(fatherLow + center);
+  const karmaPast: number = normalizeToArcana(sumOfTheYear+center);
+  console.log(`karmaPast: ${karmaPast}`)
 
-  // Центр финансов (исправленная формула)
-  const financeCenter: number = normalizeToArcana(karmaPast + normalizeToArcana(karmicTail1 + karmaPast));
+  const financeCenter: number = normalizeToArcana(karmaPast+normalizeToArcana(normalizeToArcana(totalNumber + center)+karmaPast));
+  console.log(`центр финансов: ${financeCenter}`)
 
   const karmicTailData: KarmicTailData = {
     personalPurpose: { arcanum: personalPurpose, text: purposeMap[personalPurpose] || "Трактовка не найдена" },
