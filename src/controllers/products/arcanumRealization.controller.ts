@@ -28,9 +28,10 @@ export const getArcanumRealizationAsPdf = async (req: AuthRequest, res: Response
 
   const finalNumber: number = toArcana(day+month+yearSum);
   
-  const arcanFilePath: string = getArcanFilePath(finalNumber, __dirname, ["..", "data", "arcanumRealization"])
-    .replace('/dist/src/', '/src/');
+  const arcanFilePath = getArcanFilePath(finalNumber, __dirname, ["..", "..", "src", "data", "arcanumRealization"]);
 
+  console.log(arcanFilePath);
+  
   // Трекинг запроса
   if (req.user?.customerId) {
     await trackProductRequest('arcanumRealization', req.user.customerId.toString(), birthDate, 'pdf');
