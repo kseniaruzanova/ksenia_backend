@@ -116,78 +116,78 @@ const initializeApp = async () => {
     await connectDB();
     console.log('✅ Database connected');
 
-    // await botManager.initialize();
-    // console.log('✅ BotManager initialized');
+    await botManager.initialize();
+    console.log('✅ BotManager initialized');
 
-    // // Устанавливаем глобальный экземпляр BotManager для использования в webhook
-    // setBotManagerInstance(botManager);
-    // console.log('✅ BotManager instance set globally');
+    // Устанавливаем глобальный экземпляр BotManager для использования в webhook
+    setBotManagerInstance(botManager);
+    console.log('✅ BotManager instance set globally');
 
-    // botManager.on('bot:added', (data) => {
-    //     console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
-    // });
+    botManager.on('bot:added', (data) => {
+        console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
+    });
 
-    // botManager.on('bot:updated', (data) => {
-    //     console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
-    // });
+    botManager.on('bot:updated', (data) => {
+        console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
+    });
 
-    // botManager.on('bot:removed', (data) => {
-    //     console.log(`🗑️ Bot removed: ${data.username}`);
-    // });
+    botManager.on('bot:removed', (data) => {
+        console.log(`🗑️ Bot removed: ${data.username}`);
+    });
 
-    // botManager.on('bot:error', (data) => {
-    //     console.log(`❌ Bot error for ${data.username}:`, data.error);
-    // });
+    botManager.on('bot:error', (data) => {
+        console.log(`❌ Bot error for ${data.username}:`, data.error);
+    });
 
-    // botManager.on('change:error', (data) => {
-    //     console.error('❌ Customer change handling error:', data.error);
-    // });
+    botManager.on('change:error', (data) => {
+        console.error('❌ Customer change handling error:', data.error);
+    });
 
-    // botManager.on('bot:listening:started', (data) => {
-    //     console.log(`👂 Bot listening started: ${data.username}`);
-    // });
+    botManager.on('bot:listening:started', (data) => {
+        console.log(`👂 Bot listening started: ${data.username}`);
+    });
 
-    // botManager.on('bot:listening:stopped', (data) => {
-    //     console.log(`🔇 Bot listening stopped: ${data.username}`);
-    // });
+    botManager.on('bot:listening:stopped', (data) => {
+        console.log(`🔇 Bot listening stopped: ${data.username}`);
+    });
 
-    // botManager.on('message:received', (data) => {
-    //     console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
-    // });
+    botManager.on('message:received', (data) => {
+        console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
+    });
 
-    // botManager.on('bot:message:error', (data) => {
-    //     console.error(`❌ Bot message error for ${data.username}:`, data.error);
-    // });
+    botManager.on('bot:message:error', (data) => {
+        console.error(`❌ Bot message error for ${data.username}:`, data.error);
+    });
 
-    // dailyMessagingService.on('birthday:sent', (data) => {
-    //   console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
-    // });
+    dailyMessagingService.on('birthday:sent', (data) => {
+      console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
+    });
 
-    // dailyMessagingService.on('birthday:failed', (data) => {
-    //   console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
-    // });
+    dailyMessagingService.on('birthday:failed', (data) => {
+      console.error(`❌ Birthday message failed for ${data.chatId} (${data.customerName}):`, data.error);
+    });
 
-    // dailyMessagingService.on('birthday:completed', (data) => {
-    //   console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
-    // });
+    dailyMessagingService.on('birthday:completed', (data) => {
+      console.log(`🎂 Birthday messaging completed: ${data.success}/${data.total} successful`);
+    });
 
-    // dailyMessagingService.on('scheduler:started', () => {
-    //   console.log('🚀 Birthday messaging scheduler started');
-    // });
+    dailyMessagingService.on('scheduler:started', () => {
+      console.log('🚀 Birthday messaging scheduler started');
+    });
 
-    // dailyMessagingService.on('scheduler:stopped', () => {
-    //   console.log('🛑 Birthday messaging scheduler stopped');
-    // });
+    dailyMessagingService.on('scheduler:stopped', () => {
+      console.log('🛑 Birthday messaging scheduler stopped');
+    });
 
-    // await botManager.syncWithDatabase();
+    await botManager.syncWithDatabase();
     
-    // setInterval(async () => {
-    //   try {
-    //     await botManager.syncWithDatabase();
-    //   } catch (error) {
-    //     console.error('❌ Periodic sync failed:', error);
-    //   }
-    // }, 5 * 60 * 1000);
+    setInterval(async () => {
+      try {
+        await botManager.syncWithDatabase();
+      } catch (error) {
+        console.error('❌ Periodic sync failed:', error);
+      }
+    }, 5 * 60 * 1000);
 
     console.log('⏰ Periodic sync scheduled every 5 minutes');
 
