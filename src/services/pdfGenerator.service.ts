@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
-import { ArchetypeShadowData, AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem } from "../interfaces/arcan";
+import { ArchetypeMonthData, ArchetypeShadowData, AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, LifeMatrixData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem, StagnationCycleData } from "../interfaces/arcan";
 import tractovkiDataJSON from "../data/matrixLife/tractovki.json";
 
 const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
@@ -74,13 +74,6 @@ export function generateForecastPdf(
     .font("DejaVu-Regular")
     .fontSize(11)
     .text(data.yearDoor.text, { align: "justify" });
-  doc.moveDown(2);
-
-  doc.font("DejaVu-Bold").fontSize(14).text("СОБЫТИЙНЫЙ УДАР: Чего избегать");
-  doc
-    .font("DejaVu-Regular")
-    .fontSize(11)
-    .text(data.events.text, { align: "justify" });
   doc.moveDown(3);
 
   doc.font("DejaVu-Bold").fontSize(18).text("Прогноз по месяцам");
@@ -109,6 +102,13 @@ export function generateForecastPdf(
       .font("DejaVu-Regular")
       .fontSize(10)
       .text(monthData.risk.text, { align: "justify" });
+    doc.moveDown();
+
+    doc.font("DejaVu-Bold").fontSize(12).text("СОБЫТИЙНЫЙ УДАР: Чего избегать");
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(10)
+      .text(data.events.text, { align: "justify" });
     doc.moveDown(2);
   });
 
@@ -705,5 +705,363 @@ export function generateArchetypeShadowPdf(
   doc.font("DejaVu-Regular").fontSize(11).text(data.fourth.text, { align: "justify" });
   doc.moveDown(2);
   
+  doc.end();
+}
+
+export function generateArchetypeMonthPdf(
+  data: ArchetypeMonthData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/matrixLife.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Архетип месяца", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`Расчет для даты: ${birthDate}`, { align: "center" });
+  doc.moveDown(2);
+
+  doc.font("DejaVu-Bold").fontSize(16).text(`Ваш аркан: ${data.archetype.arcanum}`);
+  doc.moveDown(1);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(12)
+    .text(data.archetype.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+
+  doc.end();
+}
+
+export function generateLifeMatrixPdf(
+  data: LifeMatrixData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/matrixLife.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Расчет «Матрица жизни»", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(3);
+
+  // Вывод матрицы
+  if (data.matrix && Array.isArray(data.matrix)) {
+    doc.font("DejaVu-Bold").fontSize(16).text("Матрица:", { align: "left" });
+    doc.moveDown(1);
+
+    const colWidth = 80;
+    const rowHeight = 40;
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const tableWidth = colWidth * 5;
+    const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
+    const startY = doc.y;
+
+    doc.font("DejaVu-Regular").fontSize(14);
+
+    // Отрисовка строк матрицы
+    for (let i = 0; i < data.matrix.length; i++) {
+      const row = data.matrix[i];
+      const currentY = startY + i * rowHeight;
+      
+      for (let j = 0; j < row.length; j++) {
+        const cellX = startX + j * colWidth;
+        
+        // Рисуем границы ячейки
+        doc.rect(cellX, currentY, colWidth, rowHeight).stroke();
+        
+        // Рисуем текст в центре ячейки
+        doc.text(String(row[j]), cellX, currentY + (rowHeight / 2) - 7, { 
+          width: colWidth, 
+          align: "center",
+          lineBreak: false
+        });
+      }
+    }
+    
+    // Обновляем позицию Y после таблицы
+    doc.y = startY + data.matrix.length * rowHeight;
+
+    doc.moveDown(2);
+  }
+
+  doc.x = doc.page.margins.left;
+
+  // Аркан дня рождения
+  doc.font("DejaVu-Bold").fontSize(16).text("Аркан вашего дня рождения:", { align: "left" });
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Bold").fontSize(14).fillColor("#4b0082").text(`Аркан ${data.birthDayArcanum.arcanum}`, { align: "left" });
+  doc.fillColor("#000000");
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.birthDayArcanum.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Аркан года
+  doc.font("DejaVu-Bold").fontSize(16).text("Аркан года:", { align: "left" });
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Bold").fontSize(14).fillColor("#4b0082").text(`Аркан ${data.yearArcanum.arcanum}`, { align: "left" });
+  doc.fillColor("#000000");
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.yearArcanum.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Аркан задачи высших сил
+  doc.font("DejaVu-Bold").fontSize(16).text("Аркан задачи высших сил:", { align: "left" });
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Bold").fontSize(14).fillColor("#4b0082").text(`Аркан ${data.higherForcesTaskArcanum.arcanum}`, { align: "left" });
+  doc.fillColor("#000000");
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.higherForcesTaskArcanum.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Урок на это воплощение
+  doc.font("DejaVu-Bold").fontSize(16).text("Ваш урок на это воплощение:", { align: "left" });
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Bold").fontSize(14).fillColor("#4b0082").text(`Аркан ${data.incarnationLesson.arcanum}`, { align: "left" });
+  doc.fillColor("#000000");
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.incarnationLesson.text, { align: "justify" });
+  doc.moveDown(2);
+
+  // Аркан самореализации
+  doc.font("DejaVu-Bold").fontSize(16).text("Аркан вашей самореализации:", { align: "left" });
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Bold").fontSize(14).fillColor("#4b0082").text(`Аркан ${data.selfRealizationArcanum.arcanum}`, { align: "left" });
+  doc.fillColor("#000000");
+  doc.moveDown(0.5);
+  doc.font("DejaVu-Regular").fontSize(11).text(data.selfRealizationArcanum.text, { align: "justify" });
+  doc.moveDown(3);
+
+  // Периоды жизни - таблица
+  doc.font("DejaVu-Bold").fontSize(16).text("Ваши периоды жизни:", { align: "left" });
+  doc.moveDown(1);
+
+  // Создаем таблицу периодов
+  const periodColWidth = 100;
+  const periodRowHeight = 30;
+  const periodTableWidth = periodColWidth * 2;
+  const periodPageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const periodStartX = doc.page.margins.left + (periodPageWidth - periodTableWidth) / 2;
+  const periodStartY = doc.y;
+
+  doc.font("DejaVu-Bold").fontSize(12);
+  // Заголовки
+  doc.rect(periodStartX, periodStartY, periodColWidth, periodRowHeight).stroke();
+  doc.text("Период", periodStartX + 5, periodStartY + 10, { width: periodColWidth - 10, align: "center" });
+  doc.rect(periodStartX + periodColWidth, periodStartY, periodColWidth, periodRowHeight).stroke();
+  doc.text("Возраст", periodStartX + periodColWidth + 5, periodStartY + 10, { width: periodColWidth - 10, align: "center" });
+
+  doc.font("DejaVu-Regular").fontSize(11);
+  // Данные периодов
+  data.lifePeriods.forEach((period, index) => {
+    const currentY = periodStartY + (index + 1) * periodRowHeight;
+    
+    doc.rect(periodStartX, currentY, periodColWidth, periodRowHeight).stroke();
+    doc.text(`Период ${period.periodNumber}`, periodStartX + 5, currentY + 10, { width: periodColWidth - 10, align: "center" });
+    
+    doc.rect(periodStartX + periodColWidth, currentY, periodColWidth, periodRowHeight).stroke();
+    doc.text(`${period.fromAge}-${period.toAge} лет`, periodStartX + periodColWidth + 5, currentY + 10, { width: periodColWidth - 10, align: "center" });
+  });
+
+  doc.x = doc.page.margins.left;
+
+  doc.y = periodStartY + (data.lifePeriods.length + 1) * periodRowHeight;
+  doc.moveDown(2);
+
+  // Описание каждого периода
+  data.lifePeriods.forEach((period, index) => {
+    // Проверяем, нужно ли добавить новую страницу
+    if (doc.y > doc.page.height - doc.page.margins.bottom - 200) {
+      doc.addPage();
+    }
+
+    doc.font("DejaVu-Bold").fontSize(16).fillColor("#4b0082").text(`Период ${period.periodNumber} (${period.fromAge}-${period.toAge} лет)`, { align: "left" });
+    doc.fillColor("#000000");
+    doc.moveDown(0.5);
+
+    doc.font("DejaVu-Bold").fontSize(13).text("Положительные события и бонусы и что может мешать их получению:", { align: "left" });
+    doc.moveDown(0.5);
+    doc.font("DejaVu-Regular").fontSize(11).text(period.positiveEvents, { align: "justify" });
+    doc.moveDown(0.5);
+
+    doc.font("DejaVu-Bold").fontSize(13).text("Кармический уроки, кармические ошибки и кармические черты характера (это нельзя повторять в данном периоде):", { align: "left" });
+    doc.moveDown(0.5);
+    doc.font("DejaVu-Regular").fontSize(11).text(period.karmicLessons, { align: "justify" });
+
+    doc.moveDown(2);
+  });
+
+  doc.end();
+}
+
+export function generateStagnationCyclePdf(
+  data: StagnationCycleData,
+  stream: Writable,
+  birthDate: string,
+  chooseMonth: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/mistakesIncarnation.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Удар, цикл, застой, выход", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`Расчет для даты: ${birthDate}`, { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`Месяц: ${chooseMonth}`, { align: "center" });
+  doc.moveDown(3);
+  
+
+  doc.font("DejaVu-Bold").fontSize(18).text("УДАР");
+  doc.moveDown(0);
+  doc.font("DejaVu-Bold").fontSize(14).text(`Аркан: ${data.strike.arcanum}`);
+  doc.moveDown(0.5);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.strike.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(18).text("ЦИКЛ");
+  doc.moveDown(0);
+  doc.font("DejaVu-Bold").fontSize(14).text(`Аркан: ${data.cycle.arcanum}`);
+  doc.moveDown(0.5);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.cycle.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(18).text("ЗАСТОЙ");
+  doc.moveDown(0);
+  doc.font("DejaVu-Bold").fontSize(14).text(`Аркан: ${data.stagnation.arcanum}`);
+  doc.moveDown(0.5);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.stagnation.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(18).text("Выход 1");
+  doc.moveDown(0.5);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.exit1.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(18).text("Выход 2");
+  doc.moveDown(0.5);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.exit2.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+  doc.moveDown(3);
+
+  doc.font("DejaVu-Bold").fontSize(18).text("Выход 3");
+  doc.moveDown(0.5);
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(11)
+    .text(data.exit3.text || "Трактовка появится после заполнения файла интерпретаций.", {
+      align: "justify",
+    });
+
   doc.end();
 }

@@ -44,7 +44,7 @@ export const getMatrixLife = async (req: AuthRequest, res: Response) => {
   const matrix: number[][] = [
     [toArcana(day), toArcana(month), toArcana(yearSum), toArcana(getBirthDateSum(birthDate)), toArcana(day+month+yearSum)],
     [a, b, c, d, toArcana(a+b+c+d)],
-    [secondA, secondB, secondC, secondD, secondA+secondB+secondC+secondD]
+    [secondA, secondB, secondC, secondD, toArcana(secondA+secondB+secondC+secondD)]
   ];
 
   // Анализируем коды матрицы
@@ -93,14 +93,14 @@ export const getMatrixLifeAsPdf = async (req: AuthRequest, res: Response) => {
   const d = toArcana(month+yearSum);
 
   const secondA = Math.abs(day-month);
-  const secondB = Math.abs(day-yearSum);
+  const secondB = Math.abs(day-toArcana(yearSum));
   const secondC = Math.abs(secondA-secondB);
-  const secondD = Math.abs(month-yearSum);
+  const secondD = Math.abs(month-yearSum) === 22 ? 0 : Math.abs(month-yearSum);
 
   const matrix: number[][] = [
     [toArcana(day), toArcana(month), toArcana(yearSum), toArcana(getBirthDateSum(birthDate)), toArcana(day+month+yearSum)],
     [a, b, c, d, toArcana(a+b+c+d)],
-    [secondA, secondB, secondC, secondD, secondA+secondB+secondC+secondD]
+    [secondA, secondB, secondC, secondD, toArcana(secondA+secondB+secondC+secondD)]
   ];
 
   // Анализируем коды матрицы

@@ -38,6 +38,16 @@ export const normalizeToArcana = (value: number): number => {
   return value;
 };
 
+export const summatioNumber = (value: number): number => {
+  const digits = splitNumberIntoDigits(value);
+  let summ = 0;
+  digits.forEach(element => {
+    summ += element;
+  });
+  
+  return summ;
+};
+
 export function getBirthDateSum(birthDate: string): number {
   const parts = birthDate.split(".");
   if (parts.length !== 3) return 0;

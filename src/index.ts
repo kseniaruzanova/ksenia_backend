@@ -29,8 +29,11 @@ import awakeningCodesRoutes from "./routes/products/awakeningCodes.routes";
 import arcanumRealizationRoutes from "./routes/products/arcanumRealization.routes";
 import mistakesIncarnationRoutes from "./routes/products/mistakesIncarnation.routes";
 import matrixLifeRoutes from "./routes/products/matrixLife.routes";
+import lifeMatrixRoutes from "./routes/products/lifeMatrix.routes";
 import karmicTailRoutes from "./routes/products/karmicTail.routes";
 import archetypeShadowRoutes from "./routes/products/archetypeShadow.routes";
+import archetypeMonthRoutes from "./routes/products/archetypeMonth.routes";
+import stagnationCycleRoutes from "./routes/products/stagnationCycle.routes";
 
 import tarotRoutes from "./routes/tarot.routes";
 import prodamusRoutes from "./routes/prodamus.routes";
@@ -124,39 +127,39 @@ const initializeApp = async () => {
     console.log('✅ BotManager instance set globally');
 
     botManager.on('bot:added', (data) => {
-        console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
+      console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
     });
 
     botManager.on('bot:updated', (data) => {
-        console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
+      console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
     });
 
     botManager.on('bot:removed', (data) => {
-        console.log(`🗑️ Bot removed: ${data.username}`);
+      console.log(`🗑️ Bot removed: ${data.username}`);
     });
 
     botManager.on('bot:error', (data) => {
-        console.log(`❌ Bot error for ${data.username}:`, data.error);
+      console.log(`❌ Bot error for ${data.username}:`, data.error);
     });
 
     botManager.on('change:error', (data) => {
-        console.error('❌ Customer change handling error:', data.error);
+      console.error('❌ Customer change handling error:', data.error);
     });
 
     botManager.on('bot:listening:started', (data) => {
-        console.log(`👂 Bot listening started: ${data.username}`);
+      console.log(`👂 Bot listening started: ${data.username}`);
     });
 
     botManager.on('bot:listening:stopped', (data) => {
-        console.log(`🔇 Bot listening stopped: ${data.username}`);
+      console.log(`🔇 Bot listening stopped: ${data.username}`);
     });
 
     botManager.on('message:received', (data) => {
-        console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
+      console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
     });
 
     botManager.on('bot:message:error', (data) => {
-        console.error(`❌ Bot message error for ${data.username}:`, data.error);
+      console.error(`❌ Bot message error for ${data.username}:`, data.error);
     });
 
     dailyMessagingService.on('birthday:sent', (data) => {
@@ -235,8 +238,11 @@ app.use('/api/awakeningCodes', awakeningCodesRoutes);
 app.use('/api/mistakesIncarnation', mistakesIncarnationRoutes);
 app.use('/api/arcanumRealization', arcanumRealizationRoutes);
 app.use('/api/matrixLife', matrixLifeRoutes);
+app.use('/api/lifeMatrix', lifeMatrixRoutes);
 app.use('/api/karmicTail', karmicTailRoutes);
 app.use('/api/archetypeShadow', archetypeShadowRoutes);
+app.use('/api/archetypeMonth', archetypeMonthRoutes);
+app.use('/api/stagnationCycle', stagnationCycleRoutes);
 
 app.use('/api/tarot', tarotRoutes);
 app.use('/api/astro', astroRoutes);

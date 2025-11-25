@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 
 import { ArcanasData } from "../../types/arcan";
 import { AppError } from "../../interfaces/appError";
-import { toArcana } from "../../utils/arcan";
 import { ForecastData, MonthlyForecast } from "../../interfaces/arcan";
 import { generateForecastPdf } from "../../services/pdfGenerator.service";
 import { trackProductRequest } from "../productStatistics.controller";
@@ -12,6 +11,7 @@ import monthsData from "../../data/taroscop/months.json";
 import yearDoorData from "../../data/taroscop/yearDoor.json";
 import riskData from "../../data/taroscop/risk.json";
 import eventsData from "../../data/taroscop/events.json";
+import { toArcana } from "../../utils/arcan";
 
 const monthsMap: ArcanasData = monthsData;
 const yearDoorMap: ArcanasData = yearDoorData;
@@ -74,11 +74,9 @@ function getForecastData(birthDate: string): ForecastData {
     .split("")
     .reduce((acc: any, digit: any) => acc + parseInt(digit, 10), 0);
 
-  const rawYearDoorSum: number = day + month + yearSum + 9 + 10;
-  const yearDoorArcana: number = toArcana(rawYearDoorSum);
+  const yearDoorArcana: number = toArcana(day + month + yearSum + 9 + 18);
 
-  const rawEventsSum: number = day + 9 + 16;
-  const eventsArcana: number = toArcana(rawEventsSum);
+  const eventsArcana: number = toArcana(day + 9 + 16);
 
   const currentMonthIndex: number = new Date().getMonth();
   const monthlyForecasts: MonthlyForecast[] = [];
@@ -87,8 +85,7 @@ function getForecastData(birthDate: string): ForecastData {
     const targetMonthIndex: number = (currentMonthIndex + i) % 12;
     const monthNumber: number = targetMonthIndex + 1;
     const examArcana: number = toArcana(day + monthNumber);
-    const rawRiskSum: number = day + monthNumber + yearSum + 9 + 18;
-    const riskArcana: number = toArcana(rawRiskSum);
+    const riskArcana: number = toArcana(day + month + yearSum + 9 + 10);
 
     monthlyForecasts.push({
       monthName: monthNames[targetMonthIndex],
@@ -99,7 +96,7 @@ function getForecastData(birthDate: string): ForecastData {
       risk: {
         arcanum: riskArcana,
         text: riskMap[riskArcana] || "Трактовка не найдена",
-      },
+      }
     });
   }
 

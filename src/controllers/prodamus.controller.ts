@@ -69,13 +69,21 @@ export const handleProdamusWebhook = async (req: Request, res: Response) => {
 
     // Определяем тип платежа по наличию специфических полей
     const isSubscription = data["subscription[id]"] !== undefined;
-    const isTarotPayment = data._param_user !== undefined && data._param_customer_id !== undefined;
+    const paymentType = data._param_payment_type;
+    const isUserSubscriptionPayment = paymentType === 'user_subscription';
+    const isTarotPayment =
+      !isUserSubscriptionPayment &&
+      (paymentType === 'tarot' ||
+        (paymentType === undefined && data._param_user !== undefined && data._param_customer_id !== undefined));
 
-    console.log(`🔍 Payment type detection: subscription=${isSubscription}, tarot=${isTarotPayment}`);
+    console.log(`🔍 Payment type detection: subscription=${isSubscription}, userSubscription=${isUserSubscriptionPayment}, tarot=${isTarotPayment}`);
 
     if (isSubscription) {
       console.log("🔄 Processing as subscription payment");
       return await processSubscriptionPayment(data, res);
+    } else if (isUserSubscriptionPayment) {
+      console.log("💎 Processing as user subscription payment");
+      return await processUserSubscriptionPayment(data, res);
     } else if (isTarotPayment) {
       console.log("🔮 Processing as tarot reading payment");
       return await processTarotPayment(data, res);
@@ -294,6 +302,117 @@ const processTarotPayment = async (data: any, res: Response) => {
         error: "Ошибка обработки платежа", 
         details: error instanceof Error ? error.message : 'Unknown error' 
       });
+  }
+};
+
+/**
+ * Обработка одноразовой подписки пользователя
+ */
+const processUserSubscriptionPayment = async (data: any, res: Response) => {
+  try {
+    const chatId = data._param_user;
+    const customerId = data._param_customer_id;
+    const botParam = data._param_bot;
+    const username = data._param_username;
+    const paymentStatus = data.payment_status;
+    const amount = parseFloat(data.sum) || 0;
+    const orderId = data.order_num;
+
+    console.log(`💎 User subscription payment: chatId=${chatId}, customerId=${customerId}, status=${paymentStatus}, amount=${amount}, order=${orderId}`);
+
+    if (!chatId || !customerId) {
+      console.error('❌ Missing required parameters for subscription payment');
+      return res.status(400).json({ error: "chatId and customerId are required" });
+    }
+
+    if (paymentStatus !== 'success') {
+      console.log(`⚠️ Subscription payment not successful: ${paymentStatus}`);
+      return res.status(200).json({ success: true, message: "Payment status is not success" });
+    }
+
+    let user = await User.findOne({ chat_id: chatId, customerId });
+
+    if (!user) {
+      console.warn(`⚠️ User not found for subscription, creating stub: chatId=${chatId}, customerId=${customerId}`);
+      user = await User.create({
+        chat_id: chatId,
+        customerId,
+        state: 'step_1'
+      });
+    }
+
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      console.error(`❌ Customer not found: ${customerId}`);
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    const durationRaw = Number(process.env.USER_SUBSCRIPTION_DURATION_DAYS);
+    const durationDays = Number.isFinite(durationRaw) && durationRaw > 0 ? durationRaw : 30;
+    const now = new Date();
+    const baseDate =
+      user.subscriptionStatus === 'active' &&
+      user.subscriptionExpiresAt &&
+      user.subscriptionExpiresAt > now
+        ? user.subscriptionExpiresAt
+        : now;
+
+    const newExpiration = new Date(baseDate);
+    newExpiration.setDate(newExpiration.getDate() + durationDays);
+
+    await User.findOneAndUpdate(
+      { chat_id: chatId, customerId },
+      {
+        $set: {
+          subscriptionStatus: 'active',
+          subscriptionExpiresAt: newExpiration,
+          lastSubscriptionPaymentAt: now
+        }
+      }
+    );
+
+    try {
+      await Payment.create({
+        amount,
+        bot_name: botParam || 'unknown',
+        username: username || 'unknown',
+        type: 'user_subscription',
+      });
+    } catch (paymentError) {
+      console.error("❌ Error saving subscription payment:", paymentError);
+    }
+
+    const formattedExpiration = newExpiration.toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: 'long'
+    });
+
+    const bot = botManager.getBot(customerId);
+    if (bot) {
+      await bot.telegram.sendMessage(
+        chatId,
+        `💎 Подписка активирована!\n\nДоступ открыт до *${formattedExpiration}*.\n\nМожешь сразу возвращаться в меню — все функции доступны.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Subscription activated",
+      data: {
+        orderId,
+        chatId,
+        customerId,
+        expiresAt: newExpiration
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error in processUserSubscriptionPayment:", error);
+    return res.status(500).json({
+      error: "Ошибка обработки подписки",
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 

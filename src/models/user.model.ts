@@ -13,6 +13,9 @@ export interface IUser extends Document {
   messages?: string[];
   customerId: Schema.Types.ObjectId;
   adminChatMode?: boolean; // Режим прямого общения с админом
+  subscriptionStatus?: 'active' | 'inactive' | 'expired';
+  subscriptionExpiresAt?: Date | null;
+  lastSubscriptionPaymentAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +33,9 @@ const userSchema = new Schema<IUser>({
   messages: { type: [String] },
   customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
   adminChatMode: { type: Boolean, default: false }, // Режим прямого общения с админом
+  subscriptionStatus: { type: String, enum: ['active', 'inactive', 'expired'], default: 'inactive' },
+  subscriptionExpiresAt: { type: Date, default: null },
+  lastSubscriptionPaymentAt: { type: Date, default: null },
 }, {
   timestamps: true,
   collection: 'Users'

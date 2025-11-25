@@ -15,7 +15,7 @@ import { convertDateFormat, parseBirthDate } from "../utils/astro";
 import { getMessageType, readSystemPromptFromFile } from "../utils/bot";
 import { toArcana, splitNumberIntoDigits, getArcanFilePath } from "../utils/arcan";
 
-import User from "../models/user.model";
+import User, { IUser } from "../models/user.model";
 import Customer from "../models/customer.model";
 import AISettings from "../models/aiSettings.model";
 import { Chat, IChat } from "../models/chat.model";
@@ -28,7 +28,8 @@ import {
   generateForecastPdf, 
   generateFinancialCastPdf, 
   generateMistakesIncarnationPdf, 
-  generateAwakeningCodesPdf 
+  generateAwakeningCodesPdf,
+  generateArchetypeMonthPdf
 } from "./pdfGenerator.service";
 
 import monthlyHoroscope from "../data/natal/monthly.json";
@@ -46,6 +47,7 @@ import lessonIncarnationData from "../data/mistakesIncarnation/lessonIncarnation
 import coreData from "../data/awakeningCodes/core.json";
 import fearData from "../data/awakeningCodes/fear.json";
 import implementationData from "../data/awakeningCodes/implementation.json";
+import archetypeMonthInterpretations from "../data/archetypeMonth/interpretations.json";
 
 class BotManager extends EventEmitter {
   private bots: Map<string, BotInstance> = new Map();
@@ -247,6 +249,16 @@ class BotManager extends EventEmitter {
         customer.subscriptionStatus = 'inactive';
         
         await customer.save();
+      }
+
+      const now = new Date();
+      const expiredUsersResult = await User.updateMany(
+        { subscriptionStatus: 'active', subscriptionExpiresAt: { $lt: now } },
+        { $set: { subscriptionStatus: 'expired' } }
+      );
+
+      if (expiredUsersResult.modifiedCount) {
+        console.log(`👥 Marked ${expiredUsersResult.modifiedCount} user subscriptions as expired`);
       }
     }, 3600 * 1000);
   }
@@ -540,6 +552,120 @@ class BotManager extends EventEmitter {
     }
 
     return cleaned;
+  }
+
+  private getSubscriptionPrice(): number {
+    const raw = Number(process.env.USER_SUBSCRIPTION_PRICE);
+    return Number.isFinite(raw) && raw > 0 ? raw : 990;
+  }
+
+  private getSubscriptionDurationDays(): number {
+    const raw = Number(process.env.USER_SUBSCRIPTION_DURATION_DAYS);
+    return Number.isFinite(raw) && raw > 0 ? raw : 30;
+  }
+
+  private getSubscriptionProductName(): string {
+    return process.env.USER_SUBSCRIPTION_PRODUCT_NAME || 'Подписка Пророка';
+  }
+
+  private getPayformSubdomain(): string {
+    return process.env.PRODAMUS_SUBDOMAIN || 'astroxenia';
+  }
+
+  private formatCurrency(amount: number): string {
+    return amount.toLocaleString('ru-RU');
+  }
+
+  private formatSubscriptionDate(date: Date): string {
+    return date.toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: 'long'
+    });
+  }
+
+  private isUserSubscriptionActive(user?: IUser | null): boolean {
+    if (!user || user.subscriptionStatus !== 'active' || !user.subscriptionExpiresAt) {
+      return false;
+    }
+
+    return user.subscriptionExpiresAt > new Date();
+  }
+
+  private buildUserSubscriptionPaymentLink(customerId: string, chatId: string, customerUsername: string): string {
+    const params = new URLSearchParams();
+    const productName = this.getSubscriptionProductName();
+    const subdomain = this.getPayformSubdomain();
+    const price = this.getSubscriptionPrice();
+
+    params.append('do', 'pay');
+    params.append('products[0][name]', productName);
+    params.append('products[0][price]', price.toString());
+    params.append('products[0][quantity]', '1');
+    params.append('customer_extra', customerId);
+    params.append('paid_content', productName);
+    params.append('_param_user', chatId);
+    params.append('_param_customer_id', customerId);
+    params.append('_param_bot', 'prorok');
+    params.append('_param_username', customerUsername || 'unknown');
+    params.append('_param_payment_type', 'user_subscription');
+
+    return `https://${subdomain}.payform.ru/?${params.toString()}`;
+  }
+
+  private async presentSubscriptionOffer(customerId: string, chatId: string, customerUsername: string): Promise<void> {
+    let user = await User.findOne({ chat_id: chatId, customerId });
+
+    if (!user) {
+      user = await User.create({
+        chat_id: chatId,
+        customerId,
+        state: 'step_1'
+      });
+    }
+
+    const durationDays = this.getSubscriptionDurationDays();
+    const price = this.getSubscriptionPrice();
+    const priceLabel = this.formatCurrency(price);
+    const paymentLink = this.buildUserSubscriptionPaymentLink(customerId, chatId, customerUsername);
+
+    if (this.isUserSubscriptionActive(user)) {
+      const expirationText = user.subscriptionExpiresAt
+        ? this.formatSubscriptionDate(user.subscriptionExpiresAt)
+        : 'неопределённой даты';
+
+      const message =
+        `💎 *Подписка активна*\n\n` +
+        `Действует до *${expirationText}*.\n\n` +
+        `Продлить можно заранее — новые ${durationDays} дней добавятся к текущему сроку.`;
+
+      await this.sendMessageWithPaymentButton(
+        customerId,
+        chatId,
+        message,
+        paymentLink,
+        "Markdown",
+        "🔁 Продлить подписку"
+      );
+
+      return;
+    }
+
+    const message =
+      `💎 *Подписка на Пророка*\n\n` +
+      `• Безлимитные расклады и астрологические расчёты\n` +
+      `• Приоритетные ответы и автоматические прогнозы\n` +
+      `• Подарочные материалы и дополнительные сценарии\n\n` +
+      `Стоимость: *${priceLabel}₽* на ${durationDays} дней.\n\n` +
+      `Нажми кнопку ниже, чтобы оформить.`;
+
+    await this.sendMessageWithPaymentButton(
+      customerId,
+      chatId,
+      message,
+      paymentLink,
+      "Markdown",
+      "💳 Оплатить подписку"
+    );
   }
 
   private setupBotHandlers(bot: Telegraf, customerId: string, username: string) {
@@ -982,15 +1108,7 @@ class BotManager extends EventEmitter {
       console.log(`💎 /podpiska command from ${firstName} ${lastName} (@${telegramUsername}) in chat ${chatId} for customer ${username}`);
 
       try {
-        await this.sendMessage(
-          customerId,
-          chatId,
-          "💎 *Подписка*\n\nДанная функция находится в разработке и скоро будет доступна!",
-          false,
-          false,
-          false,
-          "Markdown"
-        );
+        await this.presentSubscriptionOffer(customerId, chatId, username);
 
         this.emit('message:received', {
           customerId,
@@ -1342,26 +1460,7 @@ class BotManager extends EventEmitter {
 
       try {
         await ctx.answerCbQuery();
-
-        const message = "💎 *Подписка*\n\nДанная функция находится в разработке и скоро будет доступна!";
-
-        await this.editOrSendMessage(
-          ctx,
-          message,
-          undefined,
-          { parse_mode: 'Markdown' },
-          async () => {
-            await this.sendMessage(
-              customerId,
-              chatId,
-              message,
-              false,
-              false,
-              false,
-              "Markdown"
-            );
-          }
-        );
+        await this.presentSubscriptionOffer(customerId, chatId, username);
         
         this.emit('message:received', {
           customerId,
@@ -2845,7 +2944,8 @@ class BotManager extends EventEmitter {
       financialCast: '💰 Расчет 4 кода денег',
       mistakesIncarnation: '🕰️ Ошибки прошлого воплощения',
       arcanumRealization: '✨ Аркан самореализации',
-      awakeningCodes: '✨ Три кода пробуждения'
+      awakeningCodes: '✨ Три кода пробуждения',
+      archetypeMonth: '🌙 Архетип месяца'
     };
 
     const productName = productNames[productType] || 'продукт';
@@ -3070,7 +3170,8 @@ class BotManager extends EventEmitter {
     chatId: string,
     message: string,
     paymentUrl: string,
-    parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined
+    parse_mode: "HTML" | "Markdown" | "MarkdownV2" | undefined = undefined,
+    buttonText: string = 'Оплатить'
   ): Promise<{ success: boolean; error?: string; message?: IMessage }> {
     const bot = this.getBot(customerId);
     const botInfo = this.getBotInfo(customerId);
@@ -3090,7 +3191,7 @@ class BotManager extends EventEmitter {
         reply_markup: {
           inline_keyboard: [[
             {
-              text: 'Оплатить',
+              text: buttonText,
               url: paymentUrl
             }
           ]]
@@ -3887,6 +3988,9 @@ class BotManager extends EventEmitter {
           case 'awakeningCodes':
             this.generateAwakeningCodesData(birthDate, writeStream);
             break;
+          case 'archetypeMonth':
+            this.generateArchetypeMonthData(birthDate, writeStream);
+            break;
           default:
             writeStream.end();
             reject(new Error(`Unknown product type: ${productType}`));
@@ -4014,13 +4118,52 @@ class BotManager extends EventEmitter {
     generateAwakeningCodesPdf(awakeningCodesData, stream, birthDate);
   }
 
+  private generateArchetypeMonthData(birthDate: string, stream: Writable) {
+    const parts = birthDate.split(".");
+    
+    const day: number = parseInt(parts[0], 10);
+    const month: number = parseInt(parts[1], 10);
+    const year: number = new Date().getFullYear();
+  
+    // Функция для расчета аркана по вашей формуле
+    const calculateArcana = (a2: number, b2: number, c2: number): number => {
+      const sum = a2 + b2 + c2 + 2 + 0 + 2 + 5;
+      
+      if (sum > 22) {
+        const sumStr = sum.toString();
+        const leftDigit = parseInt(sumStr.charAt(0), 10);
+        const rightDigit = parseInt(sumStr.charAt(sumStr.length - 1), 10);
+        return leftDigit + rightDigit;
+      } else {
+        return sum;
+      }
+    };
+  
+    const yearDigitsSum: number = year
+      .toString()
+      .split("")
+      .reduce((acc: number, digit: string) => acc + parseInt(digit, 10), 0);
+  
+    const arcana = calculateArcana(day, month, yearDigitsSum);
+
+    const data = {
+      archetype: {
+        arcanum: arcana,
+        text: (archetypeMonthInterpretations as any)[arcana] || "Добавьте трактовку в interpretations.json, чтобы показать текст."
+      }
+    };
+
+    generateArchetypeMonthPdf(data, stream, birthDate);
+  }
+
   private getProductAccompanimentText(productType: string): string {
     const texts: { [key: string]: string } = {
       forecast: "🔮 Ваш персональный Тароскоп готов! Узнайте, что ждёт вас в ближайшие месяцы.",
       financialCast: "💰 Ваши денежные коды раскрыты! Используйте эти знания для привлечения изобилия.",
       mistakesIncarnation: "🕰️ Узнайте об уроках вашего прошлого воплощения и кармических задачах.",
       arcanumRealization: "✨ Ваш аркан самореализации раскрыт! Познайте свой истинный путь.",
-      awakeningCodes: "✨ Три кода пробуждения открыты! Узнайте свою суть, страх и реализацию."
+      awakeningCodes: "✨ Три кода пробуждения открыты! Узнайте свою суть, страх и реализацию.",
+      archetypeMonth: "🌙 Ваш архетип месяца готов — используйте подсказки аркана как маршрут на ближайшие недели."
     };
     return texts[productType] || "✨ Ваш персональный расчёт готов!";
   }
@@ -4117,6 +4260,35 @@ class BotManager extends EventEmitter {
         debugInfo += `ЯДРО: ${day} → Аркан ${core}\n`;
         debugInfo += `СТРАХ: ${day} + ${month} → Аркан ${fear}\n`;
         debugInfo += `РЕАЛИЗАЦИЯ: ${core} + ${month} + ${yearSum} → Аркан ${implementation}\n`;
+        break;
+      }
+
+      case 'archetypeMonth': {
+        const thisYear: number = new Date().getFullYear();
+      
+        const calculateArcana = (a2: number, b2: number, c2: number): number => {
+          const sum = a2 + b2 + c2 + 2 + 0 + 2 + 5;
+          
+          if (sum > 22) {
+            const sumStr = sum.toString();
+            const leftDigit = parseInt(sumStr.charAt(0), 10);
+            const rightDigit = parseInt(sumStr.charAt(sumStr.length - 1), 10);
+            return leftDigit + rightDigit;
+          } else {
+            return sum;
+          }
+        };
+      
+        const yearDigitsSum: number = thisYear
+          .toString()
+          .split("")
+          .reduce((acc: number, digit: string) => acc + parseInt(digit, 10), 0);
+      
+        const arcana = calculateArcana(day, month, yearDigitsSum);
+
+        debugInfo += `*Архетип месяца:*\n`;
+        debugInfo += `Черновой расчёт: ${day} + ${month} + ${yearSum} → Аркан ${arcana}\n`;
+        debugInfo += `TODO: заменить формулу на окончательный алгоритм.\n`;
         break;
       }
 

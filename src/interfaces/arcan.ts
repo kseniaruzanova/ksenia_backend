@@ -101,3 +101,34 @@ export interface ArchetypeShadowData {
   third: ArcanumCode;
   fourth: ArcanumCode;
 };
+
+export interface ArchetypeMonthData {
+  archetype: ArcanumCode;
+};
+
+export interface LifePeriod {
+  periodNumber: number;
+  fromAge: number;
+  toAge: number | string;
+  positiveEvents: string;
+  karmicLessons: string;
+}
+
+export interface LifeMatrixData {
+  matrix: number[][];
+  birthDayArcanum: ArcanumCode;
+  yearArcanum: ArcanumCode;
+  higherForcesTaskArcanum: ArcanumCode;
+  incarnationLesson: ArcanumCode;
+  selfRealizationArcanum: ArcanumCode;
+  lifePeriods: LifePeriod[];
+};
+
+export interface StagnationCycleData {
+  stagnation: ArcanumCode;
+  cycle: ArcanumCode;
+  strike: ArcanumCode;
+  exit1: ArcanumCode;
+  exit2: ArcanumCode;
+  exit3: ArcanumCode;
+};
