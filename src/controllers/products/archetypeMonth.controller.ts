@@ -12,7 +12,7 @@ import interpretationsData from "../../data/archetypeMonth/interpretations.json"
 const interpretationsMap: ArcanasData = interpretationsData;
 
 export const getArchetypeMonthAsPdf = async (req: AuthRequest, res: Response) => {
-  const { birthDate } = req.body;
+  const { birthDate, chooseMonth } = req.body;
 
   if (!birthDate || typeof birthDate !== "string") {
     throw new AppError("birthDate is required", 400);
@@ -25,7 +25,6 @@ export const getArchetypeMonthAsPdf = async (req: AuthRequest, res: Response) =>
 
   const day: number = parseInt(parts[0], 10);
   const month: number = parseInt(parts[1], 10);
-  const year: number = new Date().getFullYear();
 
   if (isNaN(day) || isNaN(month)) { 
     throw new AppError("Invalid day or month in date", 400); 
@@ -45,12 +44,7 @@ export const getArchetypeMonthAsPdf = async (req: AuthRequest, res: Response) =>
     }
   };
 
-  const yearDigitsSum: number = year
-    .toString()
-    .split("")
-    .reduce((acc: number, digit: string) => acc + parseInt(digit, 10), 0);
-
-  const arcana = calculateArcana(day, month, yearDigitsSum);
+  const arcana = calculateArcana(day, month, chooseMonth);
 
   if (req.user?.customerId) {
     await trackProductRequest("archetypeMonth", req.user.customerId.toString(), birthDate, "pdf");
