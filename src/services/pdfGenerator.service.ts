@@ -783,7 +783,7 @@ export function generateLifeMatrixPdf(
     const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
     
-    doc.image('./src/assets/images/matrixLife.jpg', x, doc.y, {
+    doc.image('./src/assets/images/matrixLifeNew.jpg', x, doc.y, {
       fit: [imageWidth, imageHeight]
     });
     

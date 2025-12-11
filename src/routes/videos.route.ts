@@ -13,7 +13,13 @@ import {
 const router: Router = Router();
 
 const storage: multer.StorageEngine = multer.memoryStorage();
-const upload: multer.Multer = multer({ storage });
+const upload: multer.Multer = multer({ 
+  limits: {
+    fileSize: 5000 * 1024 * 1024,
+    files: 5
+  },
+  storage 
+});
 
 router.post(
   '/',
