@@ -214,28 +214,28 @@ export const getLifeMatrixAsPdf = async (req: AuthRequest, res: Response) => {
       fromAge: 0,
       toAge: 36 - summationDestinies,
       positiveEvents: positiveEventsMap[a],
-      karmicLessons: karmicLessonsMap[secondA],
+      karmicLessons: karmicLessonsMap[toArcana(secondA)],
     },
     {
       periodNumber: 2,
       fromAge: 36 - summationDestinies,
       toAge: (36 - summationDestinies) + 9,
       positiveEvents: positiveEventsMap[b],
-      karmicLessons: karmicLessonsMap[secondB],
+      karmicLessons: karmicLessonsMap[toArcana(secondB)],
     },
     {
       periodNumber: 3,
       fromAge: (36 - summationDestinies) + 9,
       toAge: (36 - summationDestinies) + 9 + 9,
       positiveEvents: positiveEventsMap[c],
-      karmicLessons: karmicLessonsMap[secondC],
+      karmicLessons: karmicLessonsMap[toArcana(secondC)],
     },
     {
       periodNumber: 4,
       fromAge: (36 - summationDestinies) + 9 + 9,
       toAge: (36 - summationDestinies) + 9 + 9 + 9,
       positiveEvents: positiveEventsMap[d],
-      karmicLessons: karmicLessonsMap[secondD],
+      karmicLessons: karmicLessonsMap[toArcana(secondD)],
     },
     {
       periodNumber: 5,
@@ -245,6 +245,8 @@ export const getLifeMatrixAsPdf = async (req: AuthRequest, res: Response) => {
       karmicLessons: karmicLessonsMap[toArcana(secondA+secondB+secondC+secondD)],
     }
   ];
+
+  console.log(lifePeriods)
 
   const lifeMatrix: LifeMatrixData = {
     matrix,

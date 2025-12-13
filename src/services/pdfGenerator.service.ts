@@ -888,6 +888,9 @@ export function generateLifeMatrixPdf(
   doc.moveDown(0.5);
   doc.font("DejaVu-Regular").fontSize(11).text(data.selfRealizationArcanum.text, { align: "justify" });
   doc.moveDown(3);
+  
+  doc.addPage();
+  doc.y = doc.page.margins.top;
 
   // Периоды жизни - таблица
   doc.font("DejaVu-Bold").fontSize(16).text("Ваши периоды жизни:", { align: "left" });
