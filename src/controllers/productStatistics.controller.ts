@@ -4,7 +4,7 @@ import { AppError } from '../interfaces/appError';
 
 // Функция для сохранения запроса продукта
 export const trackProductRequest = async (
-  productType: 'archetypeShadow' | 'archetypeMonth' | 'forecast' | 'financialCast' | 'mistakesIncarnation' | 'arcanumRealization' | 'awakeningCodes' | 'matrixLife' | 'lifeMatrix' | 'karmicTail' | 'stagnationCycle',
+  productType: 'archetypeShadow' | 'archetypeMonth' | 'forecast' | 'financialCast' | 'mistakesIncarnation' | 'arcanumRealization' | 'awakeningCodes' | 'matrixLife' | 'lifeMatrix' | 'karmicTail' | 'stagnationCycle' | 'moneyMandala',
   customerId: string,
   birthDate: string,
   requestType: 'pdf' | 'json'
@@ -52,7 +52,7 @@ export const getProductStatistics = async (req: Request, res: Response) => {
     ]);
 
     // Добавляем нулевые значения для продуктов без запросов
-    const allProducts = ['forecast', 'financialCast', 'mistakesIncarnation', 'arcanumRealization', 'awakeningCodes', 'matrixLife', 'lifeMatrix', 'karmicTail', 'archetypeShadow', 'archetypeMonth', 'stagnationCycle'];
+    const allProducts = ['forecast', 'financialCast', 'mistakesIncarnation', 'arcanumRealization', 'awakeningCodes', 'matrixLife', 'lifeMatrix', 'karmicTail', 'archetypeShadow', 'archetypeMonth', 'stagnationCycle', 'moneyMandala'];
     const productMap = new Map(statistics.map(stat => [stat._id, stat]));
     
     const completeStatistics = allProducts.map(product => {

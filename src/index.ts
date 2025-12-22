@@ -34,6 +34,7 @@ import karmicTailRoutes from "./routes/products/karmicTail.routes";
 import archetypeShadowRoutes from "./routes/products/archetypeShadow.routes";
 import archetypeMonthRoutes from "./routes/products/archetypeMonth.routes";
 import stagnationCycleRoutes from "./routes/products/stagnationCycle.routes";
+import moneyMandalaRoutes from "./routes/products/moneyMandala.routes";
 
 import tarotRoutes from "./routes/tarot.routes";
 import prodamusRoutes from "./routes/prodamus.routes";
@@ -243,6 +244,7 @@ app.use('/api/karmicTail', karmicTailRoutes);
 app.use('/api/archetypeShadow', archetypeShadowRoutes);
 app.use('/api/archetypeMonth', archetypeMonthRoutes);
 app.use('/api/stagnationCycle', stagnationCycleRoutes);
+app.use('/api/moneyMandala', moneyMandalaRoutes);
 
 app.use('/api/tarot', tarotRoutes);
 app.use('/api/astro', astroRoutes);

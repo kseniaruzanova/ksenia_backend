@@ -1,7 +1,7 @@
 import { Schema, model, Document } from 'mongoose';
 
 export interface IProductRequest extends Document {
-  productType: 'archetypeShadow' | 'archetypeMonth' | 'forecast' | 'financialCast' | 'mistakesIncarnation' | 'arcanumRealization' | 'awakeningCodes' | 'matrixLife' | 'lifeMatrix' | 'karmicTail' | 'stagnationCycle';
+  productType: 'archetypeShadow' | 'archetypeMonth' | 'forecast' | 'financialCast' | 'mistakesIncarnation' | 'arcanumRealization' | 'awakeningCodes' | 'matrixLife' | 'lifeMatrix' | 'karmicTail' | 'stagnationCycle' | 'moneyMandala';
   customerId: Schema.Types.ObjectId;
   birthDate: string;
   requestType: 'pdf' | 'json';
@@ -13,7 +13,7 @@ const productRequestSchema = new Schema<IProductRequest>({
   productType: { 
     type: String, 
     required: true,
-    enum: ['archetypeShadow', 'archetypeMonth', 'forecast', 'financialCast', 'mistakesIncarnation', 'arcanumRealization', 'awakeningCodes', 'matrixLife', 'lifeMatrix', 'karmicTail', 'stagnationCycle'],
+    enum: ['archetypeShadow', 'archetypeMonth', 'forecast', 'financialCast', 'mistakesIncarnation', 'arcanumRealization', 'awakeningCodes', 'matrixLife', 'lifeMatrix', 'karmicTail', 'stagnationCycle', 'moneyMandala'],
     index: true
   },
   customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },

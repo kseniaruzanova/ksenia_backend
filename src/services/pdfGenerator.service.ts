@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
-import { ArchetypeMonthData, ArchetypeShadowData, AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, LifeMatrixData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem, StagnationCycleData } from "../interfaces/arcan";
+import { ArchetypeMonthData, ArchetypeShadowData, AwakeningCodesData, FinancialCastData, ForecastData, KarmicTailData, LifeMatrixData, MatrixLifeData, MistakesIncarnationData, MonthlyForecast, RitualItem, StagnationCycleData, MoneyMandalaData } from "../interfaces/arcan";
 import tractovkiDataJSON from "../data/matrixLife/tractovki.json";
 
 const fontPath: string = "./src/assets/fonts/DejaVuSans.ttf";
@@ -1065,6 +1065,88 @@ export function generateStagnationCyclePdf(
     .text(data.exit3.text || "Трактовка появится после заполнения файла интерпретаций.", {
       align: "justify",
     });
+
+  doc.end();
+}
+
+export function generateMoneyMandalaPdf(
+  data: MoneyMandalaData,
+  stream: Writable,
+  birthDate: string
+): void {
+  const doc: PDFKit.PDFDocument = new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 50, left: 72, right: 72 },
+    bufferPages: true,
+  });
+
+  doc.pipe(stream);
+
+  doc.registerFont("DejaVu-Regular", fontPath);
+  doc.registerFont("DejaVu-Bold", fontBoldPath);
+
+  try {
+    const imageWidth: number = 180;
+    const imageHeight: number = 230;
+    const pageWidth: number = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const x: number = doc.page.margins.left + (pageWidth - imageWidth) / 2;
+    
+    doc.image('./src/assets/images/moneyMandala.jpg', x, doc.y, {
+      fit: [imageWidth, imageHeight]
+    });
+    
+    doc.y = doc.y + imageHeight + 5;
+  } catch (error) {
+    console.log('Изображение не найдено:', error);
+  }
+  
+  doc
+    .font("DejaVu-Bold")
+    .fontSize(24)
+    .text("Денежная Мандала", { align: "center" });
+  doc
+    .font("DejaVu-Regular")
+    .fontSize(14)
+    .text(`по дате рождения: ${birthDate}`, { align: "center" });
+  doc.moveDown(3);
+
+  // Определяем, перед какими элементами нужны подписи
+  const signatureIndices = [0, 6, 12]; // Перед 1-м, 7-м и 13-м элементами
+  const signatureTitles: { [key: number]: string } = {
+    0: "МАНДАЛА 1 (ИМПЕРАТРИЦА): как вам зарабатывать?",
+    6: "МАНДАЛА 2 (КОЛЕСО ФОРТУНЫ): на что вам зарабатывать?",
+    12: "МАНДАЛА 3 (ДЬЯВОЛ): где вам брать ресурс на заработок?"
+  };
+
+  data.numbers.forEach((numberData, index) => {
+    if (doc.y > 650) {
+      doc.addPage();
+    }
+
+    // Проверяем, нужна ли подпись перед этим элементом
+    if (signatureIndices.includes(index)) {
+      doc
+        .font("DejaVu-Bold")
+        .fontSize(18)
+        .text(signatureTitles[index], { 
+          align: "center",
+          underline: true 
+        });
+      doc.moveDown(2);
+    }
+
+    doc
+      .font("DejaVu-Bold")
+      .fontSize(16)
+      .text(numberData.name, { align: "left" });
+    doc.moveDown(0.5);
+    
+    doc
+      .font("DejaVu-Regular")
+      .fontSize(11)
+      .text(numberData.text, { align: "justify" });
+    doc.moveDown(2);
+  });
 
   doc.end();
 }

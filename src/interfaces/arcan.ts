@@ -132,3 +132,12 @@ export interface StagnationCycleData {
   exit2: ArcanumCode;
   exit3: ArcanumCode;
 };
+
+export interface MoneyMandalaCode {
+  name: string;
+  text: string;
+}
+
+export interface MoneyMandalaData {
+  numbers: MoneyMandalaCode[];
+};
