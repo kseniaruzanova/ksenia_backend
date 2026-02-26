@@ -206,30 +206,55 @@ export async function registerMaxChannelWebhook(): Promise<void> {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
+ * Исключает пользователя из канала через banChatMember.
+ * Возвращает { ok: true } при успехе или если бот/канал не настроены; { ok: false, error } при ошибке API.
+ */
+export async function kickUserFromChannel(telegramUserId: number): Promise<{ ok: boolean; error?: string }> {
+  const botToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
+  const channelId = process.env.TG_MAX_CHANNEL_ID;
+  if (!botToken || !channelId) {
+    return { ok: true };
+  }
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${botToken}/banChatMember?chat_id=${encodeURIComponent(channelId)}&user_id=${telegramUserId}`
+    );
+    const data: any = await res.json().catch(() => ({}));
+    if (data.ok) {
+      return { ok: true };
+    }
+    const err = data.description || res.statusText || "Unknown error";
+    console.warn(`tgChannel: banChatMember failed for user ${telegramUserId}:`, err);
+    return { ok: false, error: err };
+  } catch (e) {
+    console.warn(`tgChannel: banChatMember request failed for user ${telegramUserId}:`, e);
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
  * Исключает из канала и удаляет из БД участников с истёкшей подпиской.
  * Вызывается раз в день по таймеру.
  */
 export async function runExpiredTgChannelMembersCleanup(): Promise<void> {
   const now = new Date();
-  const expired = await TgChannelMember.find({ subscriptionEndsAt: { $lt: now } });
+  const expired = await TgChannelMember.find({ subscriptionEndsAt: { $lt: now } }).lean();
   if (expired.length === 0) return;
 
-  const botToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
-  const channelId = process.env.TG_MAX_CHANNEL_ID;
+  console.log(`tgChannel daily: found ${expired.length} member(s) with expired subscription`);
 
+  let kicked = 0;
+  let failed = 0;
   for (const member of expired) {
-    if (botToken && channelId) {
-      try {
-        await fetch(
-          `https://api.telegram.org/bot${botToken}/banChatMember?chat_id=${encodeURIComponent(channelId)}&user_id=${member.telegramUserId}`
-        );
-      } catch (e) {
-        console.warn(`tgChannel daily: could not kick user ${member.telegramUserId} from channel:`, e);
-      }
+    const result = await kickUserFromChannel(member.telegramUserId);
+    if (result.ok) {
+      await TgChannelMember.deleteOne({ _id: member._id });
+      kicked++;
+    } else {
+      failed++;
     }
-    await TgChannelMember.deleteOne({ _id: member._id });
   }
-  console.log(`tgChannel daily: excluded ${expired.length} member(s) with expired subscription from channel`);
+  console.log(`tgChannel daily: excluded ${kicked} member(s), failed to kick ${failed} (check bot admin rights in channel)`);
 }
 
 /**

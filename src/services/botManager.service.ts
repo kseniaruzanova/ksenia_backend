@@ -18,6 +18,7 @@ import { toArcana, splitNumberIntoDigits, getArcanFilePath } from "../utils/arca
 import User, { IUser } from "../models/user.model";
 import Customer from "../models/customer.model";
 import TgChannelMember from "../models/tgChannelMember.model";
+import { kickUserFromChannel } from "./tgChannel.service";
 import AISettings from "../models/aiSettings.model";
 import { Chat, IChat } from "../models/chat.model";
 import { EphemerisConfig } from "../models/chart.model";
@@ -250,24 +251,18 @@ class BotManager extends EventEmitter {
         customer.subscriptionStatus = 'inactive';
         await customer.save();
 
-        // Тариф «Доступ к ТГ и макс каналу»: удаляем пользователей канала из БД и при необходимости из канала
+        // Тариф «Доступ к ТГ и макс каналу»: исключаем из канала и удаляем из БД
         const members = await TgChannelMember.find({ customerId: customer._id });
-        const botToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
-        const channelId = process.env.TG_MAX_CHANNEL_ID;
         for (const member of members) {
-          if (botToken && channelId) {
-            try {
-              await fetch(
-                `https://api.telegram.org/bot${botToken}/banChatMember?chat_id=${encodeURIComponent(channelId)}&user_id=${member.telegramUserId}`
-              );
-            } catch (e) {
-              console.warn(`Could not kick tg user ${member.telegramUserId} from channel:`, e);
-            }
+          const result = await kickUserFromChannel(member.telegramUserId);
+          if (result.ok) {
+            await TgChannelMember.deleteOne({ _id: member._id });
+          } else {
+            console.warn(`👤 Could not kick tg user ${member.telegramUserId} for expired customer ${customer.username}:`, result.error);
           }
-          await TgChannelMember.deleteOne({ _id: member._id });
         }
         if (members.length) {
-          console.log(`👤 Removed ${members.length} Tg channel member(s) for expired customer ${customer.username}`);
+          console.log(`👤 Processed ${members.length} Tg channel member(s) for expired customer ${customer.username}`);
         }
       }
 
