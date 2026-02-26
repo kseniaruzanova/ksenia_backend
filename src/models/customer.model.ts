@@ -4,7 +4,7 @@ export interface ICustomer extends Document {
   username: string;
   password?: string;
   botToken: string;
-  tariff?: 'none' | 'basic' | 'pro';
+  tariff?: 'none' | 'basic' | 'pro' | 'tg_max';
   subscriptionStatus?: 'active' | 'inactive' | 'expired';
   subscriptionEndsAt?: Date;
   currentPrice?: number;
@@ -24,7 +24,7 @@ const customerSchema = new Schema<ICustomer>({
   password: { type: String, required: true },
   botToken: { type: String, required: true },
 
-  tariff: { type: String, enum: ['basic', 'pro'], default: "none" },
+  tariff: { type: String, enum: ['none', 'basic', 'pro', 'tg_max'], default: "none" },
   subscriptionStatus: { type: String, enum: ['active', 'inactive', 'expired'], default: 'inactive' },
   subscriptionEndsAt: { type: Date, default: null },
 

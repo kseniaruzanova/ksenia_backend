@@ -3,5 +3,5 @@ export interface AuthPayload {
   role: 'customer',
   customerId: unknown;
   botToken: string;
-  tariff: "pro" | "none" | "basic" | undefined;
+  tariff: "pro" | "none" | "basic" | "tg_max" | undefined;
 };

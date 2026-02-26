@@ -11,6 +11,7 @@ import {
   getMyProfile, 
   updateMyProfile
 } from "../controllers/customers.controller";
+import { createInviteLink } from "../controllers/tgChannel.controller";
 import customerSettingsRoutes from "./customerSettings.routes";
 
 const router: Router = Router();
@@ -19,6 +20,7 @@ router.use(authMiddleware);
 
 router.get('/my-profile', catchAsync(getMyProfile));
 router.put('/my-profile', catchAsync(updateMyProfile));
+router.post('/tg-channel-invite-link', catchAsync(createInviteLink));
 
 router.post('/get-by-id', adminAuthMiddleware, catchAsync(getCustomerById));
 router.post('/', adminAuthMiddleware, catchAsync(createCustomer));

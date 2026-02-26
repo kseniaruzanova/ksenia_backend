@@ -1,7 +1,7 @@
 export interface CustomerCreateData {
   username: string;
   botToken: string;
-  tariff?: 'none' | 'basic' | 'pro';
+  tariff?: 'none' | 'basic' | 'pro' | 'tg_max';
   subscriptionStatus?: 'active' | 'inactive' | 'expired';
 }
 

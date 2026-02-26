@@ -67,3 +67,4 @@ export const getArchetypeMonthAsPdf = async (req: AuthRequest, res: Response) =>
 
 
 
+

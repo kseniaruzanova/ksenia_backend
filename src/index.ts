@@ -43,6 +43,7 @@ import geocodingRoutes from "./routes/geocoding.routes";
 import statisticsRoutes from "./routes/statistics.routes";
 import productStatisticsRoutes from "./routes/productStatistics.routes";
 import botManager from "./services/botManager.service";
+import { tgChannelWebhookMiddleware, registerMaxChannelWebhook } from "./services/tgChannel.service";
 import { setBotManagerInstance } from "./lib/botManagerInstance";
 
 dotenv.config();
@@ -119,6 +120,8 @@ const initializeApp = async () => {
 
     await connectDB();
     console.log('✅ Database connected');
+
+    await registerMaxChannelWebhook();
 
     await botManager.initialize();
     console.log('✅ BotManager initialized');
@@ -261,6 +264,9 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/reels', reelsRoutes);
 app.use('/api/upload', uploadRoutes);
+
+// Webhook для бота «Доступ к ТГ и макс каналу» (без auth, тело — Telegram Update)
+app.post('/api/telegram-max-channel/webhook', tgChannelWebhookMiddleware);
 
 const PORT = process.env.PORT || 3000;
 

@@ -17,6 +17,7 @@ import { toArcana, splitNumberIntoDigits, getArcanFilePath } from "../utils/arca
 
 import User, { IUser } from "../models/user.model";
 import Customer from "../models/customer.model";
+import TgChannelMember from "../models/tgChannelMember.model";
 import AISettings from "../models/aiSettings.model";
 import { Chat, IChat } from "../models/chat.model";
 import { EphemerisConfig } from "../models/chart.model";
@@ -247,8 +248,27 @@ class BotManager extends EventEmitter {
       for (const customer of customers) {
         console.log(`⌛ Subscription expired for ${customer.username}. Deactivating...`);
         customer.subscriptionStatus = 'inactive';
-        
         await customer.save();
+
+        // Тариф «Доступ к ТГ и макс каналу»: удаляем пользователей канала из БД и при необходимости из канала
+        const members = await TgChannelMember.find({ customerId: customer._id });
+        const botToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
+        const channelId = process.env.TG_MAX_CHANNEL_ID;
+        for (const member of members) {
+          if (botToken && channelId) {
+            try {
+              await fetch(
+                `https://api.telegram.org/bot${botToken}/banChatMember?chat_id=${encodeURIComponent(channelId)}&user_id=${member.telegramUserId}`
+              );
+            } catch (e) {
+              console.warn(`Could not kick tg user ${member.telegramUserId} from channel:`, e);
+            }
+          }
+          await TgChannelMember.deleteOne({ _id: member._id });
+        }
+        if (members.length) {
+          console.log(`👤 Removed ${members.length} Tg channel member(s) for expired customer ${customer.username}`);
+        }
       }
 
       const now = new Date();
@@ -259,6 +279,14 @@ class BotManager extends EventEmitter {
 
       if (expiredUsersResult.modifiedCount) {
         console.log(`👥 Marked ${expiredUsersResult.modifiedCount} user subscriptions as expired`);
+      }
+
+      // Удаляем записи доступа к ТГ-каналу с истёкшей подпиской
+      const deletedChannelMembers = await TgChannelMember.deleteMany({
+        subscriptionEndsAt: { $lt: new Date() },
+      });
+      if (deletedChannelMembers.deletedCount) {
+        console.log(`👤 Deleted ${deletedChannelMembers.deletedCount} expired Tg channel member(s)`);
       }
     }, 3600 * 1000);
   }
@@ -2759,6 +2787,19 @@ class BotManager extends EventEmitter {
       return await this.updateBot(customerId, username, token);
     }
 
+    const maxChannelToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
+    if (maxChannelToken && token === maxChannelToken) {
+      console.warn(`⚠️ Skipping bot for customer ${username}: token is TG_MAX_CHANNEL_BOT_TOKEN (used by webhook). Set a different botToken for this customer.`);
+      return false;
+    }
+
+    for (const [existingId, instance] of this.bots) {
+      if (instance.token === token) {
+        console.warn(`⚠️ Skipping bot for customer ${username}: token already in use by customer ${instance.username} (id: ${existingId}). Only one getUpdates per token is allowed. Use a unique bot token per customer.`);
+        return false;
+      }
+    }
+
     try {
       console.log(`🔧 Creating Telegraf instance for ${username} with token: ${token.substring(0, 10)}...`);
       const bot = new Telegraf(token);
@@ -2820,6 +2861,19 @@ class BotManager extends EventEmitter {
     if (existingBot.token === newToken) {
       console.log(`⚡ Token unchanged for customer: ${username}`);
       return true;
+    }
+
+    const maxChannelToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
+    if (maxChannelToken && newToken === maxChannelToken) {
+      console.warn(`⚠️ Cannot update bot for ${username}: new token is TG_MAX_CHANNEL_BOT_TOKEN (used by webhook).`);
+      return false;
+    }
+
+    for (const [existingId, instance] of this.bots) {
+      if (existingId !== customerId && instance.token === newToken) {
+        console.warn(`⚠️ Cannot update bot for ${username}: new token already in use by customer ${instance.username}.`);
+        return false;
+      }
     }
 
     try {

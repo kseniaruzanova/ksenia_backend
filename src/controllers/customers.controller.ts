@@ -17,8 +17,8 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
     }
 
     // Валидация tariff если передан
-    if (tariff && !['none', 'basic', 'pro'].includes(tariff)) {
-      res.status(400).json({ message: "Invalid tariff. Must be 'none', 'basic', or 'pro'" });
+    if (tariff && !['none', 'basic', 'pro', 'tg_max'].includes(tariff)) {
+      res.status(400).json({ message: "Invalid tariff. Must be 'none', 'basic', 'pro', or 'tg_max'" });
       return;
     }
 

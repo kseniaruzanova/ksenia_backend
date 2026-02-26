@@ -115,9 +115,11 @@ const processSubscriptionPayment = async (data: any, res: Response) => {
     }
 
     // Определяем тариф
-    let tariff: "basic" | "pro" | undefined;
+    let tariff: "basic" | "pro" | "tg_max" | undefined;
     if (String(data["subscription[id]"]) === "2473695") tariff = "basic";
     if (String(data["subscription[id]"]) === "2474522") tariff = "pro";
+    const tgMaxSubId = process.env.TG_MAX_SUBSCRIPTION_ID;
+    if (tgMaxSubId && String(data["subscription[id]"]) === tgMaxSubId) tariff = "tg_max";
 
     console.log(`Tariff: ${tariff}`);
 
