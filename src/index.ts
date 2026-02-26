@@ -218,59 +218,60 @@ const initializeApp = async () => {
   }
 };
 
-initializeApp();
-
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Статическая раздача загруженных файлов
-app.use('/api/uploads', express.static('uploads'));
-app.set('query parser', (str: string) => qs.parse(str))
-
-app.get('/', (req, res) => {
-  res.send('API is running...');
-});
-
-app.use('/api/auth', authRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/ai-settings', aiSettingsRoutes);
-
-app.use('/api/forecast', forecastRoutes);
-app.use('/api/financialCast', financialCastRoutes);
-app.use('/api/awakeningCodes', awakeningCodesRoutes);
-app.use('/api/mistakesIncarnation', mistakesIncarnationRoutes);
-app.use('/api/arcanumRealization', arcanumRealizationRoutes);
-app.use('/api/matrixLife', matrixLifeRoutes);
-app.use('/api/lifeMatrix', lifeMatrixRoutes);
-app.use('/api/karmicTail', karmicTailRoutes);
-app.use('/api/archetypeShadow', archetypeShadowRoutes);
-app.use('/api/archetypeMonth', archetypeMonthRoutes);
-app.use('/api/stagnationCycle', stagnationCycleRoutes);
-app.use('/api/moneyMandala', moneyMandalaRoutes);
-
-app.use('/api/tarot', tarotRoutes);
-app.use('/api/astro', astroRoutes);
-app.use('/api/videos', videoRoutes);
-app.use('/api/playlists', playlistsRoutes);
-app.use('/api/content', contentRoutes);
-app.use('/api/prodamus', prodamusRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/geocoding', geocodingRoutes);
-app.use('/api/statistics', statisticsRoutes);
-app.use('/api/product-statistics', productStatisticsRoutes);
-app.use('/api/daily-messaging', dailyMessagingRoutes);
-app.use('/api/chats', chatRoutes);
-app.use('/api/messages', messagesRoutes);
-app.use('/api/reels', reelsRoutes);
-app.use('/api/upload', uploadRoutes);
-
-// Webhook для бота «Доступ к ТГ и макс каналу» (без auth, тело — Telegram Update)
-app.post('/api/telegram-max-channel/webhook', tgChannelWebhookMiddleware);
-
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+(async () => {
+  await initializeApp();
+
+  app.use(cors());
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  app.use('/api/uploads', express.static('uploads'));
+  app.set('query parser', (str: string) => qs.parse(str));
+
+  app.get('/', (req, res) => {
+    res.send('API is running...');
+  });
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/customers', customerRoutes);
+  app.use('/api/users', usersRoutes);
+  app.use('/api/ai-settings', aiSettingsRoutes);
+
+  app.use('/api/forecast', forecastRoutes);
+  app.use('/api/financialCast', financialCastRoutes);
+  app.use('/api/awakeningCodes', awakeningCodesRoutes);
+  app.use('/api/mistakesIncarnation', mistakesIncarnationRoutes);
+  app.use('/api/arcanumRealization', arcanumRealizationRoutes);
+  app.use('/api/matrixLife', matrixLifeRoutes);
+  app.use('/api/lifeMatrix', lifeMatrixRoutes);
+  app.use('/api/karmicTail', karmicTailRoutes);
+  app.use('/api/archetypeShadow', archetypeShadowRoutes);
+  app.use('/api/archetypeMonth', archetypeMonthRoutes);
+  app.use('/api/stagnationCycle', stagnationCycleRoutes);
+  app.use('/api/moneyMandala', moneyMandalaRoutes);
+
+  app.use('/api/tarot', tarotRoutes);
+  app.use('/api/astro', astroRoutes);
+  app.use('/api/videos', videoRoutes);
+  app.use('/api/playlists', playlistsRoutes);
+  app.use('/api/content', contentRoutes);
+  app.use('/api/prodamus', prodamusRoutes);
+  app.use('/api/payments', paymentsRoutes);
+  app.use('/api/geocoding', geocodingRoutes);
+  app.use('/api/statistics', statisticsRoutes);
+  app.use('/api/product-statistics', productStatisticsRoutes);
+  app.use('/api/daily-messaging', dailyMessagingRoutes);
+  app.use('/api/chats', chatRoutes);
+  app.use('/api/messages', messagesRoutes);
+  app.use('/api/reels', reelsRoutes);
+  app.use('/api/upload', uploadRoutes);
+
+  // Webhook для бота «Доступ к ТГ и макс каналу» (без auth, тело — Telegram Update)
+  app.post('/api/telegram-max-channel/webhook', tgChannelWebhookMiddleware);
+
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+})();
