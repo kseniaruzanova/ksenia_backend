@@ -49,12 +49,19 @@ export async function createInviteLink(customerId: string): Promise<{ link: stri
 }
 
 export async function handleStartPayload(telegramUserId: number, startPayload: string): Promise<string> {
+  const uid = Number(telegramUserId);
+  if (!uid) {
+    console.warn("tgChannel: handleStartPayload called with invalid telegramUserId", telegramUserId);
+    return "Ошибка: не удалось определить пользователя.";
+  }
+
   const tokenDoc = await TgChannelInviteToken.findOne({
     token: startPayload,
     usedAt: null,
     expiresAt: { $gt: new Date() },
   });
   if (!tokenDoc) {
+    console.warn("tgChannel: token not found or expired/used", { startPayloadLength: startPayload?.length, telegramUserId: uid });
     return "Ссылка недействительна или уже использована. Получите новую ссылку в личном кабинете.";
   }
 
@@ -66,15 +73,23 @@ export async function handleStartPayload(telegramUserId: number, startPayload: s
     return "Подписка истекла. Обратитесь к администратору.";
   }
 
-  await TgChannelMember.findOneAndUpdate(
-    { customerId: customer._id, telegramUserId },
-    {
-      customerId: customer._id,
-      telegramUserId,
-      subscriptionEndsAt: customer.subscriptionEndsAt,
-    },
-    { upsert: true, new: true }
-  );
+  try {
+    await TgChannelMember.findOneAndUpdate(
+      { customerId: customer._id, telegramUserId: uid },
+      {
+        $set: {
+          customerId: customer._id,
+          telegramUserId: uid,
+          subscriptionEndsAt: customer.subscriptionEndsAt,
+        },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+    console.log("tgChannel: saved TgChannelMember", { customerId: customer._id, telegramUserId: uid, customerUsername: customer.username });
+  } catch (err) {
+    console.error("tgChannel: TgChannelMember save failed", { customerId: customer._id, telegramUserId: uid, err });
+    throw err;
+  }
 
   tokenDoc.usedAt = new Date();
   await tokenDoc.save();
@@ -110,12 +125,18 @@ function createWebhookMiddleware(): (req: any, res: any) => Promise<void> {
   const bot = new Telegraf(token);
 
   bot.start(async (ctx: Context) => {
-    const text = ctx.message && "text" in ctx.message ? ctx.message.text : "";
-    const payload = (text.replace(/^\/start\s*/i, "") || "").trim();
+    const msg = ctx.message;
+    const text = msg && "text" in msg ? String(msg.text || "") : "";
+    const payload = text.replace(/^\/start\s*/i, "").trim();
     const from = ctx.from;
-    if (!from?.id) return;
+    const telegramUserId = from?.id;
+    console.log("tgChannel: /start received", { telegramUserId, payloadLength: payload.length, textPreview: text.slice(0, 50) });
+    if (!telegramUserId) {
+      console.warn("tgChannel: /start without from.id");
+      return;
+    }
     try {
-      const message = await handleStartPayload(from.id, payload);
+      const message = await handleStartPayload(telegramUserId, payload);
       await ctx.reply(message);
     } catch (err) {
       console.error("tgChannel handleStartPayload error:", err);
@@ -124,8 +145,23 @@ function createWebhookMiddleware(): (req: any, res: any) => Promise<void> {
   });
 
   return async (req: any, res: any) => {
+    let update = req.body;
+    if (!update || typeof update !== "object") {
+      console.warn("tgChannel webhook: empty or invalid body", { hasBody: !!update, type: typeof update });
+      res.status(400).end();
+      return;
+    }
+    if (typeof (update as any).update === "string") {
+      try {
+        update = JSON.parse((update as any).update);
+      } catch (e) {
+        console.warn("tgChannel webhook: failed to parse body.update string");
+        res.status(400).end();
+        return;
+      }
+    }
     try {
-      await bot.handleUpdate(req.body, res);
+      await bot.handleUpdate(update, res);
     } catch (err) {
       console.error("tgChannel webhook error:", err);
       res.status(500).end();
@@ -165,4 +201,48 @@ export async function registerMaxChannelWebhook(): Promise<void> {
   } catch (err) {
     console.error("❌ Failed to register max channel webhook:", err);
   }
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Исключает из канала и удаляет из БД участников с истёкшей подпиской.
+ * Вызывается раз в день по таймеру.
+ */
+export async function runExpiredTgChannelMembersCleanup(): Promise<void> {
+  const now = new Date();
+  const expired = await TgChannelMember.find({ subscriptionEndsAt: { $lt: now } });
+  if (expired.length === 0) return;
+
+  const botToken = process.env.TG_MAX_CHANNEL_BOT_TOKEN;
+  const channelId = process.env.TG_MAX_CHANNEL_ID;
+
+  for (const member of expired) {
+    if (botToken && channelId) {
+      try {
+        await fetch(
+          `https://api.telegram.org/bot${botToken}/banChatMember?chat_id=${encodeURIComponent(channelId)}&user_id=${member.telegramUserId}`
+        );
+      } catch (e) {
+        console.warn(`tgChannel daily: could not kick user ${member.telegramUserId} from channel:`, e);
+      }
+    }
+    await TgChannelMember.deleteOne({ _id: member._id });
+  }
+  console.log(`tgChannel daily: excluded ${expired.length} member(s) with expired subscription from channel`);
+}
+
+/**
+ * Запускает ежедневную проверку: раз в сутки исключает из канала участников с истёкшей подпиской.
+ */
+export function startDailyExpiredSubscriptionCheck(): void {
+  runExpiredTgChannelMembersCleanup().catch((err) =>
+    console.error("tgChannel daily: cleanup failed:", err)
+  );
+  setInterval(() => {
+    runExpiredTgChannelMembersCleanup().catch((err) =>
+      console.error("tgChannel daily: cleanup failed:", err)
+    );
+  }, MS_PER_DAY);
+  console.log("tgChannel: daily expired subscription check scheduled (every 24h)");
 }

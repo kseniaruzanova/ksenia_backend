@@ -43,7 +43,7 @@ import geocodingRoutes from "./routes/geocoding.routes";
 import statisticsRoutes from "./routes/statistics.routes";
 import productStatisticsRoutes from "./routes/productStatistics.routes";
 import botManager from "./services/botManager.service";
-import { tgChannelWebhookMiddleware, registerMaxChannelWebhook } from "./services/tgChannel.service";
+import { tgChannelWebhookMiddleware, registerMaxChannelWebhook, startDailyExpiredSubscriptionCheck } from "./services/tgChannel.service";
 import { setBotManagerInstance } from "./lib/botManagerInstance";
 
 dotenv.config();
@@ -122,6 +122,7 @@ const initializeApp = async () => {
     console.log('✅ Database connected');
 
     await registerMaxChannelWebhook();
+    startDailyExpiredSubscriptionCheck();
 
     await botManager.initialize();
     console.log('✅ BotManager initialized');
