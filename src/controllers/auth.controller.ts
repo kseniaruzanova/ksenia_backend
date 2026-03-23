@@ -7,6 +7,70 @@ import { AuthPayload } from '../interfaces/auth';
 dotenv.config();
 const jwtSecret: string = process.env.JWT_SECRET || "";
 
+function normalizePhone(raw: string) {
+  return raw.replace(/[^\d+]/g, '');
+}
+
+function makePlaceholderBotToken(username: string) {
+  const safeUsername = username.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || 'customer';
+  return `pending_${safeUsername}_${Date.now()}`;
+}
+
+export const userRegister = async (req: Request, res: Response) => {
+  const { channel, email, phone, password } = req.body ?? {};
+
+  if (!password || typeof password !== 'string' || password.length < 6) {
+    res.status(400).json({ message: 'Пароль должен быть не короче 6 символов' });
+    return;
+  }
+
+  if (channel !== 'phone' && channel !== 'email') {
+    res.status(400).json({ message: 'Некорректный способ регистрации' });
+    return;
+  }
+
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const normalizedPhone = typeof phone === 'string' ? normalizePhone(phone) : '';
+  const username = channel === 'email' ? normalizedEmail : normalizedPhone;
+
+  if (!username) {
+    res.status(400).json({ message: 'Логин не может быть пустым' });
+    return;
+  }
+
+  try {
+    const existingCustomer = await Customer.findOne({ username });
+    if (existingCustomer) {
+      res.status(409).json({
+        message: channel === 'email'
+          ? 'Пользователь с таким email уже зарегистрирован'
+          : 'Пользователь с таким телефоном уже зарегистрирован'
+      });
+      return;
+    }
+
+    const customer = await Customer.create({
+      username,
+      password,
+      botToken: makePlaceholderBotToken(username),
+      tariff: 'none',
+      subscriptionStatus: 'inactive',
+      subscriptionEndsAt: null
+    });
+
+    res.status(201).json({
+      message: 'Регистрация успешна',
+      role: 'customer',
+      login: customer.username,
+      customerId: customer._id,
+      tariff: customer.tariff,
+      subscriptionStatus: customer.subscriptionStatus
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка при регистрации', error });
+  }
+};
+
 export const userLogin = async (req: Request, res: Response) => {
   const { login: username, password } = req.body;
 
