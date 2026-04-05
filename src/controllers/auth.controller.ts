@@ -1,14 +1,61 @@
 import { Request, Response } from 'express';
+import { randomInt } from 'crypto';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import Customer from '../models/customer.model';
+import RegistrationVerification from '../models/registrationVerification.model';
 import { AuthPayload } from '../interfaces/auth';
+import { sendRegistrationVerificationCode } from '../services/verificationDelivery.service';
 
 dotenv.config();
 const jwtSecret: string = process.env.JWT_SECRET || "";
+const registrationCodeTtlMs = 10 * 60 * 1000;
+const maxVerificationAttempts = 5;
+const allowedTariffs = new Set(['none', 'basic', 'pro', 'tg_max']);
+type ResolvedRegistrationTarget =
+  | { error: string }
+  | {
+      channel: 'email';
+      normalizedEmail: string;
+      username: string;
+    };
 
-function normalizePhone(raw: string) {
-  return raw.replace(/[^\d+]/g, '');
+function resolveRegistrationTarget(channel: unknown, email: unknown, phone: unknown): ResolvedRegistrationTarget {
+  if (phone) {
+    return { error: 'Регистрация по телефону больше не поддерживается' };
+  }
+
+  if (channel !== 'email') {
+    return { error: 'Доступна только регистрация по email' };
+  }
+
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const username = normalizedEmail;
+
+  if (!username) {
+    return { error: 'Email не может быть пустым' };
+  }
+
+  return {
+    channel: 'email',
+    normalizedEmail,
+    username
+  };
+}
+
+function maskEmail(email: string) {
+  const [name, domain] = email.split('@');
+  if (!name || !domain) return email;
+  if (name.length <= 2) return `${name[0] || '*'}*@${domain}`;
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+
+function validateDesiredTariff(tariff: unknown): 'none' | 'basic' | 'pro' | 'tg_max' {
+  if (typeof tariff === 'string' && allowedTariffs.has(tariff)) {
+    return tariff as 'none' | 'basic' | 'pro' | 'tg_max';
+  }
+
+  return 'none';
 }
 
 function makePlaceholderBotToken(username: string) {
@@ -17,46 +64,125 @@ function makePlaceholderBotToken(username: string) {
 }
 
 export const userRegister = async (req: Request, res: Response) => {
-  const { channel, email, phone, password } = req.body ?? {};
+  const { channel, email, phone, password, tariff } = req.body ?? {};
 
   if (!password || typeof password !== 'string' || password.length < 6) {
     res.status(400).json({ message: 'Пароль должен быть не короче 6 символов' });
     return;
   }
 
-  if (channel !== 'phone' && channel !== 'email') {
-    res.status(400).json({ message: 'Некорректный способ регистрации' });
+  const target = resolveRegistrationTarget(channel, email, phone);
+  if ('error' in target) {
+    res.status(400).json({ message: target.error });
     return;
   }
 
-  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  const normalizedPhone = typeof phone === 'string' ? normalizePhone(phone) : '';
-  const username = channel === 'email' ? normalizedEmail : normalizedPhone;
-
-  if (!username) {
-    res.status(400).json({ message: 'Логин не может быть пустым' });
-    return;
-  }
+  const desiredTariff = validateDesiredTariff(tariff);
 
   try {
-    const existingCustomer = await Customer.findOne({ username });
+    const existingCustomer = await Customer.findOne({ username: target.username });
     if (existingCustomer) {
       res.status(409).json({
-        message: channel === 'email'
-          ? 'Пользователь с таким email уже зарегистрирован'
-          : 'Пользователь с таким телефоном уже зарегистрирован'
+        message: 'Пользователь с таким email уже зарегистрирован'
       });
       return;
     }
 
-    const customer = await Customer.create({
-      username,
+    const code = String(randomInt(100000, 1000000));
+    const expiresAt = new Date(Date.now() + registrationCodeTtlMs);
+
+    await RegistrationVerification.deleteMany({ username: target.username, channel: target.channel });
+
+    await RegistrationVerification.create({
+      username: target.username,
+      channel: target.channel,
+      email: target.normalizedEmail || undefined,
       password,
-      botToken: makePlaceholderBotToken(username),
+      desiredTariff,
+      code,
+      attempts: 0,
+      expiresAt
+    });
+
+    await sendRegistrationVerificationCode({
+      channel: target.channel,
+      target: target.username,
+      code
+    });
+
+    res.status(200).json({
+      message: 'Код отправлен на email',
+      login: target.username,
+      target: maskEmail(target.username),
+      expiresIn: Math.floor(registrationCodeTtlMs / 1000),
+      desiredTariff
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Не удалось отправить код подтверждения', error });
+  }
+};
+
+export const verifyRegistrationCode = async (req: Request, res: Response) => {
+  const { channel, email, phone, code } = req.body ?? {};
+
+  if (!code || typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
+    res.status(400).json({ message: 'Введите корректный 6-значный код' });
+    return;
+  }
+
+  const target = resolveRegistrationTarget(channel, email, phone);
+  if ('error' in target) {
+    res.status(400).json({ message: target.error });
+    return;
+  }
+
+  try {
+    const verification = await RegistrationVerification.findOne({
+      username: target.username,
+      channel: target.channel,
+    }).sort({ createdAt: -1 });
+
+    if (!verification) {
+      res.status(404).json({ message: 'Сначала запросите код подтверждения' });
+      return;
+    }
+
+    if (verification.expiresAt.getTime() < Date.now()) {
+      await RegistrationVerification.deleteMany({ username: target.username, channel: target.channel });
+      res.status(400).json({ message: 'Срок действия кода истёк. Запросите новый код.' });
+      return;
+    }
+
+    if (verification.attempts >= maxVerificationAttempts) {
+      await RegistrationVerification.deleteMany({ username: target.username, channel: target.channel });
+      res.status(429).json({ message: 'Слишком много неверных попыток. Запросите новый код.' });
+      return;
+    }
+
+    if (verification.code !== code.trim()) {
+      verification.attempts += 1;
+      await verification.save();
+      res.status(400).json({ message: 'Неверный код подтверждения' });
+      return;
+    }
+
+    const existingCustomer = await Customer.findOne({ username: target.username });
+    if (existingCustomer) {
+      await RegistrationVerification.deleteMany({ username: target.username, channel: target.channel });
+      res.status(409).json({ message: 'Пользователь уже зарегистрирован' });
+      return;
+    }
+
+    const customer = await Customer.create({
+      username: target.username,
+      password: verification.password,
+      botToken: makePlaceholderBotToken(target.username),
       tariff: 'none',
       subscriptionStatus: 'inactive',
       subscriptionEndsAt: null
     });
+
+    await RegistrationVerification.deleteMany({ username: target.username, channel: target.channel });
 
     res.status(201).json({
       message: 'Регистрация успешна',
@@ -64,10 +190,11 @@ export const userRegister = async (req: Request, res: Response) => {
       login: customer.username,
       customerId: customer._id,
       tariff: customer.tariff,
-      subscriptionStatus: customer.subscriptionStatus
+      subscriptionStatus: customer.subscriptionStatus,
+      desiredTariff: verification.desiredTariff
     });
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка при регистрации', error });
+    res.status(500).json({ message: 'Ошибка подтверждения регистрации', error });
   }
 };
 

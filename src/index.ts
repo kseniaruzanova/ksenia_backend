@@ -22,6 +22,7 @@ import usersRoutes from './routes/users.routes';
 import aiSettingsRoutes from './routes/aiSettings.routes';
 import reelsRoutes from './routes/reels.routes';
 import uploadRoutes from './routes/upload.routes';
+import postsRoutes from './routes/posts.routes';
 
 import forecastRoutes from "./routes/products/forecast.routes";
 import financialCastRoutes from "./routes/products/financialCast.routes";
@@ -57,6 +58,7 @@ const ensureDirectoriesExist = () => {
     'uploads/images',
     'uploads/audio',
     'uploads/videos',
+    'uploads/posts',
     'temp'
   ];
 
@@ -267,6 +269,7 @@ const PORT = process.env.PORT || 3000;
   app.use('/api/messages', messagesRoutes);
   app.use('/api/reels', reelsRoutes);
   app.use('/api/upload', uploadRoutes);
+  app.use('/api/posts', postsRoutes);
 
   // Webhook для бота «Доступ к ТГ и макс каналу» (без auth, тело — Telegram Update)
   app.post('/api/telegram-max-channel/webhook', tgChannelWebhookMiddleware);

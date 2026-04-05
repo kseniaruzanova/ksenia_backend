@@ -58,6 +58,32 @@ export const getLinkProdamusPro = async (req: AuthRequest, res: Response): Promi
   }
 };
 
+export const getLinkProdamusTgMax = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { user } = req;
+
+    if (!user || user.role !== 'customer' || !user.customerId) {
+      res.status(403).json({ message: 'Forbidden: Only customers can access their profile' });
+      return;
+    }
+
+    const link = createProdamusPayLink("astroxenia", {
+      customer_extra: user.customerId,
+      subscription: 2775978,
+      urlReturn: "https://botprorok.ru/",
+      urlSuccess: "https://botprorok.ru/notification/success"
+    });
+
+    res.status(200).json({
+      message: 'Customer profile data',
+      link: link
+    });
+  } catch (error) {
+    console.error('Error getting TG Max payment link:', error);
+    res.status(500).json({ message: 'Error fetching profile', error });
+  }
+};
+
 /**
  * Универсальный webhook для обработки всех типов платежей от Prodamus
  * Определяет тип платежа и вызывает соответствующую логику
