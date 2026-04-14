@@ -4,6 +4,8 @@ import { AuthRequest } from "../interfaces/authRequest";
 import { createProdamusPayLink } from "../utils/prodamus";
 import User from "../models/user.model";
 import Customer from "../models/customer.model";
+import ClubMember from "../models/clubMember.model";
+import { updatePayerSubscription } from "../utils/subscriptionPayer";
 import Payment from "../models/payment.model";
 import botManager from "../services/botManager.service";
 
@@ -62,13 +64,14 @@ export const getLinkProdamusTgMax = async (req: AuthRequest, res: Response): Pro
   try {
     const { user } = req;
 
-    if (!user || user.role !== 'customer' || !user.customerId) {
-      res.status(403).json({ message: 'Forbidden: Only customers can access their profile' });
+    const payerId = user?.customerId || user?.clubMemberId;
+    if (!user || (user.role !== "customer" && user.role !== "club_member") || !payerId) {
+      res.status(403).json({ message: "Forbidden: Only customers can access their profile" });
       return;
     }
 
     const link = createProdamusPayLink("astroxenia", {
-      customer_extra: user.customerId,
+      customer_extra: payerId,
       subscription: 2775978,
       urlReturn: "https://botprorok.ru/",
       urlSuccess: "https://botprorok.ru/notification/success"
@@ -129,25 +132,44 @@ export const handleProdamusWebhook = async (req: Request, res: Response) => {
 /**
  * Обработка платежа подписки
  */
+/** ID плательщика в MongoDB: кастомер платформы или участник клуба (в ссылке оба кладутся в customer_extra, но Prodamus может прислать отдельное поле для клуба). */
+function resolveSubscriptionPayerId(data: Record<string, unknown>): string | undefined {
+  const raw =
+    data.customer_extra ??
+    data.club_member_extra ??
+    data.clubMember_extra ??
+    data.member_extra;
+  if (raw === undefined || raw === null) return undefined;
+  const s = String(raw).trim();
+  return s.length > 0 ? s : undefined;
+}
+
 const processSubscriptionPayment = async (data: any, res: Response) => {
   try {
     console.log("📩 Processing subscription payment");
 
-    const customerId = data.customer_extra;
-    console.log(`Customer ID: ${customerId}`);
-    
-    if (!customerId) {
-      return res.status(400).json({ error: "customer_extra is required" });
+    const payerId = resolveSubscriptionPayerId(data);
+    console.log(`Payer ID (platform customer or club member): ${payerId}`);
+
+    if (!payerId) {
+      return res.status(400).json({
+        error: "Payer id required: customer_extra or club_member_extra (Mongo ObjectId)",
+      });
     }
+
+    const subscriptionId = String(data["subscription[id]"] ?? "");
 
     // Определяем тариф
     let tariff: "basic" | "pro" | "tg_max" | undefined;
-    if (String(data["subscription[id]"]) === "2473695") tariff = "basic";
-    if (String(data["subscription[id]"]) === "2474522") tariff = "pro";
-    const tgMaxSubId = process.env.TG_MAX_SUBSCRIPTION_ID;
-    if (tgMaxSubId && String(data["subscription[id]"]) === tgMaxSubId) tariff = "tg_max";
+    if (subscriptionId === "2473695") tariff = "basic";
+    if (subscriptionId === "2474522") tariff = "pro";
+    const tgMaxPlatformId = process.env.TG_MAX_SUBSCRIPTION_ID || "2775978";
+    const tgMaxClubId = process.env.CLUB_TG_MAX_SUBSCRIPTION_ID;
+    if (subscriptionId === String(tgMaxPlatformId) || (tgMaxClubId && subscriptionId === String(tgMaxClubId))) {
+      tariff = "tg_max";
+    }
 
-    console.log(`Tariff: ${tariff}`);
+    console.log(`Tariff: ${tariff} (subscription[id]=${subscriptionId})`);
 
     // Определяем статус
     const status =
@@ -164,26 +186,26 @@ const processSubscriptionPayment = async (data: any, res: Response) => {
 
     console.log(`Subscription ends at: ${subscriptionEndsAt}`);
 
-    // Обновляем пользователя
-    const customer = await Customer.findByIdAndUpdate(
-      customerId,
-      {
-        $set: {
-          tariff,
-          subscriptionStatus: status,
-          subscriptionEndsAt,
-        },
-      },
-      { new: true }
-    );
+    const payer = await updatePayerSubscription(payerId, {
+      tariff,
+      subscriptionStatus: status,
+      subscriptionEndsAt,
+    });
 
-    if (!customer) {
-      return res.status(404).json({ error: "Customer not found" });
+    if (!payer) {
+      return res.status(404).json({ error: "Customer or club member not found" });
     }
 
-    console.log(`✅ Customer subscription updated: ${customer.username}`);
+    const isClub = payer instanceof ClubMember;
+    console.log(
+      `✅ Subscription updated (${isClub ? "club member" : "platform customer"}): ${payer.username}`
+    );
 
-    return res.status(200).json({ success: true, customer });
+    return res.status(200).json({
+      success: true,
+      payerType: isClub ? "club_member" : "customer",
+      customer: payer,
+    });
   } catch (error) {
     console.error("❌ Error in processSubscriptionPayment:", error);
     return res.status(400).json({ error: "Ошибка обновления подписки", details: error });

@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import { Telegraf, Context } from "telegraf";
-import Customer from "../models/customer.model";
 import TgChannelInviteToken from "../models/tgChannelInviteToken.model";
 import TgChannelMember from "../models/tgChannelMember.model";
+import { findPayerById } from "../utils/subscriptionPayer";
 
 const TOKEN_TTL_MINUTES = 15;
 let cachedBotUsername: string | null = null;
@@ -23,13 +23,13 @@ async function getBotUsername(): Promise<string> {
   return cachedBotUsername || "";
 }
 
-export async function createInviteLink(customerId: string): Promise<{ link: string; token: string }> {
-  const customer = await Customer.findById(customerId);
-  if (!customer) throw new Error("Customer not found");
-  if (customer.tariff !== "tg_max") {
+export async function createInviteLink(payerId: string): Promise<{ link: string; token: string }> {
+  const payer = await findPayerById(payerId);
+  if (!payer) throw new Error("Customer not found");
+  if (payer.tariff !== "tg_max") {
     throw new Error("Tariff is not tg_max");
   }
-  if (customer.subscriptionStatus !== "active" || !customer.subscriptionEndsAt || customer.subscriptionEndsAt <= new Date()) {
+  if (payer.subscriptionStatus !== "active" || !payer.subscriptionEndsAt || payer.subscriptionEndsAt <= new Date()) {
     throw new Error("Subscription is not active");
   }
 
@@ -39,7 +39,7 @@ export async function createInviteLink(customerId: string): Promise<{ link: stri
 
   await TgChannelInviteToken.create({
     token,
-    customerId,
+    customerId: payer._id,
     expiresAt,
   });
 
@@ -65,29 +65,29 @@ export async function handleStartPayload(telegramUserId: number, startPayload: s
     return "Ссылка недействительна или уже использована. Получите новую ссылку в личном кабинете.";
   }
 
-  const customer = await Customer.findById(tokenDoc.customerId);
-  if (!customer || customer.tariff !== "tg_max") {
+  const payer = await findPayerById(String(tokenDoc.customerId));
+  if (!payer || payer.tariff !== "tg_max") {
     return "Ошибка: тариф недоступен.";
   }
-  if (customer.subscriptionStatus !== "active" || !customer.subscriptionEndsAt || customer.subscriptionEndsAt <= new Date()) {
+  if (payer.subscriptionStatus !== "active" || !payer.subscriptionEndsAt || payer.subscriptionEndsAt <= new Date()) {
     return "Подписка истекла. Обратитесь к администратору.";
   }
 
   try {
     await TgChannelMember.findOneAndUpdate(
-      { customerId: customer._id, telegramUserId: uid },
+      { customerId: payer._id, telegramUserId: uid },
       {
         $set: {
-          customerId: customer._id,
+          customerId: payer._id,
           telegramUserId: uid,
-          subscriptionEndsAt: customer.subscriptionEndsAt,
+          subscriptionEndsAt: payer.subscriptionEndsAt,
         },
       },
       { upsert: true, new: true, runValidators: true }
     );
-    console.log("tgChannel: saved TgChannelMember", { customerId: customer._id, telegramUserId: uid, customerUsername: customer.username });
+    console.log("tgChannel: saved TgChannelMember", { customerId: payer._id, telegramUserId: uid, customerUsername: payer.username });
   } catch (err) {
-    console.error("tgChannel: TgChannelMember save failed", { customerId: customer._id, telegramUserId: uid, err });
+    console.error("tgChannel: TgChannelMember save failed", { customerId: payer._id, telegramUserId: uid, err });
     throw err;
   }
 
@@ -103,14 +103,14 @@ export async function handleStartPayload(telegramUserId: number, startPayload: s
       );
       const inviteData: any = await inviteLinkRes.json();
       if (inviteData.ok && inviteData.result?.invite_link) {
-        return `Добро пожаловать! Ваш доступ в канал активен до ${customer.subscriptionEndsAt.toLocaleDateString("ru-RU")}. Ссылка для входа: ${inviteData.result.invite_link}`;
+        return `Добро пожаловать! Ваш доступ в канал активен до ${payer.subscriptionEndsAt.toLocaleDateString("ru-RU")}. Ссылка для входа: ${inviteData.result.invite_link}`;
       }
     } catch (_) {
       // ignore
     }
   }
 
-  return `Вы успешно зарегистрированы. Доступ до ${customer.subscriptionEndsAt.toLocaleDateString("ru-RU")}.`;
+  return `Вы успешно зарегистрированы. Доступ до ${payer.subscriptionEndsAt.toLocaleDateString("ru-RU")}.`;
 }
 
 function createWebhookMiddleware(): (req: any, res: any) => Promise<void> {

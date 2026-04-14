@@ -14,7 +14,7 @@ export class PaymentService {
     page = 1,
     limit = 10,
     filters: Record<string, unknown> = {},
-    user?: { username: string; role: 'admin' | 'customer' }
+    user?: { username: string; role: 'admin' | 'customer' | 'club_member' }
   ): Promise<{ payments: IPayment[]; total: number; totalPages: number; currentPage: number }> {
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -64,7 +64,7 @@ export class PaymentService {
     username: string, 
     page = 1, 
     limit = 10,
-    user?: { username: string; role: 'admin' | 'customer' }
+    user?: { username: string; role: 'admin' | 'customer' | 'club_member' }
   ): Promise<{ payments: IPayment[]; total: number; totalPages: number; currentPage: number }> {
     
     // Проверяем права доступа
@@ -97,7 +97,7 @@ export class PaymentService {
 
   async findByUsername(
     username: string,
-    user?: { username: string; role: 'admin' | 'customer' }
+    user?: { username: string; role: 'admin' | 'customer' | 'club_member' }
   ): Promise<IPayment[]> {
     // Проверяем права доступа
     if (user && user.role !== 'admin' && user.username !== username) {

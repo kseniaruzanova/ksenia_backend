@@ -11,7 +11,7 @@ import {
 
 const router: Router = Router();
 
-// Универсальный webhook для всех типов платежей
+// Универсальный webhook: подписки платформы (Customer), подписки клуба (ClubMember, тот же продукт / отдельный id в env), таро, разовые
 router.post('/webhook', catchAsync(handleProdamusWebhook));
 
 // Старые адреса оставлены для обратной совместимости

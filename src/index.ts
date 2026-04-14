@@ -23,6 +23,7 @@ import aiSettingsRoutes from './routes/aiSettings.routes';
 import reelsRoutes from './routes/reels.routes';
 import uploadRoutes from './routes/upload.routes';
 import postsRoutes from './routes/posts.routes';
+import emailBroadcastRoutes from './routes/emailBroadcast.routes';
 
 import forecastRoutes from "./routes/products/forecast.routes";
 import financialCastRoutes from "./routes/products/financialCast.routes";
@@ -126,48 +127,48 @@ const initializeApp = async () => {
     await registerMaxChannelWebhook();
     startDailyExpiredSubscriptionCheck();
 
-    await botManager.initialize();
+    // await botManager.initialize();
     console.log('✅ BotManager initialized');
 
     // Устанавливаем глобальный экземпляр BotManager для использования в webhook
-    setBotManagerInstance(botManager);
-    console.log('✅ BotManager instance set globally');
+    // setBotManagerInstance(botManager);
+    // console.log('✅ BotManager instance set globally');
 
-    botManager.on('bot:added', (data) => {
-      console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
-    });
+    // botManager.on('bot:added', (data) => {
+    //   console.log(`🤖 Bot added: ${data.username} (@${data.botUsername})`);
+    // });
 
-    botManager.on('bot:updated', (data) => {
-      console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
-    });
+    // botManager.on('bot:updated', (data) => {
+    //   console.log(`🔄 Bot updated: ${data.username} (@${data.botUsername})`);
+    // });
 
-    botManager.on('bot:removed', (data) => {
-      console.log(`🗑️ Bot removed: ${data.username}`);
-    });
+    // botManager.on('bot:removed', (data) => {
+    //   console.log(`🗑️ Bot removed: ${data.username}`);
+    // });
 
-    botManager.on('bot:error', (data) => {
-      console.log(`❌ Bot error for ${data.username}:`, data.error);
-    });
+    // botManager.on('bot:error', (data) => {
+    //   console.log(`❌ Bot error for ${data.username}:`, data.error);
+    // });
 
-    botManager.on('change:error', (data) => {
-      console.error('❌ Customer change handling error:', data.error);
-    });
+    // botManager.on('change:error', (data) => {
+    //   console.error('❌ Customer change handling error:', data.error);
+    // });
 
-    botManager.on('bot:listening:started', (data) => {
-      console.log(`👂 Bot listening started: ${data.username}`);
-    });
+    // botManager.on('bot:listening:started', (data) => {
+    //   console.log(`👂 Bot listening started: ${data.username}`);
+    // });
 
-    botManager.on('bot:listening:stopped', (data) => {
-      console.log(`🔇 Bot listening stopped: ${data.username}`);
-    });
+    // botManager.on('bot:listening:stopped', (data) => {
+    //   console.log(`🔇 Bot listening stopped: ${data.username}`);
+    // });
 
-    botManager.on('message:received', (data) => {
-      console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
-    });
+    // botManager.on('message:received', (data) => {
+    //   console.log(`📨 Message received from customer ${data.customerId}: ${data.type}`);
+    // });
 
-    botManager.on('bot:message:error', (data) => {
-      console.error(`❌ Bot message error for ${data.username}:`, data.error);
-    });
+    // botManager.on('bot:message:error', (data) => {
+    //   console.error(`❌ Bot message error for ${data.username}:`, data.error);
+    // });
 
     dailyMessagingService.on('birthday:sent', (data) => {
       console.log(`🎂 Birthday message sent to ${data.chatId} (${data.customerName}): "${data.message}"`);
@@ -189,11 +190,11 @@ const initializeApp = async () => {
       console.log('🛑 Birthday messaging scheduler stopped');
     });
 
-    await botManager.syncWithDatabase();
+    // await botManager.syncWithDatabase();
     
     setInterval(async () => {
       try {
-        await botManager.syncWithDatabase();
+        // await botManager.syncWithDatabase();
       } catch (error) {
         console.error('❌ Periodic sync failed:', error);
       }
@@ -270,6 +271,7 @@ const PORT = process.env.PORT || 3000;
   app.use('/api/reels', reelsRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/posts', postsRoutes);
+  app.use('/api/email-broadcast', emailBroadcastRoutes);
 
   // Webhook для бота «Доступ к ТГ и макс каналу» (без auth, тело — Telegram Update)
   app.post('/api/telegram-max-channel/webhook', tgChannelWebhookMiddleware);

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 
 import Customer from "../models/customer.model";
+import ClubMember from "../models/clubMember.model";
 
 import { generatePassword } from "../utils/customers";
 import { AuthRequest } from "../interfaces/authRequest";
@@ -115,14 +116,39 @@ export const deleteCustomer = async (req: Request, res: Response): Promise<void>
 export const getMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { user } = req;
-    
+
+    if (user?.role === "club_member" && user.clubMemberId) {
+      const member = await ClubMember.findById(user.clubMemberId).select("-password");
+      if (!member) {
+        res.status(404).json({ message: "Club profile not found" });
+        return;
+      }
+      res.status(200).json({
+        message: "Club member profile data",
+        profile: {
+          _id: member._id,
+          username: member.username,
+          tariff: member.tariff,
+          subscriptionStatus: member.subscriptionStatus,
+          subscriptionEndsAt: member.subscriptionEndsAt,
+          createdAt: member.createdAt,
+          updatedAt: member.updatedAt
+        },
+        tokenData: {
+          clubMemberId: user.clubMemberId,
+          username: user.username
+        }
+      });
+      return;
+    }
+
     if (!user || user.role !== "customer" || !user.customerId) {
       res.status(403).json({ message: "Forbidden: Only customers can access their profile" });
       return;
     }
 
     const customer = await Customer.findById(user.customerId).select("-password");
-    
+
     if (!customer) {
       res.status(404).json({ message: "Customer profile not found" });
       return;
@@ -158,7 +184,12 @@ export const getMyProfile = async (req: AuthRequest, res: Response): Promise<voi
 export const updateMyProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { user } = req;
-    
+
+    if (user?.role === "club_member") {
+      res.status(403).json({ message: "Редактирование профиля платформы недоступно для аккаунта клуба" });
+      return;
+    }
+
     if (!user || user.role !== "customer" || !user.customerId) {
       res.status(403).json({ message: "Forbidden: Only customers can update their profile" });
       return;

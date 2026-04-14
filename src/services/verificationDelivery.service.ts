@@ -96,3 +96,43 @@ export async function sendRegistrationVerificationCode({ channel, target, code }
 
   await sendEmailVerificationCode(target, code);
 }
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function roughStripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Письмо с тем же SMTP, что и коды регистрации (админская рассылка). */
+export async function sendAdminTransactionalMail(params: {
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+}): Promise<void> {
+  const transporter = getSmtpTransporter();
+  const from = "noreply@botprorok.ru";
+
+  const plain =
+    params.text?.trim() ||
+    roughStripHtml(params.html || "") ||
+    "Сообщение в HTML-формате.";
+
+  const htmlPart =
+    params.html?.trim() ||
+    `<div style="font-family:Arial,Helvetica,sans-serif;white-space:pre-wrap;">${escapeHtml(params.text || "")}</div>`;
+
+  await transporter.sendMail({
+    from,
+    to: params.to,
+    subject: params.subject,
+    text: plain,
+    html: htmlPart,
+  });
+}
