@@ -70,11 +70,18 @@ export const getLinkProdamusTgMax = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
+    const frontendBase = (process.env.FRONTEND_PUBLIC_URL || "https://botprorok.ru").replace(/\/$/, "");
+    const isClubMember = user.role === "club_member";
+    const urlReturn = isClubMember ? `${frontendBase}/club/pay` : `${frontendBase}/`;
+    const urlSuccess = isClubMember
+      ? `${frontendBase}/club/pay/success`
+      : `${frontendBase}/notification/success`;
+
     const link = createProdamusPayLink("astroxenia", {
       customer_extra: payerId,
       subscription: 2775978,
-      urlReturn: "https://botprorok.ru/",
-      urlSuccess: "https://botprorok.ru/notification/success"
+      urlReturn,
+      urlSuccess,
     });
 
     res.status(200).json({
