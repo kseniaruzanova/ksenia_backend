@@ -87,6 +87,45 @@ export const getLinkProdamusTgMax = async (req: AuthRequest, res: Response): Pro
   }
 };
 
+/** Prodamus шлёт либо плоские ключи subscription[...] (form), либо вложенный объект subscription (JSON). */
+function readProdamusSubscription(data: any): {
+  subscriptionId: string;
+  activeUser: string | undefined;
+  dateNextPayment: string | undefined;
+} | null {
+  const nested =
+    data?.subscription && typeof data.subscription === "object" && !Array.isArray(data.subscription)
+      ? data.subscription
+      : null;
+
+  const fromFlat = data?.["subscription[id]"];
+  const fromNested = nested?.id;
+  const subscriptionId =
+    fromFlat !== undefined && fromFlat !== null && String(fromFlat).trim() !== ""
+      ? String(fromFlat).trim()
+      : fromNested !== undefined && fromNested !== null && String(fromNested).trim() !== ""
+        ? String(fromNested).trim()
+        : "";
+
+  if (!subscriptionId) return null;
+
+  let activeUser: string | undefined;
+  if (data?.["subscription[active_user]"] !== undefined && data?.["subscription[active_user]"] !== null) {
+    activeUser = String(data["subscription[active_user]"]);
+  } else if (nested?.active_user !== undefined && nested?.active_user !== null) {
+    activeUser = String(nested.active_user);
+  }
+
+  let dateNextPayment: string | undefined;
+  if (data?.["subscription[date_next_payment]"]) {
+    dateNextPayment = String(data["subscription[date_next_payment]"]);
+  } else if (nested?.date_next_payment) {
+    dateNextPayment = String(nested.date_next_payment);
+  }
+
+  return { subscriptionId, activeUser, dateNextPayment };
+}
+
 /**
  * Универсальный webhook для обработки всех типов платежей от Prodamus
  * Определяет тип платежа и вызывает соответствующую логику
@@ -97,7 +136,7 @@ export const handleProdamusWebhook = async (req: Request, res: Response) => {
     console.log("📩 Prodamus webhook received:", JSON.stringify(data, null, 2));
 
     // Определяем тип платежа по наличию специфических полей
-    const isSubscription = data["subscription[id]"] !== undefined;
+    const isSubscription = readProdamusSubscription(data) !== null;
     const paymentType = data._param_payment_type;
     const isUserSubscriptionPayment = paymentType === 'user_subscription';
     const isTarotPayment =
@@ -157,7 +196,12 @@ const processSubscriptionPayment = async (data: any, res: Response) => {
       });
     }
 
-    const subscriptionId = String(data["subscription[id]"] ?? "");
+    const subFields = readProdamusSubscription(data);
+    if (!subFields) {
+      return res.status(400).json({ error: "Missing subscription id (flat or nested subscription object)" });
+    }
+
+    const { subscriptionId, activeUser, dateNextPayment } = subFields;
 
     // Определяем тариф
     let tariff: "basic" | "pro" | "tg_max" | undefined;
@@ -169,20 +213,18 @@ const processSubscriptionPayment = async (data: any, res: Response) => {
       tariff = "tg_max";
     }
 
-    console.log(`Tariff: ${tariff} (subscription[id]=${subscriptionId})`);
+    console.log(`Tariff: ${tariff} (subscription id=${subscriptionId})`);
 
     // Определяем статус
     const status =
-      data.payment_status === "success" && data["subscription[active_user]"] === "1"
+      data.payment_status === "success" && String(activeUser ?? "") === "1"
         ? "active"
         : "inactive";
 
     console.log(`Status: ${status}`);
 
     // Дата окончания подписки
-    const subscriptionEndsAt = data["subscription[date_next_payment]"]
-      ? new Date(data["subscription[date_next_payment]"])
-      : null;
+    const subscriptionEndsAt = dateNextPayment ? new Date(dateNextPayment) : null;
 
     console.log(`Subscription ends at: ${subscriptionEndsAt}`);
 
